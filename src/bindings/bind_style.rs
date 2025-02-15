@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use crate::bindings::forward::dynamic::frame_texture::TextureRenderSide;
 use crate::bindings::forward::dynamic::buffer::RenderSide as DynamicRenderSide;
+use crate::bindings::sampler::Sampler;
+use crate::images::port::InstanceTicket;
 /*
 Defines the way resources are bound for a render pass.
  */
@@ -97,7 +99,6 @@ impl BindSlot {
     }
 }
 use crate::images::StaticTextureTicket;
-use crate::images::SamplerTicket;
 
 #[derive(Debug,Clone)]
 pub(crate) struct TextureBindInfo {
@@ -128,7 +129,7 @@ pub enum SampleType {
     /**
     Placeholder value.
 */
-    Sample(SamplerTicket),
+    Sample(InstanceTicket<Sampler>),
 }
 
 

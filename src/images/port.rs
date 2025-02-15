@@ -52,7 +52,6 @@ pub(crate) enum InternalStaticTextureTicket {
 #[derive(Debug,Clone)] pub  struct StaticTextureTicket(pub(crate) InternalStaticTextureTicket);
 
 
-#[derive(Debug,Clone)] pub struct SamplerTicket(pub(crate) InstanceTicket<Sampler>);
 /**
 This type is provided to render passes to perform their internal operations.
 

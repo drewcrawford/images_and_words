@@ -11,7 +11,7 @@ pub(crate) mod engine;
 pub(crate) mod surface;
 pub mod port;
 
-pub use port::{PassClient, StaticTextureTicket, SamplerTicket};
+pub use port::{PassClient, StaticTextureTicket};
 
 pub(crate) mod camera;
 mod shader;
