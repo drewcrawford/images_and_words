@@ -8,7 +8,6 @@ pub mod render_pass;
 pub(crate) mod device;
 pub(crate) mod engine;
 
-pub(crate) mod surface;
 pub mod port;
 
 pub use port::{PassClient, StaticTextureTicket};

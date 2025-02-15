@@ -12,6 +12,7 @@ impl View {
                 let size = surface.size().await;
                 (size.width() as u16,size.height() as u16)
             }
+            _ => todo!(),
         }
     }
 

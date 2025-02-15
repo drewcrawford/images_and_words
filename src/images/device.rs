@@ -5,7 +5,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use crate::entry_point::{EntryPoint, EntryPointError};
-use crate::images::surface::{Surface, SurfaceStrategy};
+use crate::images::view::View;
 use crate::imp;
 
 ///Cross-platform unbound device, images edition
@@ -20,13 +20,10 @@ impl UnboundDevice {
         imp_unbound::UnboundDevice::for_unit_testing(entry_point).map(|d| UnboundDevice(d)).map_err(|e| PickError(e))
     }
     ///Pick a device for the associated surface
-    pub fn pick(surface:&Surface,entry_point: &EntryPoint) -> Result<UnboundDevice,PickError> {
-        crate::imp::UnboundDevice::pick(surface,entry_point).map(|d| UnboundDevice(d)).map_err(|e| PickError(e))
+    pub fn pick(view: &View,entry_point: &EntryPoint) -> Result<UnboundDevice,PickError> {
+        crate::imp::UnboundDevice::pick(view,entry_point).map(|d| UnboundDevice(d)).map_err(|e| PickError(e))
     }
 
-    pub fn surface_strategy(&self) -> &SurfaceStrategy {
-        SurfaceStrategy::reinterpret(self.0.surface_strategy())
-    }
 }
 
 #[derive(Debug)]

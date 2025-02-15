@@ -4,7 +4,6 @@ use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
 use crate::images::device::BoundDevice;
 use crate::images::render_pass::PassTrait;
-use crate::images::surface::{Surface,SurfaceStrategy};
 use crate::images::Engine;
 use crate::bindings::forward::r#static::texture::Texture;
 use crate::pixel_formats::{R32Float, R8UNorm, RGBA16Unorm, RGBA8UNorm, RGFloat, BGRA8UNormSRGB};
@@ -16,6 +15,7 @@ use slotmap::{DefaultKey, SlotMap};
 use crate::bittricks::{u16s_to_u32, u32_to_u16s};
 use crate::images::frame::Frame;
 use crate::images::projection::{Projection, WorldCoord};
+use crate::images::view::View;
 use crate::imp;
 
 
@@ -338,12 +338,12 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
 
 
 impl Port {
-    pub fn new(engine: &Arc<Engine>, surface: Surface, initial_surface_strategy: SurfaceStrategy, initial_camera_position: WorldCoord,window_size: (u16,u16)) -> Result<Self,Error> {
+    pub fn new(engine: &Arc<Engine>, view: View, initial_camera_position: WorldCoord,window_size: (u16,u16)) -> Result<Self,Error> {
         let camera = Camera::new(window_size, initial_camera_position);
         let (port_sender,port_reporter) = port_reporter(0, &camera);
 
         Ok(Self{
-            imp: crate::imp::Port::new(engine, surface, initial_surface_strategy.clone(),  camera,port_sender).map_err(|e| Error(e))?,
+            imp: crate::imp::Port::new(engine, view,  camera,port_sender).map_err(|e| Error(e))?,
             port_reporter,
         })
     }

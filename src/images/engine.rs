@@ -5,7 +5,6 @@ use crate::entry_point::{EntryPoint, EntryPointError};
 use crate::images::device::{BindError, PickError, UnboundDevice};
 use crate::images::port::Port;
 use crate::images::projection::WorldCoord;
-use crate::images::surface::{Error, Surface};
 use crate::images::view::View;
 use crate::imp;
 
@@ -28,9 +27,7 @@ impl Engine {
         let entry_point =   Arc::new(EntryPoint::new().await?);
         let initial_size = view.size().await;
 
-        let surface = Surface::new(view,&entry_point)?;
-        let unbound_device = UnboundDevice::pick(&surface,&entry_point)?;
-        let surface_strategy = unbound_device.surface_strategy().clone();
+        let unbound_device = UnboundDevice::pick(&view,&entry_point)?;
         let bound_device = BoundDevice::bind(unbound_device,entry_point.clone())?;
         let initial_port = Mutex::new(None);
         let imp = crate::imp::Engine::rendering_to_view(&bound_device).await;
@@ -40,7 +37,7 @@ impl Engine {
             _entry_point: entry_point,
             _engine: imp,
         });
-        let final_port = Port::new(&r, surface, surface_strategy, initial_camera_position, initial_size).unwrap();
+        let final_port = Port::new(&r, view, initial_camera_position, initial_size).unwrap();
         r.main_port.lock().unwrap().replace(final_port);
         Ok(r)
     }
@@ -82,8 +79,6 @@ fn compile_check() {
 pub enum CreateError {
     #[error("Can't create engine {0}")]
     EntryPointError(#[from] EntryPointError),
-    #[error("Can't create surface {0}")]
-    SurfaceError(#[from] Error),
     #[error("Can't find a GPU {0}")]
     GPUError(#[from] PickError),
     #[error("Can't bind GPU {0}")]

@@ -25,16 +25,7 @@ impl UnboundDevice {
 }
 
 impl UnboundDevice {
-    pub fn pick(_surface: &crate::images::surface::Surface, _entry_point: &crate::entry_point::EntryPoint) -> Result<UnboundDevice,Error> {
-        todo!()
-    }
-}
-
-#[derive(Debug)]
-pub struct Surface;
-
-impl Surface {
-    pub(crate) fn new(_p0: View, _p1: &Arc<crate::entry_point::EntryPoint>) -> Result<Self,Error>{
+    pub fn pick(_view: &View, _entry_point: &crate::entry_point::EntryPoint) -> Result<UnboundDevice,Error> {
         todo!()
     }
 }
@@ -43,7 +34,7 @@ impl Surface {
 pub struct Port;
 
 impl Port {
-    pub(crate) fn new(_engine: &Arc<crate::images::Engine>, _surface: crate::images::surface::Surface, _initial_surface_strategy: crate::images::surface::SurfaceStrategy, _camera: Camera, _port_reporter_send:PortReporterSend) -> Result<Self,Error> {
+    pub(crate) fn new(_engine: &Arc<crate::images::Engine>, _view: View, _camera: Camera, _port_reporter_send:PortReporterSend) -> Result<Self,Error> {
         todo!()
     }
 }
