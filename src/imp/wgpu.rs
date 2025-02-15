@@ -9,15 +9,13 @@ use crate::images::port::PortReporterSend;
 use crate::images::render_pass::PassTrait;
 use crate::images::view::View;
 use crate::pixel_formats::PixelFormat;
-use crate::Priority;
+use crate::{Priority};
 
-#[derive(Debug)]
-pub struct EntryPoint;
-impl EntryPoint {
-    pub async fn new() -> Result<Self,Error> {
-        todo!()
-    }
-}
+mod entry_point;
+
+pub use entry_point::EntryPoint;
+
+
 pub struct UnboundDevice;
 
 impl UnboundDevice {
