@@ -1,0 +1,94 @@
+use std::ops::{Deref, DerefMut};
+use std::sync::{Arc, Mutex};
+use crate::images::device::BoundDevice;
+use crate::entry_point::{EntryPoint, EntryPointError};
+use crate::images::device::{BindError, PickError, UnboundDevice};
+use crate::images::port::Port;
+use crate::images::surface::{Error, Surface};
+use crate::images::view::View;
+use crate::imp;
+
+#[derive(Debug)]
+pub struct Engine {
+    //note that drop order is significant here.
+    ///engine's main rendering port.
+    /// Wrapped in a Mutex so that we can mutate this overlapped with accessing device and entry_point.
+    /// Note that we can't use RefCell because we want to be able to access this from multiple threads.
+    main_port: Mutex<Option<Port>>,
+    //device we bound to this engine.  Arc because it gets moved into the render_thread.
+    device: Arc<BoundDevice>,
+    _entry_point: Arc<EntryPoint>,
+    _engine: crate::imp::Engine,
+
+}
+
+impl Engine {
+    pub async fn rendering_to<'this>(view: View, initial_camera_position: vectormatrix::vector::Vector<f32, 3>) -> Result<Arc<Self>,CreateError> {
+        let entry_point =   Arc::new(EntryPoint::new().await?);
+        let initial_size = view.size();
+
+        let surface = Surface::new(view,&entry_point)?;
+        let unbound_device = UnboundDevice::pick(&surface,&entry_point)?;
+        let surface_strategy = unbound_device.surface_strategy().clone();
+        let bound_device = BoundDevice::bind(unbound_device,entry_point.clone())?;
+        let initial_port = Mutex::new(None);
+        let imp = crate::imp::Engine::rendering_to_view(&bound_device).await;
+        let r = Arc::new(Engine{
+            main_port: initial_port,
+            device: bound_device,
+            _entry_point: entry_point,
+            _engine: imp,
+        });
+        let final_port = Port::new(&r, surface, surface_strategy, initial_camera_position, initial_size).unwrap();
+        r.main_port.lock().unwrap().replace(final_port);
+        Ok(r)
+    }
+    pub fn main_port_mut(&self) -> PortGuard<'_> {
+        PortGuard{ guard: self.main_port.lock().unwrap() }
+    }
+    pub fn bound_device(&self) -> &Arc<BoundDevice> {
+        &self.device
+    }
+}
+/**
+An opaque guard type for ports.
+*/
+pub struct PortGuard<'a> {
+    guard: std::sync::MutexGuard<'a, Option<Port>>
+}
+impl Deref for PortGuard<'_> {
+    type Target = Port;
+
+    fn deref(&self) -> &Self::Target {
+        self.guard.as_ref().unwrap()
+    }
+}
+impl DerefMut for PortGuard<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.guard.as_mut().unwrap()
+    }
+}
+
+
+
+fn assert_send_sync<T: Send + Sync>() {}
+#[allow(dead_code)]
+fn compile_check() {
+    assert_send_sync::<Engine>();
+}
+
+#[derive(Debug,thiserror::Error)]
+pub enum CreateError {
+    #[error("Can't create engine {0}")]
+    EntryPointError(#[from] EntryPointError),
+    #[error("Can't create surface {0}")]
+    SurfaceError(#[from] Error),
+    #[error("Can't find a GPU {0}")]
+    GPUError(#[from] PickError),
+    #[error("Can't bind GPU {0}")]
+    BindError(#[from] BindError),
+    #[error("Can't create port {0}")]
+    PortError(#[from] super::port::Error),
+    #[error("Implementation error {0}")]
+    ImpError(#[from] imp::Error),
+}
