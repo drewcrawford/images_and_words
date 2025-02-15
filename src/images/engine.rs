@@ -23,11 +23,12 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub async fn rendering_to<'this>(view: View, initial_camera_position: WorldCoord) -> Result<Arc<Self>,CreateError> {
+    pub async fn rendering_to<'this>(mut view: View, initial_camera_position: WorldCoord) -> Result<Arc<Self>,CreateError> {
         let entry_point =   Arc::new(EntryPoint::new().await?);
+        view.provide_entry_point(&entry_point).await.expect("Can't provide entry point");
         let initial_size = view.size().await;
 
-        let unbound_device = UnboundDevice::pick(&view,&entry_point)?;
+        let unbound_device = UnboundDevice::pick(&view,&entry_point).await?;
         let bound_device = BoundDevice::bind(unbound_device,entry_point.clone())?;
         let initial_port = Mutex::new(None);
         let imp = crate::imp::Engine::rendering_to_view(&bound_device).await;

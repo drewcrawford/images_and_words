@@ -20,8 +20,8 @@ impl UnboundDevice {
         imp_unbound::UnboundDevice::for_unit_testing(entry_point).map(|d| UnboundDevice(d)).map_err(|e| PickError(e))
     }
     ///Pick a device for the associated surface
-    pub fn pick(view: &View,entry_point: &EntryPoint) -> Result<UnboundDevice,PickError> {
-        crate::imp::UnboundDevice::pick(view,entry_point).map(|d| UnboundDevice(d)).map_err(|e| PickError(e))
+    pub async fn pick(view: &View,entry_point: &EntryPoint) -> Result<UnboundDevice,PickError> {
+        crate::imp::UnboundDevice::pick(view,entry_point).await.map(|d| UnboundDevice(d)).map_err(|e| PickError(e))
     }
 
 }

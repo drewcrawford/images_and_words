@@ -1,13 +1,14 @@
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use raw_window_handle::RawDisplayHandle;
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::{CPUStrategy, TextureUsage};
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::PassTrait;
-use crate::images::view::View;
+use crate::images::view::View as CrateView;
 use crate::pixel_formats::PixelFormat;
 use crate::Priority;
 
@@ -32,7 +33,14 @@ impl UnboundDevice {
     }
 }
 
+pub struct View {
 
+}
+impl View {
+    pub async fn from_surface(entrypoint: &crate::entry_point::EntryPoint, raw_window_handle: raw_window_handle::RawWindowHandle, raw_display_handle: RawDisplayHandle) -> Result<Self, Error> {
+        todo!()
+    }
+}
 #[derive(Debug)]
 pub struct Port;
 

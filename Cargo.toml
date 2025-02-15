@@ -17,6 +17,7 @@ slotmap = "1.0.7"
 vec_parallel = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/vec_parallel.git", features = ["some_executor"]}
 async_file = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/async_file.git"}
 test_executors = "0.3.2"
+raw-window-handle = "0.6.2"
 
 # optional
 app_window = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/app_window.git", optional=true}

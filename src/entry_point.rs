@@ -5,7 +5,7 @@ use crate::imp;
 
 #[derive(Debug)]
 pub struct EntryPoint(
-    crate::imp::EntryPoint,
+    pub(crate) crate::imp::EntryPoint,
 );
 ///platform-independent error type
 #[derive(Debug)]

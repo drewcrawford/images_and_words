@@ -7,34 +7,26 @@ use crate::bindings::visible_to::{CPUStrategy, TextureUsage};
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::PassTrait;
-use crate::images::view::View;
+use crate::images::view::View as CrateView;
 use crate::pixel_formats::PixelFormat;
 use crate::{Priority};
 
 mod entry_point;
+mod unbound_device;
+mod view;
+mod error;
 
 pub use entry_point::EntryPoint;
+pub use unbound_device::UnboundDevice;
+pub use view::View;
+pub use error::Error;
 
-
-pub struct UnboundDevice;
-
-impl UnboundDevice {
-    pub(crate) fn surface_strategy(&self) -> &SurfaceStrategy {
-        todo!()
-    }
-}
-
-impl UnboundDevice {
-    pub fn pick(_view: &View, _entry_point: &crate::entry_point::EntryPoint) -> Result<UnboundDevice,Error> {
-        todo!()
-    }
-}
 
 #[derive(Debug)]
 pub struct Port;
 
 impl Port {
-    pub(crate) fn new(_engine: &Arc<crate::images::Engine>, _view: View, _camera: Camera, _port_reporter_send:PortReporterSend) -> Result<Self,Error> {
+    pub(crate) fn new(_engine: &Arc<crate::images::Engine>, _view: CrateView, _camera: Camera, _port_reporter_send:PortReporterSend) -> Result<Self,Error> {
         todo!()
     }
 }
@@ -80,14 +72,6 @@ impl Engine {
         todo!()
     }
 }
-#[derive(Debug)]
-pub struct Error;
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Error")
-    }
-}
-impl std::error::Error for Error {}
 
 #[derive(Clone)]
 pub struct SurfaceStrategy;
