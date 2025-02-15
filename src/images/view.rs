@@ -5,8 +5,14 @@ enum Impl {
 
 pub struct View(Impl);
 impl View {
-    pub(crate) fn size(&self) -> (u16,u16) {
-        todo!()
+    pub(crate) async fn size(&self) -> (u16,u16) {
+        match &self.0 {
+            #[cfg(feature = "app_window")]
+            Impl::AppWindow(surface) => {
+                let size = surface.size().await;
+                (size.width() as u16,size.height() as u16)
+            }
+        }
     }
 
     /**

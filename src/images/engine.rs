@@ -26,7 +26,7 @@ pub struct Engine {
 impl Engine {
     pub async fn rendering_to<'this>(view: View, initial_camera_position: WorldCoord) -> Result<Arc<Self>,CreateError> {
         let entry_point =   Arc::new(EntryPoint::new().await?);
-        let initial_size = view.size();
+        let initial_size = view.size().await;
 
         let surface = Surface::new(view,&entry_point)?;
         let unbound_device = UnboundDevice::pick(&surface,&entry_point)?;
