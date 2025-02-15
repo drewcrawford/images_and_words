@@ -15,7 +15,7 @@ use std::time::{Instant};
 use slotmap::{DefaultKey, SlotMap};
 use crate::bittricks::{u16s_to_u32, u32_to_u16s};
 use crate::images::frame::Frame;
-use crate::images::projection::Projection;
+use crate::images::projection::{Projection, WorldCoord};
 use crate::imp;
 
 
@@ -25,16 +25,15 @@ pub struct InstanceTicket<T> {
     slot: slotmap::DefaultKey,
     _phantom: std::marker::PhantomData<T>,
 }
+impl<T> Copy for InstanceTicket<T> {}
+
 impl<T> Clone for InstanceTicket<T> {
     fn clone(&self) -> Self {
-        Self {
-            slot: self.slot,
-            _phantom: std::marker::PhantomData,
-        }
+        *self
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Copy)]
 pub(crate) enum InternalStaticTextureTicket {
     R32Float(InstanceTicket<Texture<R32Float>>),
     RGBA16UNorm(InstanceTicket<Texture<RGBA16Unorm>>),
@@ -49,7 +48,7 @@ pub(crate) enum InternalStaticTextureTicket {
 //dynamic textures have a guard type when they're popped, and we want to resolve that to some
 //specific type inside the port.
 
-#[derive(Debug,Clone)] pub  struct StaticTextureTicket(pub(crate) InternalStaticTextureTicket);
+#[derive(Debug,Clone,Copy)] pub  struct StaticTextureTicket(pub(crate) InternalStaticTextureTicket);
 
 
 /**
@@ -339,7 +338,7 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
 
 
 impl Port {
-    pub fn new(engine: &Arc<Engine>, surface: Surface, initial_surface_strategy: SurfaceStrategy, initial_camera_position: vectormatrix::vector::Vector<f32, 3>,window_size: (u16,u16)) -> Result<Self,Error> {
+    pub fn new(engine: &Arc<Engine>, surface: Surface, initial_surface_strategy: SurfaceStrategy, initial_camera_position: WorldCoord,window_size: (u16,u16)) -> Result<Self,Error> {
         let camera = Camera::new(window_size, initial_camera_position);
         let (port_sender,port_reporter) = port_reporter(0, &camera);
 

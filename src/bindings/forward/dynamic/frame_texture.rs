@@ -1,7 +1,7 @@
 /*! Cross-platform frame_texture */
 
 use std::future::Future;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use crate::bindings::software::texture::Texel;
@@ -17,6 +17,19 @@ pub struct FrameTextureDelivery;
 #[derive(Debug)]
 pub struct FrameTextureProduct<Format>(Format);
 
+impl<Format> FrameTextureProduct<Format> {
+    pub fn width(&self) -> u16 {
+        todo!()
+    }
+    pub fn height(&self) -> u16 {
+        todo!()
+    }
+    /**A fast path for setting the entire texture to a single value.*/
+    pub fn clear(&mut self,color: Format::CPixel) where Format: PixelFormat {
+        todo!()
+    }
+}
+
 
 #[derive(Debug)]
 pub struct FrameTexture<Format: PixelFormat>{
@@ -28,6 +41,35 @@ pub struct FrameTexture<Format: PixelFormat>{
     height: u16,
 }
 
+impl<Format: PixelFormat> Index<Texel> for FrameTextureProduct<Format> {
+    type Output = Format::CPixel;
+
+    fn index(&self, index: Texel) -> &Self::Output {
+        todo!()
+    }
+}
+
+impl<Format: PixelFormat> IndexMut<Texel> for FrameTextureProduct<Format> {
+    fn index_mut(&mut self, index: Texel) -> &mut Self::Output {
+        todo!()
+    }
+}
+
+impl<Format: PixelFormat> FrameTextureProduct<Format> {
+    /**
+    A fast path for iterating over pixel addresses.  You can read or write each pixel as desired.
+
+    This function is substantially faster than Index for bulk operations because we can eliminate bounds checking on a per-pixel basis.
+
+    * start: The starting texel
+    * past_end: The texel after the last one to iterate over.  This will be bounds-checked against the texture size.
+    * f: A function that will be called for each pixel.  It will be passed the pixel address and the texel.  You can read or write
+    the pixel as desired.
+    */
+    pub fn blend<Blend: Fn(Texel, &mut Format::CPixel)>(&mut self, start: Texel, past_end: Texel,blend: Blend) {
+        todo!()
+    }
+}
 #[derive(Debug)]
 pub struct CPUAccess<Format: PixelFormat>(ProducerWriteGuard<FrameTextureProduct<Format>>);
 impl<Format: PixelFormat> Deref for CPUAccess<Format> {

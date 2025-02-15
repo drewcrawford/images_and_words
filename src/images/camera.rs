@@ -2,7 +2,7 @@
 
 use std::sync::{Arc, Mutex};
 use vectormatrix::vector::Vector;
-use crate::images::projection::Projection;
+use crate::images::projection::{Projection, WorldCoord};
 
 #[derive(Debug)]
 pub struct Camera {
@@ -10,7 +10,7 @@ pub struct Camera {
     When updating these, we also need to update the matrix.
      */
     window_size: (u16,u16),
-    camera_position: Vector<f32, 3>,
+    camera_position: WorldCoord,
     projection: Arc<Mutex<Projection>>,
 }
 impl Camera {
@@ -43,7 +43,7 @@ impl Camera {
     fn rematrix(&mut self) {
         self.projection = Arc::new(Mutex::new(Projection::new(self.camera_position, self.window_size.0, self.window_size.1)));
     }
-    pub fn new(window_size: (u16,u16), initial_position: Vector<f32, 3>) -> Camera {
+    pub fn new(window_size: (u16,u16), initial_position: WorldCoord) -> Camera {
         let initial_projection = Projection::new(initial_position, window_size.0, window_size.1);
         Self {
 

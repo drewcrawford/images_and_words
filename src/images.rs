@@ -14,9 +14,9 @@ pub mod port;
 pub use port::{PassClient, StaticTextureTicket};
 
 pub(crate) mod camera;
-mod shader;
-pub(crate) mod view;
-mod projection;
+pub mod shader;
+pub mod view;
+pub mod projection;
 mod frame;
 
 pub use device::BoundDevice;

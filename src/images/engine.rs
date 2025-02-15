@@ -4,6 +4,7 @@ use crate::images::device::BoundDevice;
 use crate::entry_point::{EntryPoint, EntryPointError};
 use crate::images::device::{BindError, PickError, UnboundDevice};
 use crate::images::port::Port;
+use crate::images::projection::WorldCoord;
 use crate::images::surface::{Error, Surface};
 use crate::images::view::View;
 use crate::imp;
@@ -23,7 +24,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub async fn rendering_to<'this>(view: View, initial_camera_position: vectormatrix::vector::Vector<f32, 3>) -> Result<Arc<Self>,CreateError> {
+    pub async fn rendering_to<'this>(view: View, initial_camera_position: WorldCoord) -> Result<Arc<Self>,CreateError> {
         let entry_point =   Arc::new(EntryPoint::new().await?);
         let initial_size = view.size();
 

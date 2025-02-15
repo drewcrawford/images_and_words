@@ -112,6 +112,9 @@ impl<Element> Product<Element> {
     pub fn new<I: Fn(usize) -> Element>(_bound_device: &crate::images::BoundDevice, _size: usize, _write_frequency: WriteFrequency, _cpu_strategy: CPUStrategy, _debug_name: &str, _initialize_with: I) -> Vec<Self> {
         todo!()
     }
+    pub fn write(&mut self, index: usize, element: Element) {
+        todo!()
+    }
 }
 #[derive(Debug,Clone)]
 pub struct Delivery;
