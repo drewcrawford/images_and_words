@@ -1,0 +1,31 @@
+use std::sync::Arc;
+use wgpu::Limits;
+use crate::imp::Error;
+
+#[derive(Debug)]
+pub struct BoundDevice {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+}
+
+impl BoundDevice {
+    pub(crate) async fn bind(unbound_device: crate::images::device::UnboundDevice, entry_point: Arc<crate::entry_point::EntryPoint>)-> Result<Self,Error>{
+        let label = wgpu::Label::from("Bound Device");
+        let descriptor = wgpu::DeviceDescriptor {
+            label,
+            required_features: Default::default(),
+            //todo: choose better limits?
+            required_limits: Limits::downlevel_defaults(),
+            memory_hints: Default::default(),
+        };
+        let (device,q) = unbound_device.0.adapter.request_device(&descriptor, None).await?;
+
+        Ok(
+            BoundDevice {
+                device,
+                queue: q,
+            }
+        )
+
+    }
+}

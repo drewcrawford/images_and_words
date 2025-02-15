@@ -28,7 +28,7 @@ impl UnboundDevice {
 }
 
 impl UnboundDevice {
-    pub fn pick(_surface: &crate::images::view::View, _entry_point: &crate::entry_point::EntryPoint) -> Result<UnboundDevice,Error> {
+    pub async fn pick(_surface: &crate::images::view::View, _entry_point: &crate::entry_point::EntryPoint) -> Result<UnboundDevice,Error> {
         todo!()
     }
 }

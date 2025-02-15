@@ -15,11 +15,13 @@ mod entry_point;
 mod unbound_device;
 mod view;
 mod error;
+mod bound_device;
 
 pub use entry_point::EntryPoint;
 pub use unbound_device::UnboundDevice;
 pub use view::View;
-pub use error::Error;
+pub(crate) use error::Error;
+pub use bound_device::BoundDevice;
 
 
 #[derive(Debug)]
@@ -56,14 +58,7 @@ impl<Format> FrameTexture<Format> {
         todo!()
     }
 }
-#[derive(Debug)]
-pub struct BoundDevice;
 
-impl BoundDevice {
-    pub(crate) fn bind(_unbound_device: crate::images::device::UnboundDevice, _entry_point: Arc<crate::entry_point::EntryPoint>)-> Result<Arc<Self>,Error>{
-        todo!()
-    }
-}
 
 #[derive(Debug)]
 pub struct Engine;

@@ -29,7 +29,7 @@ impl Engine {
         let initial_size = view.size().await;
 
         let unbound_device = UnboundDevice::pick(&view,&entry_point).await?;
-        let bound_device = BoundDevice::bind(unbound_device,entry_point.clone())?;
+        let bound_device = Arc::new(BoundDevice::bind(unbound_device,entry_point.clone()).await?);
         let initial_port = Mutex::new(None);
         let imp = crate::imp::Engine::rendering_to_view(&bound_device).await;
         let r = Arc::new(Engine{

@@ -10,7 +10,7 @@ use crate::imp;
 
 ///Cross-platform unbound device, images edition
 pub(crate) struct UnboundDevice(
-    crate::imp::UnboundDevice,
+    pub(crate) crate::imp::UnboundDevice,
 );
 impl UnboundDevice {
     ///Creates a device for unit testing.
@@ -88,12 +88,9 @@ impl BoundDevice {
     /*
     Vulkan prefers to create this impl as Arc because it points to itself internally.
      */
-    pub(crate) fn bind(unbound_device: UnboundDevice, entry_point: Arc<EntryPoint>) -> Result<Arc<Self>,BindError> {
-        let bind = crate::imp::BoundDevice::bind(unbound_device, entry_point).map_err(|e| BindError(e))?;
-        let take = Arc::into_inner(bind).expect("bound device should not be moved");
-        Ok(Arc::new(Self(take)))
-
-
+    pub(crate) async fn bind(unbound_device: UnboundDevice, entry_point: Arc<EntryPoint>) -> Result<Self,BindError> {
+        let bind = crate::imp::BoundDevice::bind(unbound_device, entry_point).await.map_err(|e| BindError(e))?;
+        Ok(Self(bind))
     }
 
     #[cfg(target_os = "windows")] //seems unused on macos?

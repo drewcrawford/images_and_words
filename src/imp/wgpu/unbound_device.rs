@@ -1,6 +1,8 @@
 use crate::images::view::View;
 
-pub struct UnboundDevice;
+pub struct UnboundDevice {
+    pub(super) adapter: wgpu::Adapter,
+}
 
 impl UnboundDevice {
     pub async fn pick(view: &View, entry_point: &crate::entry_point::EntryPoint) -> Result<UnboundDevice,super::Error> {
@@ -11,7 +13,10 @@ impl UnboundDevice {
             compatible_surface: Some(&view.imp.as_ref().expect("View not initialized").surface),
         };
         let adapter = entry_point.0.0.request_adapter(&options).await;
-        let adapter = adapter.ok_or(super::Error::NoSuchAdapter);
-        Ok(UnboundDevice)
+        let adapter = adapter.ok_or(super::Error::NoSuchAdapter)?;
+
+        Ok(UnboundDevice {
+            adapter,
+        })
     }
 }
