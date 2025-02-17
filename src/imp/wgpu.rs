@@ -22,6 +22,7 @@ mod port;
 mod pixel_format;
 mod texture;
 mod sampler;
+mod buffer;
 
 pub use entry_point::EntryPoint;
 pub use unbound_device::UnboundDevice;
@@ -33,6 +34,7 @@ pub use port::Port;
 pub use pixel_format::PixelFormat;
 pub use texture::Texture;
 pub use sampler::Sampler;
+pub use buffer::Buffer;
 
 
 
@@ -54,15 +56,6 @@ pub struct SurfaceStrategy;
 pub struct FrameTextureProduct<Format>(PhantomData<Format>);
 #[derive(Debug,Clone)]
 pub struct FrameTextureDelivery;
-pub struct Product<Element>(Element);
 
-impl<Element> Product<Element> {
-    pub fn new<I: Fn(usize) -> Element>(_bound_device: &crate::images::BoundDevice, _size: usize, _write_frequency: WriteFrequency, _cpu_strategy: CPUStrategy, _debug_name: &str, _initialize_with: I) -> Vec<Self> {
-        todo!()
-    }
-    pub fn write(&mut self, _index: usize, _element: Element) {
-        todo!()
-    }
-}
 #[derive(Debug,Clone)]
 pub struct Delivery;

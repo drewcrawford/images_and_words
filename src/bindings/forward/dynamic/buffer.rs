@@ -1,11 +1,16 @@
 /*! Dynamic buffer implementation.
 
 A dynamic buffer is data we expect to change dynamically.
-It is not necessarily any frame, the exact optimizations are passed by argument.
+It is not necessarily every frame, the exact optimizations are passed by argument.
 */
+
+use std::fmt::{Display, Formatter};
 use std::future::Future;
-use std::ops::{Deref, DerefMut};
+use std::marker::PhantomData;
+use std::mem::MaybeUninit;
+use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::sync::Arc;
+use log::debug;
 use crate::bindings::visible_to::CPUStrategy;
 use crate::images::BoundDevice;
 use crate::imp;
@@ -16,8 +21,8 @@ pub enum WriteFrequency {
     Infrequent,
 }
 pub struct Buffer<Element> {
-    producer: Producer<imp::Product<Element>>,
-    render_side: Option<RenderSide>,
+    //?
+    element: PhantomData<Element>,
 }
 #[derive(Debug)]
 pub struct RenderSide {
@@ -37,43 +42,94 @@ impl Deref for GPUBorrow {
         &self.0
     }
 }
-pub struct CPUAccess<Element>(ProducerWriteGuard<imp::Product<Element>>);
-impl<Element> Deref for CPUAccess<Element> {
-    type Target = imp::Product<Element>;
+pub struct CPUBorrow<Element>(Element);
+impl<Element> Index<usize> for CPUBorrow<Element> {
+    type Output = Element;
 
-    fn deref(&self) -> &Self::Target {
-        self.0.deref()
+    fn index(&self, index: usize) -> &Self::Output {
+        todo!()
     }
 }
-impl<Element> DerefMut for CPUAccess<Element> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.deref_mut()
+
+pub struct CPUBorrowMut<Element>(Element);
+
+impl<Element> Index<usize> for CPUBorrowMut<Element> {
+    type Output = Element;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        todo!()
     }
 }
+
+impl<Element> IndexMut<usize> for CPUBorrowMut<Element> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        todo!()
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub struct Error(#[from] imp::Error);
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+
+
 
 impl<Element> Buffer<Element> {
-    pub fn new<I: Fn(usize) -> Element>(bound_device: &Arc<BoundDevice>, size: usize, write_frequency: WriteFrequency, cpu_strategy: CPUStrategy, debug_name: &str, initialize_with:I) -> Self {
-        let products = imp::Product::new(bound_device, size, write_frequency, cpu_strategy, debug_name, initialize_with);
-        let (producer,receiver) = multibuffer(products);
-        Self {
-            producer,
-            render_side: Some(RenderSide {
-                receiver,
-            })
+    pub fn new<I: Fn(usize) -> Element>(bound_device: &Arc<BoundDevice>, size: usize, write_frequency: WriteFrequency, cpu_strategy: CPUStrategy, debug_name: &str, initialize_with:I) -> Result<Self,Error> {
+        match write_frequency {
+            WriteFrequency::Infrequent => {/* Not sure what to do here but possibly we load into map_type somehow?*/}
         }
+        let map_type = match cpu_strategy {
+            CPUStrategy::ReadsFrequently => {
+                crate::bindings::buffer_access::MapType::ReadWrite
+            }
+            CPUStrategy::WontRead => {
+                crate::bindings::buffer_access::MapType::Read //read-only!
+            }
+        };
+        let byte_size = size * std::mem::size_of::<Element>();
+
+        let buffer = imp::Buffer::new(bound_device, byte_size, map_type, debug_name, |byte_array| {
+           assert_eq!(byte_array.len(),byte_size);
+            //transmute to element type
+            let as_elements: &mut [MaybeUninit<Element>] = unsafe {
+                std::slice::from_raw_parts_mut(byte_array.as_mut_ptr() as *mut MaybeUninit<Element>, size)
+            };
+            for (i,element) in as_elements.iter_mut().enumerate() {
+                *element = MaybeUninit::new(initialize_with(i));
+            }
+            //represent that we initialized the buffer!
+
+            unsafe {
+                std::slice::from_raw_parts_mut(byte_array.as_mut_ptr() as *mut u8, byte_size)
+            }
+        })?;
+
+        Ok(Self {
+            element: PhantomData,
+        })
     }
     /**
     Dequeues a texture.  Resumes when a texture is available.
      */
-    pub fn dequeue<'s>(&'s mut self) -> impl Future<Output=CPUAccess<Element>> + 's where Element: Send {
+    pub fn access_read<'s>(&'s mut self) -> impl Future<Output=CPUBorrow<Element>> + 's where Element: Send {
         async {
-            let guard = self.producer.borrow_write().await;
-            CPUAccess(guard)
+            todo!()
         }
     }
+    pub fn access_write<'s>(&'s mut self) -> impl Future<Output=CPUBorrowMut<Element>> + 's where Element: Send {
+        async {
+            todo!()
+        }
+    }
+
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */
     pub fn render_side(&mut self) -> RenderSide {
-        self.render_side.take().unwrap()
+        todo!()
     }
 
     /**
@@ -84,7 +140,11 @@ impl<Element> Buffer<Element> {
 
     There is currently no support for atomically submitting two different textures together, mt2-471.
      */
-    pub fn submit<'s>(&'s mut self, cpu_access: CPUAccess<Element>) -> impl Future<Output=()> + 's {
-        self.producer.submit(cpu_access.0)
+    pub fn submit<'s>(&'s mut self, cpu_access: CPUBorrow<Element>) -> impl Future<Output=()> + 's {
+        async { todo!() }
+    }
+
+    pub fn submit_mut<'s>(&'s mut self, cpu_access: CPUBorrowMut<Element>) -> impl Future<Output=()> + 's {
+        async { todo!() }
     }
 }

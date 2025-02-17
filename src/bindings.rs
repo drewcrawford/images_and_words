@@ -9,3 +9,4 @@ pub mod visible_to;
 pub mod coordinates;
 pub mod software;
 pub mod buffer_types;
+pub(crate) mod buffer_access;
