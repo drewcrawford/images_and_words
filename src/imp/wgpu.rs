@@ -39,13 +39,7 @@ pub use buffer::Buffer;
 
 
 
-#[derive(Debug)]
-pub struct FrameTexture<Format>(Format);
-impl<Format> FrameTexture<Format> {
-    pub async fn new<I>(_bound_device: &crate::images::BoundDevice, _width: u16, _height: u16, _visible_to: TextureUsage, _cpu_strategy: CPUStrategy, _debug_name: &str, _initialize_with: I, _priority: Priority) -> (Self, Vec<crate::bindings::forward::dynamic::frame_texture::FrameTextureProduct<Format>>) {
-        todo!()
-    }
-}
+
 
 
 

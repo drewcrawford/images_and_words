@@ -1,4 +1,7 @@
-/*! Cross-platform frame_texture */
+/*! Cross-platform frame_texture
+
+ This represents a dynamic bitmap-like image.
+ */
 
 use std::future::Future;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
@@ -33,9 +36,7 @@ impl<Format> FrameTextureProduct<Format> {
 
 #[derive(Debug)]
 pub struct FrameTexture<Format: PixelFormat>{
-    _imp: imp::FrameTexture<Format>,
-    producer: Producer<FrameTextureProduct<Format>>,
-    receiver: Option<Receiver<FrameTextureDelivery>>,
+    _imp: imp::Texture<Format>,
     shared: Arc<Shared>,
     width: u16,
     height: u16,
@@ -134,12 +135,10 @@ impl TextureRenderSide {
 
 impl<Format: PixelFormat> FrameTexture<Format> {
     pub async fn new<I: Fn(Texel) -> Format::CPixel>(bound_device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, cpu_strategy: CPUStrategy, debug_name: &str, initialize_with: I, priority: Priority) -> Self  {
-        let (frame_texture,products) = crate::imp::FrameTexture::new(bound_device, width, height, visible_to, cpu_strategy, debug_name, initialize_with, priority).await;
-        let (producer,receiver) = multibuffer(products);
+
+        let underlying_texture = imp::Texture::new(bound_device, width, height, visible_to, debug_name, priority, initialize_with).await.unwrap();
         Self {
-            _imp: frame_texture,
-            producer,
-            receiver: Some(receiver),
+            _imp: underlying_texture,
             shared: Arc::new(Shared {
                 render_side: AtomicBool::new(false),
             }),
@@ -151,8 +150,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
      */
     pub fn dequeue<'s>(&'s mut self) -> impl Future<Output=CPUAccess<Format>> + 's {
         async {
-            let tex = self.producer.borrow_write().await;
-            CPUAccess(tex)
+            todo!()
         }
     }
     /**
@@ -161,7 +159,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     If no texture has ever been submitted to the GPU, returns any initialized texture.
      */
     pub fn last(&self) -> CPUBorrow<Format> {
-        CPUBorrow(self.producer.borrow_last_read())
+        todo!()
     }
     /**
     Returns the CPUAccess and marks the contents as ready for GPU submission.
@@ -172,7 +170,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     There is currently no support for atomically submitting two different textures together, mt2-471.
      */
     pub fn submit<'s>(&'s mut self, cpu_access: CPUAccess<Format>) -> impl Future<Output=()> + 's {
-        self.producer.submit(cpu_access.0)
+        async { todo!() }
     }
 
     /**
@@ -180,10 +178,11 @@ impl<Format: PixelFormat> FrameTexture<Format> {
 */
     pub fn render_side(&mut self) -> TextureRenderSide {
         self.shared.render_side.store(true, std::sync::atomic::Ordering::Relaxed);
-        TextureRenderSide {
-            receiver: self.receiver.take().unwrap(),
-            shared: self.shared.clone(),
-        }
+        // TextureRenderSide {
+        //     receiver: self.receiver.take().unwrap(),
+        //     shared: self.shared.clone(),
+        // }
+        todo!()
     }
     pub fn width(&self) -> u16 {
         self.width
