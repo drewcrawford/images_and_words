@@ -21,6 +21,7 @@ mod engine;
 mod port;
 mod pixel_format;
 mod texture;
+mod sampler;
 
 pub use entry_point::EntryPoint;
 pub use unbound_device::UnboundDevice;
@@ -31,18 +32,10 @@ pub use engine::Engine;
 pub use port::Port;
 pub use pixel_format::PixelFormat;
 pub use texture::Texture;
+pub use sampler::Sampler;
 
 
 
-
-#[derive(Debug)]
-pub struct Sampler;
-
-impl Sampler {
-    pub fn new(_bound_device: &crate::images::BoundDevice, _coordinate_type: SamplerType) -> Result<Self,Error> {
-        todo!()
-    }
-}
 
 #[derive(Debug)]
 pub struct FrameTexture<Format>(Format);
