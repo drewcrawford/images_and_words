@@ -1,18 +1,24 @@
 pub struct FragmentShader {
-
+    //may need additional type design for future backends
+    wgsl_code: String,
 }
 pub struct VertexShader {
-
+    //may need additional type design for future backends
+    wgsl_code: String,
 }
 
 impl FragmentShader {
-    pub fn new() -> Self {
-        todo!()
+    pub fn new(wgsl_code: String) -> Self {
+        Self {
+            wgsl_code
+        }
     }
 }
 
 impl VertexShader {
-    pub fn new() -> Self {
-        todo!()
+    pub fn new(wgsl_code: String) -> Self {
+        Self {
+            wgsl_code
+        }
     }
 }
