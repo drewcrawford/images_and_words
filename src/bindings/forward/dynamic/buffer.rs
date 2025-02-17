@@ -26,11 +26,11 @@ pub struct Buffer<Element> {
 }
 #[derive(Debug)]
 pub struct RenderSide {
-    receiver: Receiver<imp::Delivery>
+
 }
 impl RenderSide {
     pub(crate) fn dequeue(&mut self) -> GPUBorrow {
-        GPUBorrow(self.receiver.receive())
+        todo!()
     }
 }
 #[derive(Debug,Clone)]
@@ -129,7 +129,7 @@ impl<Element> Buffer<Element> {
 
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */
     pub fn render_side(&mut self) -> RenderSide {
-        todo!()
+        RenderSide {}
     }
 
     /**
