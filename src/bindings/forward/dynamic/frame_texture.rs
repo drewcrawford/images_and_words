@@ -37,7 +37,6 @@ impl<Format> FrameTextureProduct<Format> {
 #[derive(Debug)]
 pub struct FrameTexture<Format: PixelFormat>{
     _imp: imp::Texture<Format>,
-    shared: Arc<Shared>,
     width: u16,
     height: u16,
 }
@@ -95,11 +94,6 @@ impl<'a, Format: PixelFormat> Deref for CPUBorrow<Format> {
     }
 }
 
-#[derive(Debug)]
-struct Shared {
-    ///Whether a renderside is alive.
-    render_side: AtomicBool,
-}
 
 /**
 An opaque type associated with a [FrameTexture].  Represents the part of the texture on the "render side".
@@ -108,13 +102,7 @@ Can be passed to a [crate::bindings::BindStyle].
 */
 #[derive(Debug)]
 pub struct TextureRenderSide {
-    receiver: Receiver<FrameTextureDelivery>,
-    shared: Arc<Shared>,
-}
-impl Drop for TextureRenderSide {
-    fn drop(&mut self) {
-        self.shared.render_side.store(false, std::sync::atomic::Ordering::Relaxed);
-    }
+
 }
 #[derive(Debug,Clone)]
 pub(crate) struct GPUBorrow(pub(crate) ReceiverReadGuard<FrameTextureDelivery>);
@@ -127,7 +115,7 @@ impl Deref for GPUBorrow {
 }
 impl TextureRenderSide {
     pub(crate) fn dequeue_render(&mut self) -> GPUBorrow {
-        GPUBorrow(self.receiver.receive())
+        todo!()
     }
 }
 
@@ -139,9 +127,6 @@ impl<Format: PixelFormat> FrameTexture<Format> {
         let underlying_texture = imp::Texture::new(bound_device, width, height, visible_to, debug_name, priority, initialize_with).await.unwrap();
         Self {
             _imp: underlying_texture,
-            shared: Arc::new(Shared {
-                render_side: AtomicBool::new(false),
-            }),
             width, height,
         }
     }
@@ -177,12 +162,9 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     Gets an associated [TextureRenderSide] for this texture.
 */
     pub fn render_side(&mut self) -> TextureRenderSide {
-        self.shared.render_side.store(true, std::sync::atomic::Ordering::Relaxed);
-        // TextureRenderSide {
-        //     receiver: self.receiver.take().unwrap(),
-        //     shared: self.shared.clone(),
-        // }
-        todo!()
+        TextureRenderSide {
+
+        }
     }
     pub fn width(&self) -> u16 {
         self.width
@@ -192,12 +174,3 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     }
 }
 
-impl<Format: PixelFormat> Drop for FrameTexture<Format> {
-    fn drop(&mut self) {
-        /*
-        Generally we aren't necessarily performing memory management in the renderloop.  For this reason you have to keep FrameTexture
-        alive until the renderloop is done.
-         */
-        assert!(!self.shared.render_side.load(std::sync::atomic::Ordering::Relaxed), "FrameTexture dropped while renderside still active");
-    }
-}
