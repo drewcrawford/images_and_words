@@ -1,6 +1,7 @@
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use wgpu::{Extent3d, TextureDescriptor, TextureDimension};
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::{CPUStrategy, TextureUsage};
@@ -8,7 +9,7 @@ use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::PassTrait;
 use crate::images::view::View as CrateView;
-use crate::pixel_formats::PixelFormat;
+use crate::pixel_formats::sealed::PixelFormat as CratePixelFormat;
 use crate::{Priority};
 
 mod entry_point;
@@ -16,31 +17,23 @@ mod unbound_device;
 mod view;
 mod error;
 mod bound_device;
+mod engine;
+mod port;
+mod pixel_format;
+mod texture;
 
 pub use entry_point::EntryPoint;
 pub use unbound_device::UnboundDevice;
 pub use view::View;
 pub(crate) use error::Error;
 pub use bound_device::BoundDevice;
+pub use engine::Engine;
+pub use port::Port;
+pub use pixel_format::PixelFormat;
+pub use texture::Texture;
 
 
-#[derive(Debug)]
-pub struct Port;
 
-impl Port {
-    pub(crate) fn new(_engine: &Arc<crate::images::Engine>, _view: CrateView, _camera: Camera, _port_reporter_send:PortReporterSend) -> Result<Self,Error> {
-        todo!()
-    }
-}
-
-impl Port {
-    pub async fn add_fixed_pass<const N: usize, P: PassTrait<N>>(&mut self, _p: P) -> P::DescriptorResult {
-        todo!()
-    }
-    pub async fn start(&mut self) -> Result<(),Error> {
-        todo!()
-    }
-}
 
 #[derive(Debug)]
 pub struct Sampler;
@@ -60,13 +53,7 @@ impl<Format> FrameTexture<Format> {
 }
 
 
-#[derive(Debug)]
-pub struct Engine;
-impl Engine {
-    pub async fn rendering_to_view(_bound_device: &Arc<crate::images::BoundDevice>) -> Self {
-        todo!()
-    }
-}
+
 
 #[derive(Clone)]
 pub struct SurfaceStrategy;
@@ -86,10 +73,3 @@ impl<Element> Product<Element> {
 }
 #[derive(Debug,Clone)]
 pub struct Delivery;
-#[derive(Debug)]
-pub struct Texture<Format>(Format);
-impl<Format: PixelFormat> Texture<Format> {
-    pub async fn new(_bound_device: &crate::images::BoundDevice, _width: u16, _height: u16, _visible_to: TextureUsage, _data: &[Format::CPixel], _debug_name: &str, _priority: Priority) -> Result<Self, Error> {
-        todo!()
-    }
-}

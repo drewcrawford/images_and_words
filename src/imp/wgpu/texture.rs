@@ -1,0 +1,61 @@
+use std::marker::PhantomData;
+use wgpu::{Extent3d, TextureDescriptor, TextureDimension};
+use wgpu::util::{DeviceExt, TextureDataOrder};
+use crate::bindings::visible_to::TextureUsage;
+use crate::imp::Error;
+use crate::pixel_formats::pixel_as_bytes;
+use crate::Priority;
+
+impl TextureUsage {
+    pub const fn wgpu_usage(&self) -> wgpu::TextureUsages {
+        match self {
+            TextureUsage::FragmentShaderRead => {
+                wgpu::TextureUsages::TEXTURE_BINDING
+            }
+            TextureUsage::VertexShaderRead => {
+                wgpu::TextureUsages::TEXTURE_BINDING
+            }
+            TextureUsage::VertexAndFragmentShaderRead => {
+                wgpu::TextureUsages::TEXTURE_BINDING
+            }
+            TextureUsage::FragmentShaderSample => {
+                wgpu::TextureUsages::TEXTURE_BINDING
+            }
+            TextureUsage::VertexShaderSample => {
+                wgpu::TextureUsages::TEXTURE_BINDING
+            }
+            TextureUsage::VertexAndFragmentShaderSample => {
+                wgpu::TextureUsages::TEXTURE_BINDING
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Texture<Format> {
+    format: PhantomData<Format>,
+}
+impl<Format: crate::pixel_formats::sealed::PixelFormat> Texture<Format> {
+    pub async fn new(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, data: &[Format::CPixel], debug_name: &str, _priority: Priority) -> Result<Self, Error> {
+        let texture_descriptor = TextureDescriptor {
+            label: Some(debug_name),
+            size: Extent3d {
+                width: width.into(),
+                height: height.into(),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1, //?
+            sample_count: 1, //?
+            dimension: TextureDimension::D2,
+            format: Format::WGPU_FORMAT,
+            usage:visible_to.wgpu_usage(),
+            view_formats: &[], //?
+        };
+        let data_order = TextureDataOrder::default(); //?
+        let texture = bound_device.0.device.create_texture_with_data(&bound_device.0.queue, &texture_descriptor, data_order, pixel_as_bytes(data));
+
+        Ok(Self {
+            format: PhantomData,
+        })
+    }
+}

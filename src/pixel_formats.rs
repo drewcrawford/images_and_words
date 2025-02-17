@@ -34,30 +34,48 @@ pub(crate) mod png_support;
 
 use std::fmt::Debug;
 use tgar::PixelBGRA;
+use crate::pixel_formats::sealed::{PixelFormat, ReprC};
 
+pub(crate) mod sealed {
+    use std::fmt::Debug;
 
-pub trait PixelFormat: std::fmt::Debug + Send + Sync + 'static {
-    const BYTES_PER_PIXEL: u8;
-    ///A type we can use.  Guaranteed to have correct memory layout.
-    type CPixel: Clone + Debug + Send;
+    pub trait PixelFormat: std::fmt::Debug + Send + Sync + 'static + crate::imp::PixelFormat {
+        const BYTES_PER_PIXEL: u8;
+        ///A type we can use.  Guaranteed to have correct memory layout.
+        type CPixel: Clone + Debug + Send + ReprC;
+    }
+    /**
+    Marker trait that indicates that the type has a C-compatible memory layout.
+    */
+    pub unsafe trait ReprC {
+
+    }
 }
+
+pub(crate) fn pixel_as_bytes<T: ReprC> (t: &[T]) -> &[u8] {
+    //safe because we know that T is repr(C)
+    //(we offloaded the safety check to the ReprC trait)
+    unsafe {
+        std::slice::from_raw_parts(t.as_ptr() as *const u8, t.len() * std::mem::size_of::<T>())
+    }
+}
+
+
 
 #[derive(Debug,Clone)]
 pub struct R8UNorm;
 impl PixelFormat for R8UNorm {
     const BYTES_PER_PIXEL: u8 = 1;
     type CPixel = u8;
-
-
 }
+
+unsafe impl ReprC for u8 {}
 
 #[derive(Debug,Clone)]
 pub struct RGBA16Unorm;
 impl PixelFormat for RGBA16Unorm {
     const BYTES_PER_PIXEL: u8 = 2 * 4;
     type CPixel = RGBA16Pixel;
-
-
 }
 
 #[derive(Debug,Clone)]
@@ -74,6 +92,7 @@ pub struct RGFloatPixel {
     pub r: f32,
     pub g: f32,
 }
+unsafe impl ReprC for RGFloatPixel {}
 
 #[repr(C)]
 #[derive(Clone,Debug)]
@@ -83,6 +102,7 @@ pub struct RGBA16Pixel {
     b: u16,
     a: u16,
 }
+unsafe impl ReprC for RGBA16Pixel {}
 
 #[derive(Debug,Clone)]
 ///32-bit signed integer type, R channel
@@ -92,6 +112,7 @@ impl PixelFormat for R32SInt {
     type CPixel = i32;
 
 }
+unsafe impl ReprC for i32 {}
 
 #[derive(Debug,Clone)]
 ///Single-precision float format.  This is sampleable on Metal.
@@ -100,8 +121,9 @@ impl PixelFormat for R32Float {
     const BYTES_PER_PIXEL: u8 = 4;
     type CPixel = f32;
 
-
 }
+unsafe impl ReprC for f32 {}
+
 ///C-compatible 4-field u8 type
 #[repr(C)]
 #[derive(Clone,Debug)]
@@ -111,6 +133,7 @@ pub struct Unorm4 {
     pub b: u8,
     pub a: u8
 }
+unsafe impl ReprC for Unorm4 {}
 impl Unorm4 {
     pub fn from_floats(float4: Float4) -> Self {
         Unorm4 {
@@ -142,8 +165,6 @@ pub struct RGBA8UNorm;
 impl PixelFormat for RGBA8UNorm {
     const BYTES_PER_PIXEL: u8 = 4;
     type CPixel = Unorm4;
-
-
 }
 
 
@@ -166,6 +187,7 @@ pub struct BGRA8UnormPixelSRGB {
     pub r: u8,
     pub a: u8,
 }
+unsafe impl ReprC for BGRA8UnormPixelSRGB {}
 impl BGRA8UnormPixelSRGB {
     pub const ZERO: BGRA8UnormPixelSRGB = Self { b: 0, g: 0, r: 0, a: 0 };
     #[inline] pub fn from_srgb_gamma_floats(r: f32, g: f32, b: f32, a: f32) -> Self {
@@ -213,6 +235,7 @@ pub struct Float4 {
     pub a: f32,
 }
 
+unsafe impl ReprC for Float4 {}
 impl From<BGRA8UnormPixelSRGB> for Float4 {
     fn from(c: BGRA8UnormPixelSRGB) -> Self {
         let r_s = c.r as f32 / 255.0;
@@ -263,8 +286,6 @@ pub struct RGBA32Float;
 impl PixelFormat for RGBA32Float {
     const BYTES_PER_PIXEL: u8 = 16;
     type CPixel = Float4;
-
-
 }
 #[derive(Debug,Clone)]
 pub struct RGBA8UnormSRGB;
@@ -272,6 +293,8 @@ impl PixelFormat for RGBA8UnormSRGB {
     const BYTES_PER_PIXEL: u8 = 4;
     type CPixel = RGBA8UnormSRGBPixel;
 }
+
+unsafe impl ReprC for RGBA8UnormSRGBPixel {}
 /**
 Currently only used for png support. */
 #[repr(C)]

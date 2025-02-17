@@ -355,33 +355,6 @@ impl Port {
 
     There is currently no way to remove a pass.  mt2-243
 
-    # Implementation
-
-    Our compilation model is different in Metal vs Vulkan.
-
-    Broadly speaking there are two stages:
-
-    1.  Compiling each function into an individual object file for the stage, (vulkan: *shader module*, metal: *function*)
-
-        This generally consists of a separate object file for vertex vs fragment stages.
-    2.  Coordinating those object files into a render pass.  (vulkan: *pipeline* and *render pass*, metal: *pipeline state object*)
-
-    As an extra complication, on Vulkan, the pipeline depends on the swapchain and must be rebuilt when we rebuild the swapchain,
-    a.k.a. on window resize.  On Metal, the PSO depends on the render target index(es) but not the actual size or anything.
-
-    ## Desired
-
-    I think the implementation we want (not necessarily the one we have) is
-
-    1.  Calling this function compiles the individual objects.  (Currently, this is deferred on vulkan.)
-
-        async: This needs to be async on metal (compilation is async) and async on vulkan (file I/O is async, but not compilation.  Maybe we fix this?)
-    2.  Calling [Self::start] builds the pipeline/PSO.
-
-        async: This is async on metal at least, I think vulkan is sync.
-    3.  There needs to be some other function, like a `restart` method, that rebuilds pipelines from some batched [Self::add_fixed_pass] calls.
-
-        async: this is async for the reason in 2.
     */
 
     pub async fn add_fixed_pass<'s, const DESCRIPTORS: usize, P: PassTrait<DESCRIPTORS> + 'static>(&'s mut self, pass: P) -> P::DescriptorResult  {

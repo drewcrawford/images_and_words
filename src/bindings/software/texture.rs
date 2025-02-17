@@ -6,8 +6,9 @@ use some_executor::hint::Hint;
 use vec_parallel::Strategy;
 use crate::bindings::software::texture::scaled_32::Scaled32;
 use crate::bindings::software::texture::vtexture::VTexture;
-use crate::pixel_formats::{Float4, PixelFormat};
+use crate::pixel_formats::{Float4};
 use crate::pixel_formats::png_support::PngPixelFormat;
+use crate::pixel_formats::sealed::PixelFormat;
 
 pub mod scaled_iterator;
 pub mod scaled_row_cell;
@@ -236,9 +237,8 @@ impl<Format: PixelFormat> Texture<Format> {
             let t = Texel::from_vec_offset(width, index);
             initialize_with(t)
         });
-        let mut clone_box = some_executor::thread_executor::thread_executor(|executor| {
-            executor.expect("thread executor").clone_box()
-        });
+        let mut clone_box = some_executor::current_executor::current_executor();
+
         let f = build_vec.spawn_on(&mut clone_box, priority, Hint::CPU);
 
         let vec = f.await;

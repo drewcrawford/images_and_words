@@ -7,7 +7,7 @@ use std::sync::atomic::AtomicBool;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::{CPUStrategy, TextureUsage};
 use crate::images::device::BoundDevice;
-use crate::pixel_formats::PixelFormat;
+use crate::pixel_formats::sealed::PixelFormat;
 use crate::{imp, Priority};
 use crate::multibuffer::{multibuffer, Producer, ProducerReadGuard, ProducerWriteGuard, Receiver, ReceiverReadGuard};
 

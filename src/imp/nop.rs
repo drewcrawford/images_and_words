@@ -79,7 +79,7 @@ impl<Format> FrameTexture<Format> {
 pub struct BoundDevice;
 
 impl BoundDevice {
-    pub(crate) fn bind(_unbound_device: crate::images::device::UnboundDevice, _entry_point: Arc<crate::entry_point::EntryPoint>)-> Result<Arc<Self>,Error>{
+    pub(crate) async fn bind(_unbound_device: crate::images::device::UnboundDevice, _entry_point: Arc<crate::entry_point::EntryPoint>)-> Result<Self,Error>{
         todo!()
     }
 }

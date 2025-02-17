@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::bindings::visible_to::TextureUsage;
 use crate::images::device::BoundDevice;
 use crate::{imp, Priority};
-use crate::pixel_formats::PixelFormat;
+use crate::pixel_formats::sealed::PixelFormat;
 
 #[cfg(target_os = "windows")]
 use crate::vulkan::forward::r#static::texture as imp;

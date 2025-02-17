@@ -6,7 +6,7 @@ such as a function that generates pixel values.
  */
 
 use crate::bindings::software::texture::{Texel};
-use crate::pixel_formats::PixelFormat;
+use crate::pixel_formats::sealed::PixelFormat;
 
 pub trait VTexture<Format: PixelFormat> {
     fn width(&self) -> u16;

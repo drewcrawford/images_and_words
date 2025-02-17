@@ -4,8 +4,8 @@ use crate::imp::Error;
 
 #[derive(Debug)]
 pub struct BoundDevice {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    pub(super) device: wgpu::Device,
+    pub(super) queue: wgpu::Queue,
 }
 
 impl BoundDevice {
