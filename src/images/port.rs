@@ -200,6 +200,11 @@ impl PortReporter {
     pub fn cpu_ms(&self) -> &Arc<Mutex<i32>> {
         &self.cpu_ms
     }
+
+    //awaits the completion of the next frame.
+    pub async fn await_frame(&self) {
+        todo!()
+    }
 }
 
 #[derive(Debug)]

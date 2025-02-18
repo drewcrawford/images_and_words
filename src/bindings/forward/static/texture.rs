@@ -8,8 +8,6 @@ use crate::bindings::software::texture::Texel;
 use crate::bindings::software::texture::vtexture::VTexture;
 use crate::pixel_formats::sealed::PixelFormat;
 
-#[cfg(target_os = "windows")]
-use crate::vulkan::forward::r#static::texture as imp;
 
 /**
 Cross-platform, forward, static texture.*/
@@ -28,7 +26,6 @@ impl Display for Error {
     }
 }
 impl<Format: PixelFormat> Texture<Format> {
-    ///- data: Layout for metal, not sure what it is.
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initialize_to: Initializer) -> Result<Self,Error>  {
         Ok(Self(imp::Texture::new(device, width, height, visible_to, debug_name, priority, initialize_to).await?))
     }
@@ -49,7 +46,6 @@ impl<Format: PixelFormat> Texture<Format> {
             slice[texel.y as usize * width as usize + texel.x as usize].clone()
         }).await
     }
-
 }
 
 
