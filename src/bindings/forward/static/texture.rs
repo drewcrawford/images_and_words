@@ -44,8 +44,10 @@ impl<Format: PixelFormat> Texture<Format> {
     pub async fn new_asset(_path: &Path, _bound_device: &Arc<BoundDevice>, _visible_to: TextureUsage, _mipmaps: bool,_debug_name: &str, _priority: Priority) -> Result<Self,Error> {
         todo!()
     }
-    pub async fn new_slice(_slice: &[u8], _bound_device: &Arc<BoundDevice>, _visible_to: TextureUsage, _mipmaps: bool, _debug_name: &str, _priority: Priority) -> Result<Self,Error> {
-        todo!()
+    pub async fn new_slice(slice: &[Format::CPixel], width: u16, bound_device: &Arc<BoundDevice>, visible_to: TextureUsage, mipmaps: bool, debug_name: &str, priority: Priority) -> Result<Self,Error> {
+        Self::new(bound_device, width, slice.len() as u16 / width, visible_to, debug_name, priority, |texel| {
+            slice[texel.y as usize * width as usize + texel.x as usize].clone()
+        }).await
     }
 
 }
