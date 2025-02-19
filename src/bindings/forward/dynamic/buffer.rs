@@ -95,6 +95,7 @@ impl<Element> Buffer<Element> {
             }
         };
         let byte_size = size * std::mem::size_of::<Element>();
+        assert_ne!(byte_size,0, "Zero-sized buffers are not allowed");
 
         let buffer = imp::Buffer::new(bound_device, byte_size, map_type, debug_name, |byte_array| {
            assert_eq!(byte_array.len(),byte_size);
