@@ -35,6 +35,7 @@ impl TextureUsage {
 #[derive(Debug)]
 pub struct Texture<Format> {
     format: PhantomData<Format>,
+    imp: wgpu::Texture,
 }
 impl<Format: crate::pixel_formats::sealed::PixelFormat> Texture<Format> {
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initializer: Initializer) -> Result<Self, Error> {
@@ -66,6 +67,10 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> Texture<Format> {
 
         Ok(Self {
             format: PhantomData,
+            imp: texture,
         })
     }
+
 }
+
+

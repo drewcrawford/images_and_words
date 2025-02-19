@@ -48,7 +48,13 @@ impl<Format> IndividualTexture<Format> {
     pub fn height(&self) -> u16 {
         self.height
     }
+
+    const fn index_for_texel(texel: Texel, width: u16) -> usize {
+        (texel.y as usize * width as usize) + texel.x as usize
+    }
 }
+
+
 
 impl<Format: PixelFormat> Index<Texel> for IndividualTexture<Format> {
     type Output = Format::CPixel;

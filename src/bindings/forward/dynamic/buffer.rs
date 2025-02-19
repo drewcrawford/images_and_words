@@ -19,6 +19,8 @@ use crate::multibuffer::{multibuffer, Producer, ProducerWriteGuard, Receiver, Re
 pub enum WriteFrequency {
     ///Significantly less than once per frame.
     Infrequent,
+    ///Roughly once per frame.
+    Frequent,
 }
 pub struct Buffer<Element> {
     //?
@@ -82,6 +84,7 @@ impl<Element> Buffer<Element> {
     pub fn new<I: Fn(usize) -> Element>(bound_device: &Arc<BoundDevice>, size: usize, write_frequency: WriteFrequency, cpu_strategy: CPUStrategy, debug_name: &str, initialize_with:I) -> Result<Self,Error> {
         match write_frequency {
             WriteFrequency::Infrequent => {/* Not sure what to do here but possibly we load into map_type somehow?*/}
+            WriteFrequency::Frequent => {/* Not sure what to do here but possibly we load into map_type somehow?*/}
         }
         let map_type = match cpu_strategy {
             CPUStrategy::ReadsFrequently => {
