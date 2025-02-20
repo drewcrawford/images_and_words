@@ -33,7 +33,9 @@ impl ResourceSpecialize {
 }
 #[derive(Debug)]
 pub struct PassDescriptor {
-    pub(crate) shader_name: String,
+    pub(crate) name: String,
+    pub(crate) vertex_shader: VertexShader,
+    pub(crate) fragment_shader: FragmentShader,
     #[allow(dead_code)] //todo: mt2-495
     pub(crate) resource_specialize: ResourceSpecialize,
     pub(crate) bind_style: BindStyle,
@@ -45,27 +47,23 @@ impl PassDescriptor {
     ///
     /// # parameters
     /// shader_name:
-    /// a.  on metal we append `_vtx` and `_frag` to get vertex and fragment shaders respectively.
-    /// b.  On Vulkan, we use vtx_spirv and frag_spirv to look up the shaders in the provided lightpack.
     /// `depth`: Whether to bind a depth texture to the render pass.
     /// ## Design note:
     /// We use Rust strings because we end up manipulating strings before passing to OS methods
-    pub fn new(shader_name: String, _vtx_spirv: VertexShader, _frag_spirv: FragmentShader, resource_specialize: ResourceSpecialize, bind_style: BindStyle,draw_command: DrawCommand,depth: bool, alpha: bool) -> Self {
+    pub fn new(name: String, vertex_shader: VertexShader, fragment_shader: FragmentShader, resource_specialize: ResourceSpecialize, bind_style: BindStyle,draw_command: DrawCommand,depth: bool, alpha: bool) -> Self {
         Self {
-            shader_name,
-            bind_style:bind_style,
-            #[cfg(target_os = "windows")]
-            vtx_spirv: _vtx_spirv,
-            #[cfg(target_os = "windows")]
-            frag_spirv: _frag_spirv,
+            name,
+            bind_style,
+            vertex_shader,
+            fragment_shader,
             resource_specialize,
             draw_command,
             depth,
             alpha
         }
     }
-    pub(crate) fn shader_name(&self) -> &str {
-        self.shader_name.as_str()
+    pub(crate) fn name(&self) -> &str {
+        self.name.as_str()
     }
 
     pub(crate) const fn draw_command(&self) -> &DrawCommand {

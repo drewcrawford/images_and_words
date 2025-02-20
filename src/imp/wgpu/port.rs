@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use wgpu::RenderPipelineDescriptor;
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::{PassDescriptor, PassTrait};
@@ -8,6 +9,21 @@ use crate::imp::Error;
 pub struct Port {
     engine: Arc<crate::images::Engine>,
     pass_descriptors: Vec<PassDescriptor>,
+}
+
+fn pass_descriptor_to_pipeline_descriptor(descriptor: &PassDescriptor) -> RenderPipelineDescriptor {
+    RenderPipelineDescriptor {
+        label: Some(descriptor.name()),
+        //https://docs.rs/wgpu/24.0.1/wgpu/struct.RenderPipelineDescriptor.html
+        layout: todo!(),
+        vertex: todo!(),
+        primitive: todo!(),
+        depth_stencil: todo!(),
+        multisample: todo!(),
+        fragment: todo!(),
+        multiview: todo!(),
+        cache: todo!(),
+    }
 }
 
 impl Port {
@@ -24,6 +40,10 @@ impl Port {
         result
     }
     pub async fn start(&mut self) -> Result<(),Error> {
+        for descriptor in &self.pass_descriptors {
+            let pipeline_descriptor = pass_descriptor_to_pipeline_descriptor(&descriptor);
+            todo!()
+        }
         todo!()
     }
 }
