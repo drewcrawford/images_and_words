@@ -7,7 +7,6 @@ use crate::images::render_pass::PassTrait;
 use crate::images::Engine;
 use crate::bindings::forward::r#static::texture::Texture;
 use crate::pixel_formats::{R32Float, R8UNorm, RGBA16Unorm, RGBA8UNorm, RGFloat, BGRA8UNormSRGB};
-use crate::bindings::sampler::Sampler;
 use std::sync::atomic::{Ordering,AtomicU32};
 use crate::images::camera::{Camera};
 use std::time::{Instant};
@@ -70,7 +69,6 @@ pub struct PassClient {
     pub(crate) texture_bgra8unorm_srgb: SlotMap<DefaultKey, Texture<BGRA8UNormSRGB>>,
     //frame textures
 
-    pub(crate) samplers: SlotMap<DefaultKey, Sampler>,
     bound_device: Arc<BoundDevice>,
 }
 impl PassClient {
@@ -92,9 +90,7 @@ impl PassClient {
     pub fn add_texture_r8unorm(&mut self, texture: Texture<R8UNorm>) -> StaticTextureTicket {
         StaticTextureTicket(InternalStaticTextureTicket::R8UNorm(InstanceTicket{slot: self.texture_r8unorm.insert(texture), _phantom: std::marker::PhantomData} ))
     }
-    pub fn add_sampler(&mut self, sampler: Sampler) -> InstanceTicket<Sampler> {
-        InstanceTicket{slot: self.samplers.insert(sampler), _phantom: std::marker::PhantomData}
-    }
+
 
     pub(crate) fn new(bound_device: Arc<BoundDevice>) -> Self {
         PassClient {
@@ -104,7 +100,6 @@ impl PassClient {
             texture_rgba8unorm: SlotMap::new(),
             texture_r8unorm: SlotMap::new(),
             texture_bgra8unorm_srgb: SlotMap::new(),
-            samplers: SlotMap::new(),
             bound_device,
         }
     }

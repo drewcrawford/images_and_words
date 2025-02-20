@@ -15,13 +15,13 @@ pub struct Port {
 fn pass_descriptor_to_pipeline_descriptor(bind_device: &crate::images::BoundDevice, descriptor: &PassDescriptor) -> RenderPipelineDescriptor<'static> {
     let mut layouts = Vec::new();
 
-    for (slot,render_side) in descriptor.bind_style().buffers() {
-        let stage = match slot.stage {
+    for (pass_index, info) in &descriptor.bind_style().binds {
+        let stage = match info.stage {
             crate::bindings::bind_style::Stage::Fragment => wgpu::ShaderStages::FRAGMENT,
             crate::bindings::bind_style::Stage::Vertex => wgpu::ShaderStages::VERTEX,
         };
         let layout = BindGroupLayoutEntry {
-            binding: slot.pass_index,
+            binding: *pass_index,
             visibility: stage,
             ty: BindingType::Buffer {
                 ty: BufferBindingType::Storage {
@@ -33,29 +33,6 @@ fn pass_descriptor_to_pipeline_descriptor(bind_device: &crate::images::BoundDevi
             count: None, //not array
         };
         layouts.push(layout);
-    }
-    for bind_info in descriptor.bind_style().texture_style().static_textures() {
-        let stage = match bind_info.slot.stage {
-            crate::bindings::bind_style::Stage::Fragment => wgpu::ShaderStages::FRAGMENT,
-            crate::bindings::bind_style::Stage::Vertex => wgpu::ShaderStages::VERTEX,
-        };
-        let layout = BindGroupLayoutEntry {
-            binding: bind_info.slot.pass_index,
-            visibility: stage,
-            ty: BindingType::Texture {
-                sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                view_dimension: wgpu::TextureViewDimension::D1, // ??
-                multisampled: false,
-            },
-            count: None,
-        };
-        layouts.push(layout);
-    }
-    if descriptor.bind_style().binds_camera_matrix {
-        todo!()
-    }
-    if descriptor.bind_style().frame_counter.is_some() {
-        todo!()
     }
 
     let bind_group_layout = bind_device.0.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
