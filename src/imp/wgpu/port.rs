@@ -1,5 +1,6 @@
+use std::num::NonZero;
 use std::sync::Arc;
-use wgpu::{BindGroupLayoutEntry, PipelineLayoutDescriptor, RenderPipelineDescriptor};
+use wgpu::{BindGroupLayoutEntry, BindingType, BufferBindingType, PipelineLayoutDescriptor, RenderPipelineDescriptor};
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::{PassDescriptor, PassTrait};
@@ -12,14 +13,65 @@ pub struct Port {
 }
 
 fn pass_descriptor_to_pipeline_descriptor(bind_device: &crate::images::BoundDevice, descriptor: &PassDescriptor) -> RenderPipelineDescriptor<'static> {
-    todo!();
-    // for item in descriptor.bind_style().
-    // let layout = BindGroupLayoutEntry {
-    //     binding: 0,
-    //     visibility: (),
-    //     ty: BindingType::AccelerationStructure,
-    //     count: None,
-    // };
+    let mut layouts = Vec::new();
+
+    for (slot,render_side) in descriptor.bind_style().buffers() {
+        let stage = match slot.stage {
+            crate::bindings::bind_style::Stage::Fragment => wgpu::ShaderStages::FRAGMENT,
+            crate::bindings::bind_style::Stage::Vertex => wgpu::ShaderStages::VERTEX,
+        };
+        let layout = BindGroupLayoutEntry {
+            binding: slot.pass_index,
+            visibility: stage,
+            ty: BindingType::Buffer {
+                ty: BufferBindingType::Storage {
+                    read_only: true, //this is currently, true, false is still unimplemented
+                },
+                has_dynamic_offset: false,
+                min_binding_size: Some(NonZero::new(1).unwrap()), //???
+            },
+            count: None, //not array
+        };
+        layouts.push(layout);
+    }
+    for bind_info in descriptor.bind_style().texture_style().static_textures() {
+        let stage = match bind_info.slot.stage {
+            crate::bindings::bind_style::Stage::Fragment => wgpu::ShaderStages::FRAGMENT,
+            crate::bindings::bind_style::Stage::Vertex => wgpu::ShaderStages::VERTEX,
+        };
+        let layout = BindGroupLayoutEntry {
+            binding: bind_info.slot.pass_index,
+            visibility: stage,
+            ty: BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                view_dimension: wgpu::TextureViewDimension::D1, // ??
+                multisampled: false,
+            },
+            count: None,
+        };
+        layouts.push(layout);
+    }
+    if descriptor.bind_style().binds_camera_matrix {
+        todo!()
+    }
+    if descriptor.bind_style().frame_counter.is_some() {
+        todo!()
+    }
+
+    let bind_group_layout = bind_device.0.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some(descriptor.name()),
+        entries: layouts.as_slice(),
+    });
+
+    let pipeline_layout = bind_device.0.device.create_pipeline_layout(&PipelineLayoutDescriptor {
+        label: Some(descriptor.name()),
+        bind_group_layouts: &[&bind_group_layout],
+        push_constant_ranges: &[], //not yet supported
+    });
+
+
+
+
     RenderPipelineDescriptor {
         label: Some(descriptor.name()),
         //https://docs.rs/wgpu/24.0.1/wgpu/struct.RenderPipelineDescriptor.html

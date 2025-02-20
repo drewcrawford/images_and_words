@@ -62,8 +62,8 @@ impl BindStyle {
         });
     }
 
-    pub(crate) fn buffers(&mut self) -> impl Iterator<Item=(BindSlot, &mut DynamicRenderSide)> {
-        self.buffers.iter_mut().map(|i| (i.1.slot, &mut i.1.render_side))
+    pub(crate) fn buffers(&self) -> impl Iterator<Item=(BindSlot, &DynamicRenderSide)> {
+        self.buffers.iter().map(|i| (i.1.slot, &i.1.render_side))
     }
     #[cfg(target_os="windows")] //only used on windows
     pub(crate) fn buffer_len(&self) -> usize {
