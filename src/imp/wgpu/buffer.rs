@@ -1,13 +1,18 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::ops::{Index, IndexMut};
 use wgpu::{BufferDescriptor, BufferUsages};
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;
 use crate::bindings::visible_to::CPUStrategy;
 
 pub struct Buffer{
+    //not actually static!
+    view_mut_unsafe: Option<wgpu::BufferViewMut<'static>>,
     buffer: wgpu::Buffer,
 }
+
+
 
 impl Buffer {
     pub fn new<Initializer: Fn(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
@@ -52,7 +57,22 @@ impl Buffer {
         Ok(
             Buffer {
                 buffer,
+                view_mut_unsafe: None,
             }
         )
     }
+
+    pub fn as_slice(&self) -> &[u8] {
+        self.view_mut_unsafe.as_ref().expect("Map first")
+    }
+
+    pub fn as_slice_mut(&mut self) -> &mut [u8] {
+        self.view_mut_unsafe.as_mut().expect("Map first")
+    }
 }
+
+
+
+
+
+

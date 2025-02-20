@@ -35,13 +35,21 @@ pub struct IndividualBuffer<Element> {
 impl<Element> Index<usize> for IndividualBuffer<Element> {
     type Output = Element;
     fn index(&self, index: usize) -> &Self::Output {
-        todo!()
+        let offset = index * std::mem::size_of::<Element>();
+        let bytes: &[u8] = &self.imp.as_slice()[offset..offset+std::mem::size_of::<Element>()];
+        unsafe {
+            &*(bytes.as_ptr() as *const Element)
+        }
     }
 }
 
 impl<Element> IndexMut<usize> for IndividualBuffer<Element> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        todo!()
+        let offset = index * std::mem::size_of::<Element>();
+        let bytes: &mut [u8] = &mut self.imp.as_slice_mut()[offset..offset+std::mem::size_of::<Element>()];
+        unsafe {
+            &mut *(bytes.as_mut_ptr() as *mut Element)
+        }
     }
 }
 
