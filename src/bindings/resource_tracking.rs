@@ -57,6 +57,14 @@ pub struct NotAvailable {
     read_state: u8,
 }
 
+pub(crate) mod sealed {
+    pub trait Mappable {
+        async fn map_read(&self);
+        async fn map_write(&self);
+
+    }
+}
+
 
 /**
 Tracks whether the resource is in use by the CPU or GPU, etc.
@@ -80,17 +88,25 @@ impl<Resource> ResourceTracker<Resource> {
         }
     }
     /// Returns the resource if it is not in use by the CPU or GPU.
-    pub fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> {
+    pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
         match self.state.compare_exchange(UNUSED, CPU_READ, std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed) {
-            Ok(_) => Ok(CPUReadGuard { tracker: self }),
-            Err(other) => Err(NotAvailable { read_state: other }),
+            Ok(_) => {},
+            Err(other) => return Err(NotAvailable { read_state: other }),
+        }
+        unsafe {
+            self.resource.get().as_ref().unwrap().map_read().await;
+            Ok(CPUReadGuard { tracker: self })
         }
     }
     /// Returns the resource if it is not in use by the CPU or GPU.
-    pub fn cpu_write(&self) -> Result<CPUWriteGuard<Resource>,NotAvailable> {
+    pub async fn cpu_write(&self) -> Result<CPUWriteGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
         match self.state.compare_exchange(UNUSED, CPU_WRITE, std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed) {
-            Ok(_) => Ok(CPUWriteGuard { tracker: self }),
-            Err(other) => Err(NotAvailable { read_state: other }),
+            Ok(_) => {},
+            Err(other) => return Err(NotAvailable { read_state: other }),
+        }
+        unsafe {
+            self.resource.get().as_ref().unwrap().map_write().await;
+            Ok(CPUWriteGuard { tracker: self })
         }
     }
     /// Returns the resource if it is not in use by the CPU or GPU.

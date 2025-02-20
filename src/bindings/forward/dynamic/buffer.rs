@@ -12,6 +12,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::sync::Arc;
 use log::debug;
 use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, GPUGuard};
+use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::CPUStrategy;
 use crate::images::BoundDevice;
 use crate::imp;
@@ -28,7 +29,7 @@ pub struct Buffer<Element> {
 }
 
 pub struct IndividualBuffer<Element> {
-    imp: imp::Buffer,
+    imp: imp::MappableBuffer,
     _marker: PhantomData<Element>,
 }
 
@@ -52,7 +53,14 @@ impl<Element> IndexMut<usize> for IndividualBuffer<Element> {
         }
     }
 }
-
+impl<Element> Mappable for IndividualBuffer<Element> {
+    async fn map_read(&self) {
+        self.imp.map_read().await;
+    }
+    async fn map_write(&self) {
+        self.imp.map_write().await;
+    }
+}
 #[derive(Debug)]
 pub struct RenderSide<Element> {
     _marker: PhantomData<Element>,
@@ -77,23 +85,13 @@ impl Display for Error {
 
 
 impl<Element> Buffer<Element> {
-    pub fn new<I: Fn(usize) -> Element>(bound_device: &Arc<BoundDevice>, size: usize, write_frequency: WriteFrequency, cpu_strategy: CPUStrategy, debug_name: &str, initialize_with:I) -> Result<Self,Error> {
-        match write_frequency {
-            WriteFrequency::Infrequent => {/* Not sure what to do here but possibly we load into map_type somehow?*/}
-            WriteFrequency::Frequent => {/* Not sure what to do here but possibly we load into map_type somehow?*/}
-        }
-        let map_type = match cpu_strategy {
-            CPUStrategy::ReadsFrequently => {
-                crate::bindings::buffer_access::MapType::ReadWrite
-            }
-            CPUStrategy::WontRead => {
-                crate::bindings::buffer_access::MapType::Read //read-only!
-            }
-        };
+    pub fn new<I: Fn(usize) -> Element>(bound_device: &Arc<BoundDevice>, size: usize, debug_name: &str, initialize_with:I) -> Result<Self,Error> {
         let byte_size = size * std::mem::size_of::<Element>();
         assert_ne!(byte_size,0, "Zero-sized buffers are not allowed");
 
-        let buffer = imp::Buffer::new(bound_device, byte_size, map_type, debug_name, |byte_array| {
+        let map_type = crate::bindings::buffer_access::MapType::ReadWrite; //todo: optimize for read vs write, etc.
+
+        let buffer = imp::MappableBuffer::new(bound_device, byte_size, map_type, debug_name, |byte_array| {
            assert_eq!(byte_array.len(),byte_size);
             //transmute to element type
             let as_elements: &mut [MaybeUninit<Element>] = unsafe {

@@ -6,7 +6,7 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;
 use crate::bindings::visible_to::CPUStrategy;
 
-pub struct Buffer{
+pub struct MappableBuffer{
     //not actually static!
     view_mut_unsafe: Option<wgpu::BufferViewMut<'static>>,
     buffer: wgpu::Buffer,
@@ -14,13 +14,13 @@ pub struct Buffer{
 
 
 
-impl Buffer {
+impl MappableBuffer {
     pub fn new<Initializer: Fn(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
         let buffer_usage = match map_type {
             MapType::None => { BufferUsages::empty()}
             MapType::Read => { BufferUsages::MAP_READ }
             MapType::Write => {BufferUsages::MAP_WRITE }
-            MapType::ReadWrite => {BufferUsages::MAP_READ | BufferUsages::MAP_WRITE }
+            MapType::ReadWrite => {BufferUsages::MAP_WRITE }
         };
 
         //I think in order to make wgpu happy we need to round up to the nearest COPY_BUFFER_ALIGNMENT
@@ -55,7 +55,7 @@ impl Buffer {
 
         buffer.unmap();
         Ok(
-            Buffer {
+            MappableBuffer {
                 buffer,
                 view_mut_unsafe: None,
             }
@@ -69,6 +69,24 @@ impl Buffer {
     pub fn as_slice_mut(&mut self) -> &mut [u8] {
         self.view_mut_unsafe.as_mut().expect("Map first")
     }
+
+    pub async fn map_read(&self) {
+        let (s,r) = r#continue::continuation();
+        self.buffer.slice(..).map_async(wgpu::MapMode::Read, |r|{
+            r.unwrap();
+            s.send(());
+        });
+        r.await;
+    }
+    pub async fn map_write(&self) {
+        let (s,r) = r#continue::continuation();
+        self.buffer.slice(..).map_async(wgpu::MapMode::Write, |r|{
+            r.unwrap();
+            s.send(());
+        });
+        r.await;
+    }
+
 }
 
 

@@ -13,6 +13,7 @@ use crate::images::device::BoundDevice;
 use crate::pixel_formats::sealed::PixelFormat;
 use crate::{imp, Priority};
 use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, ResourceTracker};
+use crate::bindings::resource_tracking::sealed::Mappable;
 
 /**
 A single non-multibuffered texture.
@@ -51,6 +52,16 @@ impl<Format> IndividualTexture<Format> {
     const fn index_for_texel(texel: Texel, width: u16) -> usize {
         (texel.y as usize * width as usize) + texel.x as usize
     }
+}
+
+impl<Format> Mappable for IndividualTexture<Format> {
+    async fn map_read(&self) {
+        todo!()
+    }
+    async fn map_write(&self) {
+        todo!()
+    }
+
 }
 
 
@@ -112,7 +123,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     Dequeues a texture.  Resumes when a texture is available.
      */
     pub async fn dequeue(&mut self) -> CPUWriteGuard<IndividualTexture<Format>>{
-        self._imp.cpu_write().expect("Can't write now")
+        self._imp.cpu_write().await.expect("Can't write now")
     }
     /**
     Returns the last texture submitted to the GPU.

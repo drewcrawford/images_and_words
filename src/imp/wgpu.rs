@@ -34,7 +34,7 @@ pub use port::Port;
 pub use pixel_format::PixelFormat;
 pub use texture::Texture;
 pub use sampler::Sampler;
-pub use buffer::Buffer;
+pub use buffer::MappableBuffer;
 
 
 

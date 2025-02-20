@@ -21,6 +21,7 @@ raw-window-handle = "0.6.2"
 
 # optional
 app_window = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/app_window.git", optional=true}
+continue = {version = "0.1.0", optional = true} # used for wgpu backend
 # used for wgpu backend
 wgpu = {version = "24.0.1", optional = true}
 log = "0.4.25"
@@ -28,4 +29,4 @@ log = "0.4.25"
 [features]
 # Create a view based on app_window Surface
 app_window = ["dep:app_window"]
-backend_wgpu = ["dep:wgpu"]
+backend_wgpu = ["dep:wgpu","dep:continue"]
