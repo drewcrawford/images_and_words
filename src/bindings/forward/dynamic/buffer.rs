@@ -15,6 +15,7 @@ use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, GPUGuard};
 use crate::bindings::visible_to::CPUStrategy;
 use crate::images::BoundDevice;
 use crate::imp;
+use crate::multibuffer::Multibuffer;
 
 pub enum WriteFrequency {
     ///Significantly less than once per frame.
@@ -23,8 +24,7 @@ pub enum WriteFrequency {
     Frequent,
 }
 pub struct Buffer<Element> {
-    //?
-    element: PhantomData<Element>,
+    multibuffer: Multibuffer<IndividualBuffer<Element>>
 }
 
 pub struct IndividualBuffer<Element> {
@@ -102,21 +102,17 @@ impl<Element> Buffer<Element> {
         })?;
 
         Ok(Self {
-            element: PhantomData,
+            multibuffer: Multibuffer::new(),
         })
     }
     /**
     Dequeues a texture.  Resumes when a texture is available.
      */
-    pub fn access_read<'s>(&'s mut self) -> impl Future<Output=CPUReadGuard<IndividualBuffer<Element>>> + 's where Element: Send {
-        async {
-            todo!()
-        }
+    pub async fn access_read(&self) -> CPUReadGuard<IndividualBuffer<Element>> {
+        self.multibuffer.access_read().await
     }
-    pub fn access_write<'s>(&'s mut self) -> impl Future<Output=CPUWriteGuard<IndividualBuffer<Element>>> + 's where Element: Send {
-        async {
-            todo!()
-        }
+    pub async fn access_write(&self) -> CPUWriteGuard<IndividualBuffer<Element>> {
+        self.multibuffer.access_write().await
     }
 
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */
