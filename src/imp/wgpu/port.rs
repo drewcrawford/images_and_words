@@ -1,9 +1,9 @@
 use std::sync::Arc;
-use wgpu::RenderPipelineDescriptor;
+use wgpu::{BindGroupLayoutEntry, PipelineLayoutDescriptor, RenderPipelineDescriptor};
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::{PassDescriptor, PassTrait};
-use crate::imp::Error;
+use crate::imp::{Error};
 
 #[derive(Debug)]
 pub struct Port {
@@ -11,7 +11,15 @@ pub struct Port {
     pass_descriptors: Vec<PassDescriptor>,
 }
 
-fn pass_descriptor_to_pipeline_descriptor(descriptor: &PassDescriptor) -> RenderPipelineDescriptor {
+fn pass_descriptor_to_pipeline_descriptor(bind_device: &crate::images::BoundDevice, descriptor: &PassDescriptor) -> RenderPipelineDescriptor<'static> {
+    todo!();
+    // for item in descriptor.bind_style().
+    // let layout = BindGroupLayoutEntry {
+    //     binding: 0,
+    //     visibility: (),
+    //     ty: BindingType::AccelerationStructure,
+    //     count: None,
+    // };
     RenderPipelineDescriptor {
         label: Some(descriptor.name()),
         //https://docs.rs/wgpu/24.0.1/wgpu/struct.RenderPipelineDescriptor.html
@@ -40,8 +48,9 @@ impl Port {
         result
     }
     pub async fn start(&mut self) -> Result<(),Error> {
+        let device = self.engine.bound_device().as_ref();
         for descriptor in &self.pass_descriptors {
-            let pipeline_descriptor = pass_descriptor_to_pipeline_descriptor(&descriptor);
+            let pipeline_descriptor = pass_descriptor_to_pipeline_descriptor(device, descriptor);
             todo!()
         }
         todo!()

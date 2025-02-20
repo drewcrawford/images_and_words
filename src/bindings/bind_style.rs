@@ -82,18 +82,12 @@ pub enum Stage {
 #[derive(Copy,Clone,Debug)]
 pub struct BindSlot {
     pub(crate) stage: Stage,
-    //On metal, indexes are set per-stage.
-    #[cfg(target_os = "macos")]
-    pub(crate) stage_index: u8,
-    //On vulkan, indexes are set per pass-descriptor.  In theory, vk supports millions of these per renderpass
     pub(crate) pass_index: u32,
 }
 impl BindSlot {
-    pub fn new(namespace: Stage, pass_index: u32, _stage_index: u8) -> Self {
+    pub fn new(namespace: Stage, pass_index: u32) -> Self {
         Self {
             stage: namespace,
-            #[cfg(target_os = "macos")]
-            stage_index: _stage_index,
             pass_index,
         }
     }
