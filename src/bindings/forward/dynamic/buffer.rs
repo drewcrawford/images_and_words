@@ -101,8 +101,13 @@ impl<Element> Buffer<Element> {
             }
         })?;
 
+        let individual_buffer = IndividualBuffer {
+            imp: buffer,
+            _marker: PhantomData,
+        };
+
         Ok(Self {
-            multibuffer: Multibuffer::new(),
+            multibuffer: Multibuffer::new(individual_buffer),
         })
     }
     /**

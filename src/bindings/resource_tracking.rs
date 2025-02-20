@@ -67,6 +67,10 @@ pub(crate) struct ResourceTracker<Resource> {
     resource: UnsafeCell<Resource>,
 }
 
+//todo: do we need these constraints?
+unsafe impl<Resource: Send> Send for ResourceTracker<Resource> {}
+unsafe impl<Resource: Sync> Sync for ResourceTracker<Resource> {}
+
 
 impl<Resource> ResourceTracker<Resource> {
     pub fn new(resource: Resource) -> Self {
