@@ -62,7 +62,7 @@ impl BindStyle {
         self.bind(slot, BindTarget::Buffer);
     }
 
-    pub fn bind_dynamic_buffer(&mut self, slot: BindSlot, render_side: DynamicRenderSide) {
+    pub fn bind_dynamic_buffer<Element>(&mut self, slot: BindSlot, render_side: DynamicRenderSide<Element>) {
         self.bind(slot, BindTarget::Buffer);
     }
 

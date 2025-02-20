@@ -52,7 +52,7 @@ fn pass_descriptor_to_pipeline_descriptor(bind_device: &crate::images::BoundDevi
     RenderPipelineDescriptor {
         label: Some(descriptor.name()),
         //https://docs.rs/wgpu/24.0.1/wgpu/struct.RenderPipelineDescriptor.html
-        layout: todo!(),
+        layout: Some(&pipeline_layout),
         vertex: todo!(),
         primitive: todo!(),
         depth_stencil: todo!(),

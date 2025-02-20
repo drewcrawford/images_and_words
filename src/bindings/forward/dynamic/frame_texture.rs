@@ -13,7 +13,6 @@ use crate::images::device::BoundDevice;
 use crate::pixel_formats::sealed::PixelFormat;
 use crate::{imp, Priority};
 use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, ResourceTracker};
-use crate::multibuffer::{multibuffer, Producer, ProducerReadGuard, ProducerWriteGuard, Receiver, ReceiverReadGuard};
 
 /**
 A single non-multibuffered texture.

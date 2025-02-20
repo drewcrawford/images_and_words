@@ -11,10 +11,10 @@ use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::sync::Arc;
 use log::debug;
+use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, GPUGuard};
 use crate::bindings::visible_to::CPUStrategy;
 use crate::images::BoundDevice;
 use crate::imp;
-use crate::multibuffer::{multibuffer, Producer, ProducerWriteGuard, Receiver, ReceiverReadGuard};
 
 pub enum WriteFrequency {
     ///Significantly less than once per frame.
@@ -26,48 +26,36 @@ pub struct Buffer<Element> {
     //?
     element: PhantomData<Element>,
 }
-#[derive(Debug)]
-pub struct RenderSide {
 
+pub struct IndividualBuffer<Element> {
+    imp: imp::Buffer,
+    _marker: PhantomData<Element>,
 }
-impl RenderSide {
-    pub(crate) fn dequeue(&mut self) -> GPUBorrow {
-        todo!()
-    }
-}
-#[derive(Debug,Clone)]
-pub struct GPUBorrow(ReceiverReadGuard<imp::Delivery>);
-impl Deref for GPUBorrow {
-    type Target = imp::Delivery;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-pub struct CPUBorrow<Element>(Element);
-impl<Element> Index<usize> for CPUBorrow<Element> {
+impl<Element> Index<usize> for IndividualBuffer<Element> {
     type Output = Element;
-
     fn index(&self, index: usize) -> &Self::Output {
         todo!()
     }
 }
 
-pub struct CPUBorrowMut<Element>(Element);
-
-impl<Element> Index<usize> for CPUBorrowMut<Element> {
-    type Output = Element;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        todo!()
-    }
-}
-
-impl<Element> IndexMut<usize> for CPUBorrowMut<Element> {
+impl<Element> IndexMut<usize> for IndividualBuffer<Element> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         todo!()
     }
 }
+
+#[derive(Debug)]
+pub struct RenderSide<Element> {
+    _marker: PhantomData<Element>,
+}
+impl<Element> RenderSide<Element> {
+    pub(crate) fn dequeue(&mut self) -> GPUGuard<IndividualBuffer<Element>> {
+        todo!()
+    }
+}
+
+
 
 #[derive(thiserror::Error, Debug)]
 pub struct Error(#[from] imp::Error);
@@ -120,35 +108,23 @@ impl<Element> Buffer<Element> {
     /**
     Dequeues a texture.  Resumes when a texture is available.
      */
-    pub fn access_read<'s>(&'s mut self) -> impl Future<Output=CPUBorrow<Element>> + 's where Element: Send {
+    pub fn access_read<'s>(&'s mut self) -> impl Future<Output=CPUReadGuard<IndividualBuffer<Element>>> + 's where Element: Send {
         async {
             todo!()
         }
     }
-    pub fn access_write<'s>(&'s mut self) -> impl Future<Output=CPUBorrowMut<Element>> + 's where Element: Send {
+    pub fn access_write<'s>(&'s mut self) -> impl Future<Output=CPUWriteGuard<IndividualBuffer<Element>>> + 's where Element: Send {
         async {
             todo!()
         }
     }
 
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */
-    pub fn render_side(&mut self) -> RenderSide {
-        RenderSide {}
+    pub fn render_side(&mut self) -> RenderSide<Element> {
+        RenderSide {
+            _marker: PhantomData,
+        }
     }
 
-    /**
-    Returns the CPUAccess and marks the contents as ready for GPU submission.
 
-    The renderloop will generally re-use each buffer until the next buffer is submitted.
-    In this way failing to keep up will not drop the framerate (although it may block your subsystem).
-
-    There is currently no support for atomically submitting two different textures together, mt2-471.
-     */
-    pub fn submit<'s>(&'s mut self, cpu_access: CPUBorrow<Element>) -> impl Future<Output=()> + 's {
-        async { todo!() }
-    }
-
-    pub fn submit_mut<'s>(&'s mut self, cpu_access: CPUBorrowMut<Element>) -> impl Future<Output=()> + 's {
-        async { todo!() }
-    }
 }
