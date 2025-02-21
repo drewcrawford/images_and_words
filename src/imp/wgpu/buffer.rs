@@ -12,6 +12,19 @@ pub struct MappableBuffer{
     buffer: wgpu::Buffer,
 }
 
+#[derive(Debug)]
+pub struct BindTargetBufferImp {
+    pub(crate) element_size: usize,
+}
+
+impl BindTargetBufferImp {
+    pub fn new(element_size: usize) -> Self {
+        BindTargetBufferImp {
+            element_size,
+        }
+    }
+}
+
 
 
 impl MappableBuffer {

@@ -1,6 +1,6 @@
 use std::num::NonZero;
 use std::sync::Arc;
-use wgpu::{BindGroupLayoutEntry, BindingType, BufferBindingType, ColorTargetState, CompareFunction, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
+use wgpu::{BindGroupLayoutEntry, BindingType, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
 use wgpu::util::RenderEncoder;
 use crate::bindings::bind_style::BindTarget;
 use crate::images::camera::Camera;
@@ -32,14 +32,12 @@ fn pass_descriptor_to_pipeline(bind_device: &crate::images::BoundDevice, descrip
             crate::bindings::bind_style::Stage::Fragment => wgpu::ShaderStages::FRAGMENT,
             crate::bindings::bind_style::Stage::Vertex => wgpu::ShaderStages::VERTEX,
         };
-        let binding_type = match info.target {
-            BindTarget::Buffer => {
+        let binding_type = match &info.target {
+            BindTarget::Buffer(imp) => {
                 BindingType::Buffer {
-                    ty: BufferBindingType::Storage {
-                        read_only: true, //this is currently, true, false is still unimplemented
-                    },
+                    ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: Some(NonZero::new(1).unwrap()), //???
+                    min_binding_size: Some(BufferSize::new(imp.element_size as u64).unwrap()),
                 }
             }
             BindTarget::Camera => {

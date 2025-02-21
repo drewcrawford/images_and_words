@@ -18,7 +18,7 @@ pub struct BindStyle {
 
 #[derive(Debug)]
 pub enum BindTarget {
-    Buffer,
+    Buffer(crate::imp::BindTargetBufferImp),
     Camera,
     FrameCounter,
     Texture,
@@ -69,11 +69,11 @@ impl BindStyle {
 
      */
     pub fn bind_frame_counter(&mut self, slot: BindSlot) {
-        self.bind(slot, BindTarget::Buffer);
+        self.bind(slot, BindTarget::FrameCounter);
     }
 
     pub fn bind_dynamic_buffer<Element>(&mut self, slot: BindSlot, render_side: DynamicRenderSide<Element>) {
-        self.bind(slot, BindTarget::Buffer);
+        self.bind(slot, BindTarget::Buffer(BindTargetBufferImp::new(std::mem::size_of::<Element>())));
     }
 
     pub fn bind_static_texture(&mut self, slot: BindSlot, texture: StaticTextureTicket, sampler_type: Option<SamplerInfo>) {
@@ -110,6 +110,7 @@ impl BindSlot {
     }
 }
 use crate::images::StaticTextureTicket;
+use crate::imp::BindTargetBufferImp;
 
 
 
