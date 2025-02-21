@@ -1,6 +1,6 @@
 use std::num::NonZero;
 use std::sync::Arc;
-use wgpu::{BindGroupLayoutEntry, BindingType, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
+use wgpu::{BindGroupLayoutEntry, BindingType, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
 use wgpu::util::RenderEncoder;
 use crate::bindings::bind_style::BindTarget;
 use crate::images::camera::Camera;
@@ -201,7 +201,19 @@ impl Port {
             let pipeline = pass_descriptor_to_pipeline(device, descriptor);
             prepared.push(pipeline);
         }
+        let size = self.view.size().await;
         let surface = &self.view.imp.as_ref().expect("View not initialized").surface;
+
+        surface.configure(&device.0.device, &wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            width: size.0.into(),
+            height: size.1.into(),
+            present_mode: wgpu::PresentMode::Fifo,
+            desired_maximum_frame_latency: 1,
+            alpha_mode: CompositeAlphaMode::Opaque,
+            view_formats: Vec::new(),
+        });
         let frame = surface.get_current_texture().expect("Acquire swapchain texture");
         let wgpu_view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = device.0.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
