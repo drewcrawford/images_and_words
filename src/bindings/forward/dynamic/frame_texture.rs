@@ -61,6 +61,9 @@ impl<Format> Mappable for IndividualTexture<Format> {
     async fn map_write(&mut self) {
         todo!()
     }
+    fn unmap(&mut self) {
+        todo!()
+    }
 
 }
 

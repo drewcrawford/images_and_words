@@ -116,6 +116,11 @@ impl MappableBuffer {
         let mut range = self.buffer.slice(..).get_mapped_range_mut();
         self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
     }
+    pub fn unmap(&mut self) {
+        self.buffer.unmap();
+        self.mapped = None;
+        self.mapped_mut = None;
+    }
 
 }
 

@@ -60,6 +60,9 @@ impl<Element> Mappable for IndividualBuffer<Element> {
     async fn map_write(&mut self) {
         self.imp.map_write().await;
     }
+    fn unmap(&mut self) {
+        self.imp.unmap();
+    }
 }
 #[derive(Debug)]
 pub struct RenderSide<Element> {

@@ -7,43 +7,43 @@ const CPU_READ: u8 = 1;
 const CPU_WRITE: u8 = 2;
 const GPU: u8 = 3;
 #[derive(Debug)]
-pub struct CPUReadGuard<'a, Resource> {
+pub struct CPUReadGuard<'a, Resource> where Resource: sealed::Mappable {
     tracker: &'a ResourceTracker<Resource>,
 }
 
-impl<Resource> Deref for CPUReadGuard<'_, Resource> {
+impl<Resource> Deref for CPUReadGuard<'_, Resource> where Resource: sealed::Mappable {
     type Target = Resource;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.tracker.resource.get() }
     }
 }
-impl <Resource> Drop for CPUReadGuard<'_, Resource> {
+impl <Resource> Drop for CPUReadGuard<'_, Resource> where Resource: sealed::Mappable {
     fn drop(&mut self) {
-        todo!()
+        self.tracker.unuse();
     }
 }
 
 #[derive(Debug)]
-pub struct CPUWriteGuard<'a, Resource> {
+pub struct CPUWriteGuard<'a, Resource> where Resource: sealed::Mappable  {
     tracker: &'a ResourceTracker<Resource>,
 }
 
-impl<Resource> Deref for CPUWriteGuard<'_, Resource> {
+impl<Resource> Deref for CPUWriteGuard<'_, Resource> where Resource: sealed::Mappable {
     type Target = Resource;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.tracker.resource.get() }
     }
 }
 
-impl<Resource> DerefMut for CPUWriteGuard<'_, Resource> {
+impl<Resource> DerefMut for CPUWriteGuard<'_, Resource> where Resource: sealed::Mappable {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.tracker.resource.get() }
     }
 }
 
-impl <Resource> Drop for CPUWriteGuard<'_, Resource> {
+impl <Resource> Drop for CPUWriteGuard<'_, Resource> where Resource: sealed::Mappable {
     fn drop(&mut self) {
-        todo!()
+        self.tracker.unuse();
     }
 }
 
@@ -61,6 +61,8 @@ pub(crate) mod sealed {
     pub trait Mappable {
         async fn map_read(&mut self);
         async fn map_write(&mut self);
+
+        fn unmap(&mut self);
 
     }
 }
@@ -115,5 +117,11 @@ impl<Resource> ResourceTracker<Resource> {
             Ok(_) => Ok(GPUGuard { tracker: self }),
             Err(other) => Err(NotAvailable { read_state: other }),
         }
+    }
+
+    fn unuse(&self) where Resource: sealed::Mappable {
+        unsafe{&mut *self.resource.get()}.unmap();
+        let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
+        assert_ne!(o, UNUSED, "Resource was not in use");
     }
 }
