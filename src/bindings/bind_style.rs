@@ -34,7 +34,7 @@ pub struct BindInfo {
 #[derive(Debug)]
 pub struct SamplerInfo {
     ///The slot to bind to.
-    pub slot: BindSlot,
+    pub pass_index: u32,
     ///The sampler type to use.
     pub sampler_type: SamplerType,
 }
@@ -79,7 +79,7 @@ impl BindStyle {
     pub fn bind_static_texture(&mut self, slot: BindSlot, texture: StaticTextureTicket, sampler_type: Option<SamplerInfo>) {
         self.bind(slot, BindTarget::Texture);
         if let Some(sampler) = sampler_type {
-            self.bind(sampler.slot, BindTarget::Sampler);
+            self.bind(BindSlot::new(slot.stage, sampler.pass_index), BindTarget::Sampler);
         }
     }
     pub fn bind_dynamic_texture(&mut self, slot: BindSlot, texture: TextureRenderSide) {
