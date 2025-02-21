@@ -378,7 +378,27 @@ impl Port {
         });
 
         let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device(), 1, "Camera", |initialize| {
-
+            let projection = self.camera.projection().lock().unwrap().clone();
+            CameraProjection {
+                projection: [
+                    *projection.0.columns()[0].x(),
+                    *projection.0.columns()[0].y(),
+                    *projection.0.columns()[0].z(),
+                    *projection.0.columns()[0].w(),
+                    *projection.0.columns()[1].x(),
+                    *projection.0.columns()[1].y(),
+                    *projection.0.columns()[1].z(),
+                    *projection.0.columns()[1].w(),
+                    *projection.0.columns()[2].x(),
+                    *projection.0.columns()[2].y(),
+                    *projection.0.columns()[2].z(),
+                    *projection.0.columns()[2].w(),
+                    *projection.0.columns()[3].x(),
+                    *projection.0.columns()[3].y(),
+                    *projection.0.columns()[3].z(),
+                    *projection.0.columns()[3].w(),
+                ]
+            }
         }).expect("Create camera buffer");
 
 
