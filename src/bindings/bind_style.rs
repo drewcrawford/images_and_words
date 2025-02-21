@@ -22,7 +22,7 @@ pub enum BindTarget {
     Camera,
     FrameCounter,
     DynamicTexture(TextureRenderSide),
-    StaticTexture(StaticTextureTicket),
+    StaticTexture(StaticTextureTicket, Option<SamplerType>),
     Sampler(SamplerType),
 }
 
@@ -78,7 +78,7 @@ impl BindStyle {
     }
 
     pub fn bind_static_texture(&mut self, slot: BindSlot, texture: StaticTextureTicket, sampler_type: Option<SamplerInfo>) {
-        self.bind(slot, BindTarget::StaticTexture(texture));
+        self.bind(slot, BindTarget::StaticTexture(texture, sampler_type.as_ref().map(|x| x.sampler_type)));
         if let Some(sampler) = sampler_type {
             self.bind(BindSlot::new(slot.stage, sampler.pass_index), BindTarget::Sampler(sampler.sampler_type));
         }

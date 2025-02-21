@@ -68,9 +68,9 @@ fn prepare_pass_descriptor(
                     min_binding_size: Some(NonZero::new(1).unwrap()), //???
                 }
             }
-            BindTarget::StaticTexture(texture) => {
+            BindTarget::StaticTexture(texture, sampler_type) => {
                 BindingType::Texture {
-                    sample_type: TextureSampleType::Float { filterable: false }, //??
+                    sample_type: TextureSampleType::Float { filterable: sampler_type.is_some() },
                     view_dimension: TextureViewDimension::D2,
                     multisampled: false,
                 }
@@ -237,9 +237,19 @@ pub fn prepare_bind_group(
                 })
             }
             BindTarget::FrameCounter => {todo!()}
-            BindTarget::StaticTexture(texture) => {
+            BindTarget::StaticTexture(texture, sampler_type) => {
                 let lookup = pass_client.lookup_static_texture(*texture);
-                let view = build_resources.push(lookup.imp.texture.create_view(&wgpu::TextureViewDescriptor::default()));
+                let view = build_resources.push(lookup.imp.texture.create_view(&wgpu::TextureViewDescriptor {
+                    label: None,
+                    format: None,
+                    dimension: None,
+                    usage: None,
+                    aspect: Default::default(),
+                    base_mip_level: 0,
+                    mip_level_count: None,
+                    base_array_layer: 0,
+                    array_layer_count: None,
+                }));
                 BindingResource::TextureView(&view)
             }
             BindTarget::DynamicTexture(texture) => { todo!() }
