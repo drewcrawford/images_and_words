@@ -2,6 +2,7 @@ use std::sync::Arc;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use crate::entry_point::EntryPoint;
 
+#[derive(Debug)]
 enum OSImpl {
     #[cfg(feature = "app_window")]
     AppWindow(app_window::surface::Surface, RawWindowHandle, RawDisplayHandle),
@@ -15,10 +16,16 @@ impl std::fmt::Display for Error {
     }
 }
 
+#[derive(Debug)]
 pub struct View{
     os_impl: OSImpl,
     //late initialized once entrypoint is ready
     pub(crate) imp: Option<crate::imp::View>,
+}
+
+//we need this to port across to render thread
+unsafe impl Send for View {
+
 }
 
 impl View {

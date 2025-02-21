@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct View {
     pub(super) surface: wgpu::Surface<'static>,
 }

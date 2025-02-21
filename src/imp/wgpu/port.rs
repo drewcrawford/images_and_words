@@ -1,6 +1,7 @@
 use std::num::NonZero;
 use std::sync::Arc;
-use wgpu::{BindGroupLayoutEntry, BindingType, BufferBindingType, CompareFunction, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
+use wgpu::{BindGroupLayoutEntry, BindingType, BufferBindingType, ColorTargetState, CompareFunction, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
+use wgpu::util::RenderEncoder;
 use crate::bindings::bind_style::BindTarget;
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
@@ -11,9 +12,19 @@ use crate::imp::{Error};
 pub struct Port {
     engine: Arc<crate::images::Engine>,
     pass_descriptors: Vec<PassDescriptor>,
+    view: crate::images::view::View,
 }
 
-fn pass_descriptor_to_pipeline(bind_device: &crate::images::BoundDevice, descriptor: &PassDescriptor) -> RenderPipeline {
+/**
+A pass that is prepared to be rendered.
+*/
+pub struct PreparedPass {
+    pipeline: RenderPipeline,
+    instance_count: u32,
+    vertex_count: u32,
+}
+
+fn pass_descriptor_to_pipeline(bind_device: &crate::images::BoundDevice, descriptor: &PassDescriptor) -> PreparedPass {
     let mut layouts = Vec::new();
 
     for (pass_index, info) in &descriptor.bind_style().binds {
@@ -93,6 +104,12 @@ fn pass_descriptor_to_pipeline(bind_device: &crate::images::BoundDevice, descrip
     let topology = match descriptor.draw_command() {
         DrawCommand::TriangleStrip(count) => {PrimitiveTopology::TriangleStrip}
     };
+    let vertex_count = match descriptor.draw_command {
+        DrawCommand::TriangleStrip(count) => count,
+    };
+    let instance_count = match descriptor.draw_command {
+        DrawCommand::TriangleStrip(..) => 1,
+    };
 
     let primitive_state = PrimitiveState {
         topology,
@@ -133,11 +150,16 @@ fn pass_descriptor_to_pipeline(bind_device: &crate::images::BoundDevice, descrip
         label: Some(&(descriptor.name().to_owned() + "_frag")),
         source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(&descriptor.fragment_shader.wgsl_code)),
     });
+    let color_target_state = ColorTargetState {
+        format: TextureFormat::R8Unorm,
+        blend: None,
+        write_mask: Default::default(),
+    };
     let fragment_state = wgpu::FragmentState {
         module: &fragment_module,
         entry_point: None,
         compilation_options: Default::default(),
-        targets: &[],
+        targets: &[Some(color_target_state)],
     };
 
     let descriptor = RenderPipelineDescriptor {
@@ -152,14 +174,20 @@ fn pass_descriptor_to_pipeline(bind_device: &crate::images::BoundDevice, descrip
         multiview: None,
         cache: None, //todo, caching?
     };
-    bind_device.0.device.create_render_pipeline(&descriptor)
+    let pipeline = bind_device.0.device.create_render_pipeline(&descriptor);
+    PreparedPass {
+        pipeline,
+        vertex_count,
+        instance_count,
+    }
 }
 
 impl Port {
-    pub(crate) fn new(_engine: &Arc<crate::images::Engine>, _view: crate::images::view::View, _camera: Camera, _port_reporter_send:PortReporterSend) -> Result<Self,Error> {
+    pub(crate) fn new(_engine: &Arc<crate::images::Engine>, view: crate::images::view::View, _camera: Camera, _port_reporter_send:PortReporterSend) -> Result<Self,Error> {
         Ok(Port{
             engine: _engine.clone(),
             pass_descriptors: Vec::new(),
+            view,
         })
     }
     pub async fn add_fixed_pass<const N: usize, P: PassTrait<N>>(&mut self, p: P) -> P::DescriptorResult {
@@ -170,10 +198,36 @@ impl Port {
     }
     pub async fn start(&mut self) -> Result<(),Error> {
         let device = self.engine.bound_device().as_ref();
+        let mut prepared = Vec::new();
         for descriptor in &self.pass_descriptors {
             let pipeline = pass_descriptor_to_pipeline(device, descriptor);
-            todo!()
+            prepared.push(pipeline);
         }
+        let surface = &self.view.imp.as_ref().expect("View not initialized").surface;
+        let frame = surface.get_current_texture().expect("Acquire swapchain texture");
+        let wgpu_view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = device.0.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("wgpu port"),
+        });
+        let color_attachment = wgpu::RenderPassColorAttachment {
+            view: &wgpu_view,
+            resolve_target: None,
+            ops: Default::default(),
+        };
+
+        for prepared in &prepared {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(color_attachment.clone())],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            render_pass.set_pipeline(&prepared.pipeline);
+            render_pass.draw(0..prepared.vertex_count, 0..1);
+        }
+
+
         todo!()
     }
 }
