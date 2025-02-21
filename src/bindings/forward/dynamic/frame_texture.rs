@@ -116,7 +116,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
             imp: imp_texture,
             width, height,
         };
-        let guarded = ResourceTracker::new(individual_texture);
+        let guarded = ResourceTracker::new(individual_texture, || {});
         Self {
             _imp: guarded,
             width, height,

@@ -1,4 +1,5 @@
 use std::cell::UnsafeCell;
+use std::fmt::{Debug, Formatter};
 use std::ops::{Deref, DerefMut, Index};
 use std::sync::Arc;
 use std::sync::atomic::AtomicU8;
@@ -20,7 +21,7 @@ impl<Resource> Deref for CPUReadGuard<'_, Resource> where Resource: sealed::Mapp
 }
 impl <Resource> Drop for CPUReadGuard<'_, Resource> where Resource: sealed::Mappable {
     fn drop(&mut self) {
-        self.tracker.unuse();
+        self.tracker.unuse_cpu();
     }
 }
 
@@ -44,7 +45,7 @@ impl<Resource> DerefMut for CPUWriteGuard<'_, Resource> where Resource: sealed::
 
 impl <Resource> Drop for CPUWriteGuard<'_, Resource> where Resource: sealed::Mappable {
     fn drop(&mut self) {
-        self.tracker.unuse();
+        self.tracker.unuse_cpu();
     }
 }
 
@@ -68,14 +69,27 @@ impl<Resource> DerefMut for GPUGuard<Resource> where Resource: sealed::Mappable 
 
 impl<Resource> Drop for GPUGuard<Resource> where Resource: sealed::Mappable {
     fn drop(&mut self) {
-        self.tracker.unuse();
+        self.tracker.unuse_gpu();
     }
 }
 
-#[derive(Debug)]
 pub struct NotAvailable {
     read_state: u8,
 }
+
+impl Debug for NotAvailable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let state = match self.read_state {
+            UNUSED => "UNUSED",
+            CPU_READ => "CPU_READ",
+            CPU_WRITE => "CPU_WRITE",
+            GPU => "GPU",
+            _ => "UNKNOWN",
+        };
+        write!(f, "NotAvailable {{ read_state: {} }}", state)
+    }
+}
+
 
 
 
@@ -89,11 +103,21 @@ pub(crate) mod sealed {
     }
 }
 
-#[derive(Debug)]
 struct ResourceTrackerInternal<Resource> {
     state: AtomicU8,
     resource: UnsafeCell<Resource>,
+    //function that runs when the resource is available again.
+    when_available: Box<dyn Fn() -> ()>,
 }
+
+impl<Resource> Debug for ResourceTrackerInternal<Resource> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResourceTrackerInternal")
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
 
 
 /**
@@ -110,10 +134,11 @@ unsafe impl<Resource: Sync> Sync for ResourceTrackerInternal<Resource> {}
 
 
 impl<Resource> ResourceTrackerInternal<Resource> {
-    pub fn new(resource: Resource) -> Self {
+    pub fn new<F: Fn() + 'static>(resource: Resource, when_available: F) -> Self {
         Self {
             state: AtomicU8::new(UNUSED),
             resource: UnsafeCell::new(resource),
+            when_available: Box::new(when_available),
         }
     }
     /// Returns the resource if it is not in use by the CPU or GPU.
@@ -146,17 +171,21 @@ impl<Resource> ResourceTrackerInternal<Resource> {
         }
     }
 
-    fn unuse(&self) where Resource: sealed::Mappable {
+    fn unuse_cpu(&self) where Resource: sealed::Mappable {
         unsafe{&mut *self.resource.get()}.unmap();
+        let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
+        assert_ne!(o, UNUSED, "Resource was not in use");
+    }
+    fn unuse_gpu(&self) {
         let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
         assert_ne!(o, UNUSED, "Resource was not in use");
     }
 }
 
 impl<Resource> ResourceTracker<Resource> {
-    pub fn new(resource: Resource) -> Self {
+    pub fn new<F: Fn() + 'static>(resource: Resource, when_available: F) -> Self {
         Self {
-            internal: Arc::new(ResourceTrackerInternal::new(resource)),
+            internal: Arc::new(ResourceTrackerInternal::new(resource, when_available)),
         }
     }
     pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
