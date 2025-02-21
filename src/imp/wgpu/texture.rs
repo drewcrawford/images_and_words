@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use wgpu::{Extent3d, TextureDescriptor, TextureDimension};
+use wgpu::{Extent3d, TextureDescriptor, TextureDimension, TextureViewDescriptor};
 use wgpu::util::{DeviceExt, TextureDataOrder};
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureUsage;
@@ -71,6 +71,16 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> Texture<Format> {
         })
     }
 
+    pub fn render_side(&self) -> RenderSide {
+        RenderSide {
+            texture: self.imp.clone(),
+        }
+    }
+
+}
+
+pub struct RenderSide {
+    pub(super) texture: wgpu::Texture,
 }
 
 

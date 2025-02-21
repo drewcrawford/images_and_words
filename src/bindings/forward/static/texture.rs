@@ -46,7 +46,15 @@ impl<Format: PixelFormat> Texture<Format> {
             slice[texel.y as usize * width as usize + texel.x as usize].clone()
         }).await
     }
+    pub fn render_side(&self) -> RenderSide {
+        RenderSide {
+            imp: self.0.render_side()
+        }
+    }
 }
 
+pub (crate) struct RenderSide {
+    pub(crate) imp: imp::TextureRenderSide,
+}
 
 

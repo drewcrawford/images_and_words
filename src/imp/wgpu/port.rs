@@ -6,35 +6,38 @@ use crate::imp::Error;
 use std::num::NonZero;
 use std::sync::Arc;
 use wgpu::util::RenderEncoder;
-use wgpu::{
-    BindGroupLayoutEntry, BindingType, BufferBindingType, BufferSize, ColorTargetState,
-    CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState,
-    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
-    RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType,
-    StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType,
-    TextureViewDimension, VertexState,
-};
+use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
+use crate::bindings::sampler::SamplerType;
+use crate::images::PassClient;
+use crate::stable_address_vec::StableAddressVec;
+
+#[repr(C)] pub struct CameraProjection {
+    pub projection: [f32; 16],
+}
 
 #[derive(Debug)]
 pub struct Port {
     engine: Arc<crate::images::Engine>,
     pass_descriptors: Vec<PassDescriptor>,
     view: crate::images::view::View,
+    camera: Camera,
+    pass_client: PassClient,
 }
 
 /**
-A pass that is prepared to be rendered.
+A pass that is prepared to be rendered (compiled, layout calculated, etc.)
 */
 pub struct PreparedPass {
     pipeline: RenderPipeline,
+    pass_descriptor: PassDescriptor,
     instance_count: u32,
     vertex_count: u32,
     depth_pass: bool,
 }
 
-fn pass_descriptor_to_pipeline(
+fn prepare_pass_descriptor(
     bind_device: &crate::images::BoundDevice,
-    descriptor: &PassDescriptor,
+    descriptor: PassDescriptor,
 ) -> PreparedPass {
     let mut layouts = Vec::new();
 
@@ -65,14 +68,21 @@ fn pass_descriptor_to_pipeline(
                     min_binding_size: Some(NonZero::new(1).unwrap()), //???
                 }
             }
-            BindTarget::Texture => {
+            BindTarget::StaticTexture(texture) => {
                 BindingType::Texture {
                     sample_type: TextureSampleType::Float { filterable: false }, //??
                     view_dimension: TextureViewDimension::D2,
                     multisampled: false,
                 }
             }
-            BindTarget::Sampler => BindingType::Sampler(SamplerBindingType::NonFiltering),
+            BindTarget::DynamicTexture(texture) => {
+                BindingType::Texture {
+                    sample_type: TextureSampleType::Float { filterable: false }, //??
+                    view_dimension: TextureViewDimension::D2,
+                    multisampled: false,
+                }
+            }
+            BindTarget::Sampler(sampler) => BindingType::Sampler(SamplerBindingType::NonFiltering),
         };
         let layout = BindGroupLayoutEntry {
             binding: *pass_index,
@@ -92,6 +102,9 @@ fn pass_descriptor_to_pipeline(
                 label: Some(descriptor.name()),
                 entries: layouts.as_slice(),
             });
+
+
+
 
     let pipeline_layout = bind_device
         .0
@@ -182,7 +195,7 @@ fn pass_descriptor_to_pipeline(
         targets: &[Some(color_target_state)],
     };
 
-    let descriptor = RenderPipelineDescriptor {
+    let render_descriptor = RenderPipelineDescriptor {
         label: Some(descriptor.name()),
         //https://docs.rs/wgpu/24.0.1/wgpu/struct.RenderPipelineDescriptor.html
         layout: Some(&pipeline_layout),
@@ -194,42 +207,93 @@ fn pass_descriptor_to_pipeline(
         multiview: None,
         cache: None, //todo, caching?
     };
-    let pipeline = bind_device.0.device.create_render_pipeline(&descriptor);
+    let pipeline = bind_device.0.device.create_render_pipeline(&render_descriptor);
     PreparedPass {
         pipeline,
         vertex_count,
         instance_count,
-        depth_pass: descriptor.depth_stencil.is_some(),
+        depth_pass: render_descriptor.depth_stencil.is_some(),
+        pass_descriptor: descriptor,
     }
+}
+
+pub fn prepare_bind_group(
+    bind_device: &crate::images::BoundDevice,
+    prepared: &PreparedPass,
+    pass_client: &PassClient,
+    camera_buffer: &wgpu::Buffer,
+    pixel_linear_sampler: &wgpu::Sampler,
+) -> BindGroup {
+    let mut entries = Vec::new();
+    let mut build_resources = StableAddressVec::with_capactiy(5);
+    for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
+        let resource = match &info.target {
+            BindTarget::Buffer(buf) => {todo!()}
+            BindTarget::Camera => {
+                BindingResource::Buffer(BufferBinding {
+                    buffer: todo!(),
+                    offset: todo!(),
+                    size: todo!(),
+                })
+            }
+            BindTarget::FrameCounter => {todo!()}
+            BindTarget::StaticTexture(texture) => {
+                let lookup = pass_client.lookup_static_texture(*texture);
+                let view = build_resources.push(lookup.imp.texture.create_view(&wgpu::TextureViewDescriptor::default()));
+                BindingResource::TextureView(&view)
+            }
+            BindTarget::DynamicTexture(texture) => { todo!() }
+            BindTarget::Sampler(sampler) => {
+                match sampler {
+                    SamplerType::PixelLinear => {BindingResource::Sampler(pixel_linear_sampler)}
+                    SamplerType::Mipmapped => {todo!()}
+                }
+            }
+        };
+
+        let entry = BindGroupEntry {
+            binding: *pass_index,
+            resource: resource,
+        };
+        entries.push(entry);
+    }
+    let bind_group = bind_device.0.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some(prepared.pass_descriptor.name()),
+        layout: &prepared.pipeline.get_bind_group_layout(0),
+        entries: entries.as_slice(),
+    });
+    todo!()
 }
 
 impl Port {
     pub(crate) fn new(
         _engine: &Arc<crate::images::Engine>,
         view: crate::images::view::View,
-        _camera: Camera,
+        camera: Camera,
         _port_reporter_send: PortReporterSend,
     ) -> Result<Self, Error> {
+        let pass_client = PassClient::new(_engine.bound_device().clone());
         Ok(Port {
             engine: _engine.clone(),
             pass_descriptors: Vec::new(),
             view,
+            pass_client,
+            camera,
         })
     }
     pub async fn add_fixed_pass<const N: usize, P: PassTrait<N>>(
         &mut self,
         p: P,
     ) -> P::DescriptorResult {
-        let mut pass_client = crate::images::PassClient::new(self.engine.bound_device().clone());
-        let (descriptors, result) = p.into_descriptor(&mut pass_client).await;
+        let (descriptors, result) = p.into_descriptor(&mut self.pass_client).await;
         self.pass_descriptors.extend(descriptors);
         result
     }
     pub async fn start(&mut self) -> Result<(), Error> {
         let device = self.engine.bound_device().as_ref();
         let mut prepared = Vec::new();
-        for descriptor in &self.pass_descriptors {
-            let pipeline = pass_descriptor_to_pipeline(device, descriptor);
+        for descriptor in self.pass_descriptors.drain(..) {
+            let pipeline = prepare_pass_descriptor(device, descriptor);
             prepared.push(pipeline);
         }
         let size = self.view.size().await;
@@ -298,6 +362,29 @@ impl Port {
             array_layer_count: None,
         });
 
+        let pixel_linear_sampler = device.0.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("pixel linear sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 1.0,
+            compare: None,
+            anisotropy_clamp: 1,
+            border_color: None,
+        });
+
+        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device(), 1, "Camera", |initialize| {
+
+        }).expect("Create camera buffer");
+
+
+
+        let mut guards = StableAddressVec::with_capactiy(5);
+
         for prepared in &prepared {
             let depth_stencil_attachment = if prepared.depth_pass {
                 Some(RenderPassDepthStencilAttachment {
@@ -319,9 +406,20 @@ impl Port {
                 occlusion_query_set: None,
             });
             render_pass.set_pipeline(&prepared.pipeline);
+
+            //now create the bind group.
+            //We do this per-frame, because chances are we want to bind to a specific buffer
+            //of a multi-buffered resource, which can only be known at runtime.
+
+            let camera_render_side = guards.push(camera_mappable_buffer.render_side());
+            let bind_group = prepare_bind_group(device, prepared, &self.pass_client,  &camera_render_side.imp.imp.buffer ,&pixel_linear_sampler);
+
+            render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }
 
-        todo!()
+        todo!();
+
+        todo!("wait for gpu completion before kililng the guards!")
     }
 }

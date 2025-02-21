@@ -28,8 +28,9 @@ pub struct Buffer<Element> {
     multibuffer: Multibuffer<IndividualBuffer<Element>>
 }
 
+#[derive(Debug)]
 pub struct IndividualBuffer<Element> {
-    imp: imp::MappableBuffer,
+    pub(crate) imp: imp::MappableBuffer,
     _marker: PhantomData<Element>,
 }
 
@@ -67,11 +68,19 @@ impl<Element> Mappable for IndividualBuffer<Element> {
 #[derive(Debug)]
 pub struct RenderSide<Element> {
     _marker: PhantomData<Element>,
+    pub(crate) imp: GPUGuard<IndividualBuffer<Element>>, //todo, need gpu type?
 }
 impl<Element> RenderSide<Element> {
     pub(crate) fn dequeue(&mut self) -> GPUGuard<IndividualBuffer<Element>> {
         todo!()
     }
+    pub(crate) fn erased_render_side(&self) -> ErasedRenderSide {
+        todo!()
+    }
+}
+
+pub struct ErasedRenderSide {
+
 }
 
 
@@ -130,9 +139,11 @@ impl<Element> Buffer<Element> {
     }
 
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */
-    pub fn render_side(&mut self) -> RenderSide<Element> {
+    pub fn render_side(&self) -> RenderSide<Element> {
+        let gpu = self.multibuffer.access_gpu();
         RenderSide {
             _marker: PhantomData,
+            imp: gpu,
         }
     }
 

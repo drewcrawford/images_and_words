@@ -33,6 +33,7 @@ pub use engine::Engine;
 pub use port::Port;
 pub use pixel_format::PixelFormat;
 pub use texture::Texture;
+pub use texture::RenderSide as TextureRenderSide;
 pub use sampler::Sampler;
 pub use buffer::{MappableBuffer,BindTargetBufferImp};
 

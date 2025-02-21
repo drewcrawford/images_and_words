@@ -23,7 +23,7 @@ impl<T> Multibuffer<T> {
         self.t.cpu_write().await.expect("multibuffer access_write")
     }
 
-    pub async fn access_gpu(&self) -> GPUGuard<T> {
+    pub fn access_gpu(&self) -> GPUGuard<T> where T: Mappable {
         self.t.gpu().expect("multibuffer access_gpu")
     }
 }

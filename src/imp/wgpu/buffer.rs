@@ -6,12 +6,13 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;
 use crate::bindings::visible_to::CPUStrategy;
 
+#[derive(Debug)]
 pub struct MappableBuffer{
     //not actually static!
     mapped: Option<(*const u8, usize)>,
     mapped_mut: Option<(*mut u8, usize)>,
 
-    buffer: wgpu::Buffer,
+    pub(super) buffer: wgpu::Buffer,
 }
 //ignore the mapped raw pointers!
 unsafe impl Send for MappableBuffer {}

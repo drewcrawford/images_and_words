@@ -28,6 +28,7 @@ pub mod pixel_formats;
 mod imp;
 mod multibuffer;
 mod bittricks;
+mod stable_address_vec;
 
 pub use vectormatrix;
 

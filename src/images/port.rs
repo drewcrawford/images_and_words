@@ -91,6 +91,35 @@ impl PassClient {
         StaticTextureTicket(InternalStaticTextureTicket::R8UNorm(InstanceTicket{slot: self.texture_r8unorm.insert(texture), _phantom: std::marker::PhantomData} ))
     }
 
+    pub(crate) fn lookup_static_texture(&self, ticket: StaticTextureTicket) -> crate::bindings::forward::r#static::texture::RenderSide {
+        match ticket.0 {
+            InternalStaticTextureTicket::R32Float(t) => {
+                let m = self.texture_rgfloat.get(t.slot).expect("Texture not found");
+                m.render_side()
+            }
+            InternalStaticTextureTicket::RGBA16UNorm(t) => {
+                let m = self.texture_rgba16unorm.get(t.slot).expect("Texture not found");
+                m.render_side()
+            }
+            InternalStaticTextureTicket::RGFloat(t) => {
+                let m = self.texture_rgfloat.get(t.slot).expect("Texture not found");
+                m.render_side()
+            }
+            InternalStaticTextureTicket::RGBA8Unorm(t) => {
+                let m = self.texture_rgba8unorm.get(t.slot).expect("Texture not found");
+                m.render_side()
+            }
+            InternalStaticTextureTicket::R8UNorm(t) => {
+                let m = self.texture_r8unorm.get(t.slot).expect("Texture not found");
+                m.render_side()
+            }
+            InternalStaticTextureTicket::BGRA8UnormSRGB(t) => {
+                let m = self.texture_bgra8unorm_srgb.get(t.slot).expect("Texture not found");
+                m.render_side()
+            }
+        }
+    }
+
 
     pub(crate) fn new(bound_device: Arc<BoundDevice>) -> Self {
         PassClient {

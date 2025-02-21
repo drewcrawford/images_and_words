@@ -47,7 +47,7 @@ impl Camera {
         let initial_projection = Projection::new(initial_position, window_size.0, window_size.1);
         Self {
 
-            window_size: window_size,
+            window_size,
             camera_position: initial_position,
             projection: Arc::new(Mutex::new(initial_projection)),
         }
