@@ -6,6 +6,7 @@ use crate::imp;
 
 
 
+#[derive(Debug)]
 pub enum SamplerType {
     ///The sampler shall use pixel coordinates and do linear interpolation.
     ///

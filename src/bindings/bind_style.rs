@@ -22,12 +22,21 @@ pub enum BindTarget {
     Camera,
     FrameCounter,
     Texture,
+    Sampler,
 }
 
 #[derive(Debug)]
 pub struct BindInfo {
     pub(crate) stage: Stage,
     pub(crate) target: BindTarget,
+}
+
+#[derive(Debug)]
+pub struct SamplerInfo {
+    ///The slot to bind to.
+    pub slot: BindSlot,
+    ///The sampler type to use.
+    pub sampler_type: SamplerType,
 }
 impl BindStyle {
     pub fn new() -> Self {
@@ -37,10 +46,11 @@ impl BindStyle {
     }
 
     fn bind(&mut self, slot: BindSlot,target: BindTarget) {
-        self.binds.insert(slot.pass_index, BindInfo {
+        let old = self.binds.insert(slot.pass_index, BindInfo {
             stage: slot.stage,
             target,
         });
+        assert!(old.is_none(), "Already bound to slot {:?}", slot);
     }
 
 
@@ -66,17 +76,16 @@ impl BindStyle {
         self.bind(slot, BindTarget::Buffer);
     }
 
-    pub fn bind_static_texture(&mut self, slot: BindSlot, texture: StaticTextureTicket, sampler_type: Option<SamplerType>) {
+    pub fn bind_static_texture(&mut self, slot: BindSlot, texture: StaticTextureTicket, sampler_type: Option<SamplerInfo>) {
         self.bind(slot, BindTarget::Texture);
+        if let Some(sampler) = sampler_type {
+            self.bind(sampler.slot, BindTarget::Sampler);
+        }
     }
     pub fn bind_dynamic_texture(&mut self, slot: BindSlot, texture: TextureRenderSide) {
         self.bind(slot, BindTarget::Texture);
     }
 
-    #[cfg(target_os="windows")] //only used on windows
-    pub(crate) fn buffer_len(&self) -> usize {
-        self.buffers.len()
-    }
 }
 
 ///A slot where we will bind something.
