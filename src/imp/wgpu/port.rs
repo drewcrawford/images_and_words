@@ -47,7 +47,7 @@ fn pass_descriptor_to_pipeline(bind_device: &crate::images::BoundDevice, descrip
                 BindingType::Buffer {
                     ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: Some(NonZero::new(1).unwrap()), //???
+                    min_binding_size: Some(NonZero::new(64).unwrap()), //This value determined experimentally?
                 }
             }
             BindTarget::FrameCounter => {
