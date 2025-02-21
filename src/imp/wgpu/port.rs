@@ -82,7 +82,7 @@ fn prepare_pass_descriptor(
                     multisampled: false,
                 }
             }
-            BindTarget::Sampler(sampler) => BindingType::Sampler(SamplerBindingType::NonFiltering),
+            BindTarget::Sampler(sampler) => BindingType::Sampler(SamplerBindingType::Filtering),
         };
         let layout = BindGroupLayoutEntry {
             binding: *pass_index,
@@ -231,9 +231,9 @@ pub fn prepare_bind_group(
             BindTarget::Buffer(buf) => {todo!()}
             BindTarget::Camera => {
                 BindingResource::Buffer(BufferBinding {
-                    buffer: todo!(),
-                    offset: todo!(),
-                    size: todo!(),
+                    buffer: camera_buffer,
+                    offset: 0,
+                    size: Some(NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap()),
                 })
             }
             BindTarget::FrameCounter => {todo!()}
