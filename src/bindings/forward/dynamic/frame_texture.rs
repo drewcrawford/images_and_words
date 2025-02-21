@@ -55,10 +55,10 @@ impl<Format> IndividualTexture<Format> {
 }
 
 impl<Format> Mappable for IndividualTexture<Format> {
-    async fn map_read(&self) {
+    async fn map_read(&mut self) {
         todo!()
     }
-    async fn map_write(&self) {
+    async fn map_write(&mut self) {
         todo!()
     }
 

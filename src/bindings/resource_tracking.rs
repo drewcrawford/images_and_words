@@ -59,8 +59,8 @@ pub struct NotAvailable {
 
 pub(crate) mod sealed {
     pub trait Mappable {
-        async fn map_read(&self);
-        async fn map_write(&self);
+        async fn map_read(&mut self);
+        async fn map_write(&mut self);
 
     }
 }
@@ -94,7 +94,7 @@ impl<Resource> ResourceTracker<Resource> {
             Err(other) => return Err(NotAvailable { read_state: other }),
         }
         unsafe {
-            self.resource.get().as_ref().unwrap().map_read().await;
+            self.resource.get().as_mut().unwrap().map_read().await;
             Ok(CPUReadGuard { tracker: self })
         }
     }
@@ -105,7 +105,7 @@ impl<Resource> ResourceTracker<Resource> {
             Err(other) => return Err(NotAvailable { read_state: other }),
         }
         unsafe {
-            self.resource.get().as_ref().unwrap().map_write().await;
+            self.resource.get().as_mut().unwrap().map_write().await;
             Ok(CPUWriteGuard { tracker: self })
         }
     }

@@ -54,10 +54,10 @@ impl<Element> IndexMut<usize> for IndividualBuffer<Element> {
     }
 }
 impl<Element> Mappable for IndividualBuffer<Element> {
-    async fn map_read(&self) {
+    async fn map_read(&mut self) {
         self.imp.map_read().await;
     }
-    async fn map_write(&self) {
+    async fn map_write(&mut self) {
         self.imp.map_write().await;
     }
 }

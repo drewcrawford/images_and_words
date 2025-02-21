@@ -8,9 +8,14 @@ use crate::bindings::visible_to::CPUStrategy;
 
 pub struct MappableBuffer{
     //not actually static!
-    view_mut_unsafe: Option<wgpu::BufferViewMut<'static>>,
+    mapped: Option<(*const u8, usize)>,
+    mapped_mut: Option<(*mut u8, usize)>,
+
     buffer: wgpu::Buffer,
 }
+//ignore the mapped raw pointers!
+unsafe impl Send for MappableBuffer {}
+unsafe impl Sync for MappableBuffer{}
 
 #[derive(Debug)]
 pub struct BindTargetBufferImp {
@@ -70,34 +75,46 @@ impl MappableBuffer {
         Ok(
             MappableBuffer {
                 buffer,
-                view_mut_unsafe: None,
+                mapped: None,
+                mapped_mut: None,
             }
         )
     }
 
     pub fn as_slice(&self) -> &[u8] {
-        self.view_mut_unsafe.as_ref().expect("Map first")
+        unsafe{
+            let (ptr, len) = self.mapped.as_ref().expect("Map first");
+            std::slice::from_raw_parts(*ptr, *len)
+        }
     }
 
     pub fn as_slice_mut(&mut self) -> &mut [u8] {
-        self.view_mut_unsafe.as_mut().expect("Map first")
+        unsafe{
+            let (ptr, len) = self.mapped_mut.as_ref().expect("Map first");
+            std::slice::from_raw_parts_mut(*ptr, *len)
+        }
     }
 
-    pub async fn map_read(&self) {
+    pub async fn map_read(&mut self) {
         let (s,r) = r#continue::continuation();
-        self.buffer.slice(..).map_async(wgpu::MapMode::Read, |r|{
+        let slice = self.buffer.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |r|{
             r.unwrap();
             s.send(());
         });
         r.await;
+        let range = slice.get_mapped_range();
+        self.mapped = Some((range.as_ptr(), range.len()));
     }
-    pub async fn map_write(&self) {
+    pub async fn map_write(&mut self) {
         let (s,r) = r#continue::continuation();
         self.buffer.slice(..).map_async(wgpu::MapMode::Write, |r|{
             r.unwrap();
             s.send(());
         });
         r.await;
+        let mut range = self.buffer.slice(..).get_mapped_range_mut();
+        self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
     }
 
 }
