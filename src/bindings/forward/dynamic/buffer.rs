@@ -11,7 +11,7 @@ use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::sync::Arc;
 use log::debug;
-use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, GPUGuard};
+use crate::multibuffer::{CPUReadGuard, CPUWriteGuard, GPUGuard};
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::CPUStrategy;
 use crate::images::BoundDevice;
@@ -25,7 +25,7 @@ pub enum WriteFrequency {
     Frequent,
 }
 pub struct Buffer<Element> {
-    multibuffer: Multibuffer<IndividualBuffer<Element>>
+    multibuffer: Multibuffer<IndividualBuffer<Element>,imp::GPUableBuffer>,
 }
 
 #[derive(Debug)]
@@ -123,9 +123,10 @@ impl<Element> Buffer<Element> {
             imp: buffer,
             _marker: PhantomData,
         };
+        let gpu_buffer = imp::GPUableBuffer::new(bound_device,byte_size, debug_name);
 
         Ok(Self {
-            multibuffer: Multibuffer::new(individual_buffer),
+            multibuffer: Multibuffer::new(individual_buffer, gpu_buffer),
         })
     }
     /**

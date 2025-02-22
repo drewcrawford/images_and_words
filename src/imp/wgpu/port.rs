@@ -442,7 +442,7 @@ impl Port {
             //of a multi-buffered resource, which can only be known at runtime.
 
             let camera_render_side = guards.push(camera_mappable_buffer.render_side());
-            let bind_group = prepare_bind_group(device, prepared, &self.pass_client,  &camera_render_side.imp.imp.buffer ,&pixel_linear_sampler);
+            let bind_group = prepare_bind_group(device, prepared, &self.pass_client,  &camera_render_side.imp.imp.imp.buffer ,&pixel_linear_sampler);
 
             render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..prepared.vertex_count, 0..1);

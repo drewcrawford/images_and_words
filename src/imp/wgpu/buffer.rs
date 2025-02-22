@@ -6,6 +6,9 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;
 use crate::bindings::visible_to::CPUStrategy;
 
+/**
+A buffer that can be mapped onto the host.
+*/
 #[derive(Debug)]
 pub struct MappableBuffer{
     //not actually static!
@@ -126,7 +129,26 @@ impl MappableBuffer {
 }
 
 
+/**
+A buffer that can (only) be mapped to GPU.
+*/
+pub struct GPUableBuffer {
+    pub(super) buffer: wgpu::Buffer,
+}
 
-
+impl GPUableBuffer {
+    pub fn new(bound_device: &crate::images::BoundDevice, size: usize, debug_name: &str) -> Self {
+        let descriptor = BufferDescriptor {
+            label: Some(debug_name),
+            size: size as u64,
+            usage: BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        };
+        let buffer = bound_device.0.device.create_buffer(&descriptor);
+        GPUableBuffer {
+            buffer,
+        }
+    }
+}
 
 
