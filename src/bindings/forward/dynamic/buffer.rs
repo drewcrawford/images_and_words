@@ -24,8 +24,13 @@ pub enum WriteFrequency {
     ///Roughly once per frame.
     Frequent,
 }
+
+//shared between CPU and render-side
+struct Shared<Element> {
+    multibuffer: Multibuffer<IndividualBuffer<Element>, imp::GPUableBuffer>,
+}
 pub struct Buffer<Element> {
-    multibuffer: Multibuffer<IndividualBuffer<Element>,imp::GPUableBuffer>,
+    shared: Arc<Shared<Element>>,
 }
 
 #[derive(Debug)]
@@ -128,17 +133,19 @@ impl<Element> Buffer<Element> {
         let gpu_buffer = imp::GPUableBuffer::new(bound_device,byte_size, debug_name);
 
         Ok(Self {
-            multibuffer: Multibuffer::new(individual_buffer, gpu_buffer),
+            shared: Arc::new(Shared {
+                multibuffer: Multibuffer::new(individual_buffer, gpu_buffer),
+            })
         })
     }
     /**
     Dequeues a texture.  Resumes when a texture is available.
      */
     pub async fn access_read(&self) -> CPUReadGuard<IndividualBuffer<Element>> {
-        self.multibuffer.access_read().await
+        self.shared.multibuffer.access_read().await
     }
     pub async fn access_write(&self) -> CPUWriteGuard<IndividualBuffer<Element>> {
-        self.multibuffer.access_write().await
+        self.shared.multibuffer.access_write().await
     }
 
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */
