@@ -26,6 +26,7 @@ pub enum WriteFrequency {
 }
 
 //shared between CPU and render-side
+#[derive(Debug)]
 struct Shared<Element> {
     multibuffer: Multibuffer<IndividualBuffer<Element>, imp::GPUableBuffer>,
 }
@@ -72,7 +73,7 @@ impl<Element> Mappable for IndividualBuffer<Element> {
 }
 #[derive(Debug)]
 pub struct RenderSide<Element> {
-    _marker: PhantomData<Element>,
+    shared: Arc<Shared<Element>>,
 }
 impl<Element> RenderSide<Element> {
     pub(crate) fn dequeue(&mut self) -> GPUGuard<IndividualBuffer<Element>> {
@@ -151,7 +152,7 @@ impl<Element> Buffer<Element> {
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */
     pub fn render_side(&self) -> RenderSide<Element> {
         RenderSide {
-            _marker: PhantomData,
+            shared: self.shared.clone(),
         }
     }
 

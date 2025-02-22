@@ -79,6 +79,7 @@ Implements multibuffering.
 `T` - the CPU type
 `U` - the GPU type.  wgpu and similar don't allow GPU-side buffers to be mapped.
 */
+#[derive(Debug)]
 pub struct Multibuffer<T,U> {
     //right now, not really a multibuffer!
     mappable: ResourceTracker<T>,

@@ -132,6 +132,7 @@ impl MappableBuffer {
 /**
 A buffer that can (only) be mapped to GPU.
 */
+#[derive(Debug)]
 pub struct GPUableBuffer {
     pub(super) buffer: wgpu::Buffer,
 }
