@@ -1,6 +1,7 @@
+use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use crate::bindings::resource_tracking::{ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
 
@@ -19,6 +20,17 @@ impl<'a, Element> Deref for CPUReadGuard<'a, Element> where Element: Mappable {
 
 pub struct CPUWriteGuard<'a, Element> where Element: Mappable {
     imp: crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>,
+    dirty_needs_copy: &'a UnsafeCell<bool>,
+}
+
+impl<'a, Element> Drop for CPUWriteGuard<'a, Element> where Element: Mappable {
+    fn drop(&mut self) {
+        //mark the GPU buffer as dirty
+        //we are still holding the lock here so it's ok to write
+        unsafe {
+            *self.dirty_needs_copy.get() = true;
+        }
+    }
 }
 
 impl<'a, Element> DerefMut for CPUWriteGuard<'a, Element> where Element: Mappable {
@@ -37,6 +49,22 @@ impl<'a, Element> Deref for CPUWriteGuard<'a, Element> where Element: Mappable {
 #[derive(Debug)]
 pub struct GPUGuard<Element> where Element: Mappable {
     pub(crate) imp: crate::bindings::resource_tracking::GPUGuard<Element>,
+    shared: Arc<Shared>,
+}
+
+impl<'a, Element> Drop for GPUGuard<Element> where Element: Mappable {
+    fn drop(&mut self) {
+        //with lock held, we can clear the dirty flag
+        unsafe {
+            *self.shared.gpu_dirty_needs_copy.get() = false;
+        }
+    }
+}
+
+///shared between CPU/GPU
+#[derive(Debug)]
+struct Shared {
+    gpu_dirty_needs_copy: UnsafeCell<bool>,
 }
 
 
@@ -56,7 +84,7 @@ pub struct Multibuffer<T,U> {
     mappable: ResourceTracker<T>,
     wake_list: Mutex<Vec<r#continue::Sender<()>>>,
     gpu: U,
-    gpu_dirty_needs_copy: bool,
+    shared: Arc<Shared>,
 }
 
 impl<T,U> Multibuffer<T,U> {
@@ -69,7 +97,9 @@ impl<T,U> Multibuffer<T,U> {
             gpu,
             wake_list: Mutex::new(Vec::new()),
             //initially, GPU buffer type is probably dirty
-            gpu_dirty_needs_copy: true,
+            shared: Arc::new(Shared {
+                gpu_dirty_needs_copy: UnsafeCell::new(true),
+            })
         }
     }
 
@@ -93,15 +123,32 @@ impl<T,U> Multibuffer<T,U> {
             self.wake_list.lock().unwrap().push(s);
             //then check
             match self.mappable.cpu_write().await {
-                Ok(guard) => return CPUWriteGuard{ imp: guard },
+                Ok(guard) => return CPUWriteGuard{ imp: guard, dirty_needs_copy: &self.shared.gpu_dirty_needs_copy },
                 Err(_) => f.await
             }
         }
     }
 
-    pub (crate) fn access_gpu(&self) -> GPUGuard<T> where T: Mappable {
-        GPUGuard {
-            imp: self.mappable.gpu().expect("multibuffer access_gpu")
+    /**
+    Returns a guard object that can be used to schedule a GPU copy.
+
+    Returns None if the GPU buffer is not dirty.
+    */
+    pub (crate) fn copy_gpu_guard_if_needed(&self) -> Option<GPUGuard<T>> where T: Mappable {
+        let imp_guard = self.mappable.gpu().expect("multibuffer access_gpu");
+        //now can read if dirty
+        let dirty = unsafe{ *self.shared.gpu_dirty_needs_copy.get() };
+        if dirty {
+            Some(
+                GPUGuard {
+                    imp: imp_guard,
+                    shared: self.shared.clone(),
+                }
+            )
         }
+        else {
+            None
+        }
+
     }
 }

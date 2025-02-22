@@ -413,7 +413,6 @@ impl Port {
 
 
 
-        let mut guards = StableAddressVec::with_capactiy(5);
 
         for prepared in &prepared {
             let depth_stencil_attachment = if prepared.depth_pass {
@@ -441,10 +440,12 @@ impl Port {
             //We do this per-frame, because chances are we want to bind to a specific buffer
             //of a multi-buffered resource, which can only be known at runtime.
 
-            let camera_render_side = guards.push(camera_mappable_buffer.render_side());
-            let bind_group = prepare_bind_group(device, prepared, &self.pass_client,  &camera_render_side.imp.imp.imp.buffer ,&pixel_linear_sampler);
+            let camera_render_side = camera_mappable_buffer.render_side();
+            let result = camera_render_side.acquire_gpu_buffer();
 
-            render_pass.set_bind_group(0, &bind_group, &[]);
+            todo!();
+            // let bind_group = prepare_bind_group(device, prepared, &self.pass_client,  &camera_render_side.imp.imp.imp.buffer ,&pixel_linear_sampler);
+            // render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }
 
