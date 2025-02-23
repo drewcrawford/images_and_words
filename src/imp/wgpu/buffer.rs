@@ -171,7 +171,7 @@ pub struct CopyInfo<'a> {
 }
 //wrap the underlying guard type, no particular reason
 #[derive(Debug)]
-#[must_use = "Ensure this guard lives for the lifetime of the copy!"]
+#[must_use = "Ensure this guard rlives for the lifetime of the copy!"]
 pub struct CopyGuard<Guard> {
     guard: Guard,
 }

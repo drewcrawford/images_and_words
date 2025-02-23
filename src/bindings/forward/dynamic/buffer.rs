@@ -40,6 +40,7 @@ pub struct Buffer<Element> {
 pub struct IndividualBuffer<Element> {
     pub(crate) imp: imp::MappableBuffer,
     _marker: PhantomData<Element>,
+    count: usize,
 }
 
 
@@ -74,7 +75,7 @@ impl<Element> Mappable for IndividualBuffer<Element> {
         self.imp.unmap();
     }
     fn byte_len(&self) -> usize {
-        self.imp.as_slice().len()
+        self.count * std::mem::size_of::<Element>()
     }
 }
 
@@ -105,6 +106,7 @@ impl<Element> RenderSide<Element> {
         todo!()
     }
     pub(crate) fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> GPUAccess {
+        let t = self.shared.multibuffer.access_gpu(copy_info);
         todo!()
         // match self.shared.multibuffer.access_gpu(copy_info) {
         //     Ok(_) => {
@@ -164,6 +166,7 @@ impl<Element> Buffer<Element> {
         let individual_buffer = IndividualBuffer {
             imp: buffer,
             _marker: PhantomData,
+            count: size,
         };
         let gpu_buffer = imp::GPUableBuffer::new(bound_device,byte_size, debug_name);
 
