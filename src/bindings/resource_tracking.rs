@@ -98,6 +98,8 @@ pub(crate) mod sealed {
         async fn map_read(&mut self);
         async fn map_write(&mut self);
 
+        fn byte_len(&self) -> usize;
+
         fn unmap(&mut self);
 
     }

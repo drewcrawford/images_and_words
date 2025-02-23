@@ -16,7 +16,9 @@ use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::CPUStrategy;
 use crate::images::BoundDevice;
 use crate::imp;
+use crate::imp::{CopyInfo, GPUableBuffer};
 use crate::multibuffer::Multibuffer;
+use crate::multibuffer::sealed::CPUMultibuffer;
 
 pub enum WriteFrequency {
     ///Significantly less than once per frame.
@@ -39,6 +41,7 @@ pub struct IndividualBuffer<Element> {
     pub(crate) imp: imp::MappableBuffer,
     _marker: PhantomData<Element>,
 }
+
 
 impl<Element> Index<usize> for IndividualBuffer<Element> {
     type Output = Element;
@@ -70,10 +73,29 @@ impl<Element> Mappable for IndividualBuffer<Element> {
     fn unmap(&mut self) {
         self.imp.unmap();
     }
+    fn byte_len(&self) -> usize {
+        self.imp.as_slice().len()
+    }
+}
+
+impl<Element> CPUMultibuffer for IndividualBuffer<Element> {
+    type Source = imp::MappableBuffer;
+    fn as_source(&self) -> &Self::Source {
+        &self.imp
+    }
 }
 #[derive(Debug)]
 pub struct RenderSide<Element> {
     shared: Arc<Shared<Element>>,
+}
+
+pub struct GPUAccess {
+
+}
+impl AsRef<imp::GPUableBuffer> for GPUAccess {
+    fn as_ref(&self) -> &imp::GPUableBuffer {
+        todo!()
+    }
 }
 impl<Element> RenderSide<Element> {
     pub(crate) fn dequeue(&mut self) -> GPUGuard<IndividualBuffer<Element>> {
@@ -82,8 +104,20 @@ impl<Element> RenderSide<Element> {
     pub(crate) fn erased_render_side(&self) -> ErasedRenderSide {
         todo!()
     }
-    pub(crate) fn acquire_gpu_buffer(&self) -> u8 {
+    pub(crate) fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> GPUAccess {
         todo!()
+        // match self.shared.multibuffer.access_gpu(copy_info) {
+        //     Ok(_) => {
+        //         GPUAccess {
+        //
+        //         }
+        //     }
+        //     Err(e) => {
+        //         GPUAccess {
+        //
+        //         }
+        //     }
+        // }
     }
 }
 

@@ -64,6 +64,9 @@ impl<Format> Mappable for IndividualTexture<Format> {
     fn unmap(&mut self) {
         todo!()
     }
+    fn byte_len(&self) -> usize {
+        todo!()
+    }
 
 }
 

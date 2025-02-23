@@ -2,7 +2,7 @@ use crate::bindings::bind_style::BindTarget;
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::{DrawCommand, PassDescriptor, PassTrait};
-use crate::imp::Error;
+use crate::imp::{CopyInfo, Error};
 use std::num::NonZero;
 use std::sync::Arc;
 use wgpu::util::RenderEncoder;
@@ -11,7 +11,8 @@ use crate::bindings::sampler::SamplerType;
 use crate::images::PassClient;
 use crate::stable_address_vec::StableAddressVec;
 
-#[repr(C)] pub struct CameraProjection {
+#[repr(C)]
+pub struct CameraProjection {
     pub projection: [f32; 16],
 }
 
@@ -102,8 +103,6 @@ fn prepare_pass_descriptor(
                 label: Some(descriptor.name()),
                 entries: layouts.as_slice(),
             });
-
-
 
 
     let pipeline_layout = bind_device
@@ -228,7 +227,7 @@ pub fn prepare_bind_group(
     let mut build_resources = StableAddressVec::with_capactiy(5);
     for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
         let resource = match &info.target {
-            BindTarget::Buffer(buf) => {todo!()}
+            BindTarget::Buffer(buf) => { todo!() }
             BindTarget::Camera => {
                 BindingResource::Buffer(BufferBinding {
                     buffer: camera_buffer,
@@ -236,7 +235,7 @@ pub fn prepare_bind_group(
                     size: Some(NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap()),
                 })
             }
-            BindTarget::FrameCounter => {todo!()}
+            BindTarget::FrameCounter => { todo!() }
             BindTarget::StaticTexture(texture, sampler_type) => {
                 let lookup = pass_client.lookup_static_texture(*texture);
                 let view = build_resources.push(lookup.imp.texture.create_view(&wgpu::TextureViewDescriptor {
@@ -255,8 +254,8 @@ pub fn prepare_bind_group(
             BindTarget::DynamicTexture(texture) => { todo!() }
             BindTarget::Sampler(sampler) => {
                 match sampler {
-                    SamplerType::PixelLinear => {BindingResource::Sampler(pixel_linear_sampler)}
-                    SamplerType::Mipmapped => {todo!()}
+                    SamplerType::PixelLinear => { BindingResource::Sampler(pixel_linear_sampler) }
+                    SamplerType::Mipmapped => { todo!() }
                 }
             }
         };
@@ -327,6 +326,48 @@ impl Port {
                 view_formats: Vec::new(),
             },
         );
+
+        let pixel_linear_sampler = device.0.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("pixel linear sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 1.0,
+            compare: None,
+            anisotropy_clamp: 1,
+            border_color: None,
+        });
+
+        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device(), 1, "Camera", |initialize| {
+            let projection = self.camera.projection().lock().unwrap().clone();
+            CameraProjection {
+                projection: [
+                    *projection.0.columns()[0].x(),
+                    *projection.0.columns()[0].y(),
+                    *projection.0.columns()[0].z(),
+                    *projection.0.columns()[0].w(),
+                    *projection.0.columns()[1].x(),
+                    *projection.0.columns()[1].y(),
+                    *projection.0.columns()[1].z(),
+                    *projection.0.columns()[1].w(),
+                    *projection.0.columns()[2].x(),
+                    *projection.0.columns()[2].y(),
+                    *projection.0.columns()[2].z(),
+                    *projection.0.columns()[2].w(),
+                    *projection.0.columns()[3].x(),
+                    *projection.0.columns()[3].y(),
+                    *projection.0.columns()[3].z(),
+                    *projection.0.columns()[3].w(),
+                ]
+            }
+        }).expect("Create camera buffer");
+
+
+        //create per-frame resources
         let frame = surface
             .get_current_texture()
             .expect("Acquire swapchain texture");
@@ -372,47 +413,13 @@ impl Port {
             array_layer_count: None,
         });
 
-        let pixel_linear_sampler = device.0.device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("pixel linear sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 1.0,
-            compare: None,
-            anisotropy_clamp: 1,
-            border_color: None,
-        });
+        //prepare to copy data
+        let mut copy_info = CopyInfo {
+            command_encoder: &mut encoder,
+        };
 
-        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device(), 1, "Camera", |initialize| {
-            let projection = self.camera.projection().lock().unwrap().clone();
-            CameraProjection {
-                projection: [
-                    *projection.0.columns()[0].x(),
-                    *projection.0.columns()[0].y(),
-                    *projection.0.columns()[0].z(),
-                    *projection.0.columns()[0].w(),
-                    *projection.0.columns()[1].x(),
-                    *projection.0.columns()[1].y(),
-                    *projection.0.columns()[1].z(),
-                    *projection.0.columns()[1].w(),
-                    *projection.0.columns()[2].x(),
-                    *projection.0.columns()[2].y(),
-                    *projection.0.columns()[2].z(),
-                    *projection.0.columns()[2].w(),
-                    *projection.0.columns()[3].x(),
-                    *projection.0.columns()[3].y(),
-                    *projection.0.columns()[3].z(),
-                    *projection.0.columns()[3].w(),
-                ]
-            }
-        }).expect("Create camera buffer");
-
-
-
+        let camera_render_side = camera_mappable_buffer.render_side();
+        let camera_gpu_access = camera_render_side.acquire_gpu_buffer(&mut copy_info);
 
         for prepared in &prepared {
             let depth_stencil_attachment = if prepared.depth_pass {
@@ -440,11 +447,8 @@ impl Port {
             //We do this per-frame, because chances are we want to bind to a specific buffer
             //of a multi-buffered resource, which can only be known at runtime.
 
-            let camera_render_side = camera_mappable_buffer.render_side();
-            let result = camera_render_side.acquire_gpu_buffer();
 
-            todo!();
-            // let bind_group = prepare_bind_group(device, prepared, &self.pass_client,  &camera_render_side.imp.imp.imp.buffer ,&pixel_linear_sampler);
+            let bind_group = prepare_bind_group(device, prepared, &self.pass_client, &camera_gpu_access.as_ref().buffer, &pixel_linear_sampler);
             // render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }

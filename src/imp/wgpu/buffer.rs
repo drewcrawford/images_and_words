@@ -1,10 +1,12 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::ops::{Index, IndexMut};
-use wgpu::{BufferDescriptor, BufferUsages};
+use std::ops::{Deref, Index, IndexMut};
+use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder};
 use crate::bindings::buffer_access::MapType;
-use crate::bindings::forward::dynamic::buffer::WriteFrequency;
+use crate::bindings::forward::dynamic::buffer::{IndividualBuffer, WriteFrequency};
 use crate::bindings::visible_to::CPUStrategy;
+use crate::imp;
+use crate::multibuffer::sealed::{CPUMultibuffer, GPUMultibuffer};
 
 /**
 A buffer that can be mapped onto the host.
@@ -149,6 +151,38 @@ impl GPUableBuffer {
         GPUableBuffer {
             buffer,
         }
+    }
+    /**
+    copies from the source buffer to this buffer
+
+    # Warning
+    This does no resource tracking - ensure that the source buffer is not deallocated before the copy is complete!
+    */
+    fn copy_from_buffer_internal(&self, source: &MappableBuffer, source_offset: usize, dest_offset: usize, copy_len: usize, command_encoder: &mut CommandEncoder) {
+        command_encoder.copy_buffer_to_buffer(&source.buffer, source_offset as u64, &self.buffer, dest_offset as u64, copy_len as u64);
+    }
+}
+
+/**
+Backend-specific information for copying between buffers.
+*/
+pub struct CopyInfo<'a> {
+    pub(crate) command_encoder: &'a mut CommandEncoder,
+}
+//wrap the underlying guard type, no particular reason
+#[derive(Debug)]
+#[must_use = "Ensure this guard lives for the lifetime of the copy!"]
+pub struct CopyGuard<Guard> {
+    guard: Guard,
+}
+
+impl GPUMultibuffer for GPUableBuffer {
+    fn copy_from_buffer<'a>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: u8)  {
+    todo!()
+    // self.copy_from_buffer_internal(guard.as_source(), source_offset, dest_offset, copy_len, info.command_encoder);
+    //     CopyGuard {
+    //         guard,
+    //     }
     }
 }
 

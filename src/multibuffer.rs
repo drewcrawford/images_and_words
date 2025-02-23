@@ -2,8 +2,12 @@ use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
+use crate::bindings::forward::dynamic::buffer::IndividualBuffer;
 use crate::bindings::resource_tracking::{ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
+use crate::imp;
+use crate::imp::CopyInfo;
+use crate::multibuffer::sealed::{CPUMultibuffer, GPUMultibuffer};
 
 //We need to wrap the ResourceTracker types in a newtype so that we can implement multibuffering behaviors.
 //primarily, we want to mark things dirty.
@@ -48,7 +52,7 @@ impl<'a, Element> Deref for CPUWriteGuard<'a, Element> where Element: Mappable {
 
 #[derive(Debug)]
 pub struct GPUGuard<Element> where Element: Mappable {
-    pub(crate) imp: crate::bindings::resource_tracking::GPUGuard<Element>,
+    pub(crate) imp: imp::CopyGuard<crate::bindings::resource_tracking::GPUGuard<Element>>,
     shared: Arc<Shared>,
 }
 
@@ -67,8 +71,25 @@ struct Shared {
     gpu_dirty_needs_copy: UnsafeCell<bool>,
 }
 
+//safe to send/sync, just not safe to use!
+unsafe impl Send for Shared {}
+unsafe impl Sync for Shared {}
 
+pub(crate) mod sealed {
+    use std::ops::Deref;
+    use crate::imp::{CopyInfo, CopyGuard};
 
+    pub trait GPUMultibuffer {
+        fn copy_from_buffer<'a>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: u8);
+    }
+    /**
+    Indicates that the type can be a source of a multibuffer copy operation
+*/
+    pub trait CPUMultibuffer {
+        type Source;
+        fn as_source(&self) -> &Self::Source;
+    }
+}
 
 
 /**
@@ -131,24 +152,20 @@ impl<T,U> Multibuffer<T,U> {
     }
 
     /**
-    Returns a guard object that can be used to schedule a GPU copy.
+    Accesses the underlying GPU data.
 
-    Returns None if the GPU buffer is not dirty.
+    Returns a guard type providing access to the data.
     */
-    pub (crate) fn copy_gpu_guard_if_needed(&self) -> Option<GPUGuard<T>> where T: Mappable {
+    pub (crate) fn access_gpu(&self, copy_info: &mut CopyInfo) -> u8 where T: Mappable, U: GPUMultibuffer  {
         let imp_guard = self.mappable.gpu().expect("multibuffer access_gpu");
-        //now can read if dirty
+        //now can read dirty flag
         let dirty = unsafe{ *self.shared.gpu_dirty_needs_copy.get() };
         if dirty {
-            Some(
-                GPUGuard {
-                    imp: imp_guard,
-                    shared: self.shared.clone(),
-                }
-            )
+            let new_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, todo!());
+            todo!()
         }
         else {
-            None
+            todo!()
         }
 
     }
