@@ -4,6 +4,8 @@ use std::ops::{Deref, Index, IndexMut};
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder};
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::{IndividualBuffer, WriteFrequency};
+use crate::bindings::resource_tracking::GPUGuard;
+use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::CPUStrategy;
 use crate::imp;
 use crate::multibuffer::sealed::{CPUMultibuffer, GPUMultibuffer};
@@ -177,12 +179,16 @@ pub struct CopyGuard<Guard> {
 }
 
 impl GPUMultibuffer for GPUableBuffer {
-    fn copy_from_buffer<'a>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: u8)  {
-    todo!()
-    // self.copy_from_buffer_internal(guard.as_source(), source_offset, dest_offset, copy_len, info.command_encoder);
-    //     CopyGuard {
-    //         guard,
-    //     }
+    type ItsMappedBuffer = MappableBuffer;
+
+    fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) where Guarded: AsRef<Self::ItsMappedBuffer>
+    ,Guarded: Mappable /* required to appear inside the GPUGuard */
+    {
+        //somehow we need to get a MappableBuffer
+        let m: &MappableBuffer = &guard.as_ref();
+        self.copy_from_buffer_internal(m, source_offset, dest_offset, copy_len, info.command_encoder);
+
+        todo!()
     }
 }
 

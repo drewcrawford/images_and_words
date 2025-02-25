@@ -77,10 +77,31 @@ unsafe impl Sync for Shared {}
 
 pub(crate) mod sealed {
     use std::ops::Deref;
+    use crate::bindings::forward::dynamic::buffer::IndividualBuffer;
+    use crate::bindings::resource_tracking::GPUGuard;
+    use crate::bindings::resource_tracking::sealed::Mappable;
     use crate::imp::{CopyInfo, CopyGuard};
 
+
+
     pub trait GPUMultibuffer {
-        fn copy_from_buffer<'a>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: u8);
+        /*
+        So I guess the issue is
+        1.  Implementation needs e.g. imp::MappedBuffer, possibly indirectly through IndividualBuffer.
+        2.  IndividualBuffer has generics, and hard to name the type of the generics.  Really it's "for all"
+        3.  Hard to express this idea in the rust typesystem.
+
+        Meanwhile,
+        1.  imp::IndividualBuffer has no generics and is easy to name, however,
+        2.  The guard type protects IndividualBuffer, not the impl type.
+        3.  Can't pass them separately due to borrowing rules.
+
+        So my idea is, maybe we can avoid naming the IndividualBuffer type exactly?
+         */
+        type ItsMappedBuffer;
+
+        fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) where Guarded: AsRef<Self::ItsMappedBuffer>, Guarded: Mappable;
+
     }
     /**
     Indicates that the type can be a source of a multibuffer copy operation
@@ -156,12 +177,12 @@ impl<T,U> Multibuffer<T,U> {
 
     Returns a guard type providing access to the data.
     */
-    pub (crate) fn access_gpu(&self, copy_info: &mut CopyInfo) -> u8 where T: Mappable, U: GPUMultibuffer  {
+    pub (crate) fn access_gpu(&self, copy_info: &mut CopyInfo) -> u8 where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
         let imp_guard = self.mappable.gpu().expect("multibuffer access_gpu");
         //now can read dirty flag
         let dirty = unsafe{ *self.shared.gpu_dirty_needs_copy.get() };
         if dirty {
-            let new_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, todo!());
+            let new_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
             todo!()
         }
         else {

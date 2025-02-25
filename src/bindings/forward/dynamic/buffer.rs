@@ -79,6 +79,14 @@ impl<Element> Mappable for IndividualBuffer<Element> {
     }
 }
 
+//in order to support GPU copy, we also need to implement AsRef to the imp type
+//see GPUMultibuffer definition for details
+impl<Element> AsRef<imp::MappableBuffer> for IndividualBuffer<Element> {
+    fn as_ref(&self) -> &imp::MappableBuffer {
+        &self.imp
+    }
+}
+
 impl<Element> CPUMultibuffer for IndividualBuffer<Element> {
     type Source = imp::MappableBuffer;
     fn as_source(&self) -> &Self::Source {
