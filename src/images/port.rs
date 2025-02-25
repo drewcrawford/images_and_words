@@ -94,7 +94,7 @@ impl PassClient {
     pub(crate) fn lookup_static_texture(&self, ticket: StaticTextureTicket) -> crate::bindings::forward::r#static::texture::RenderSide {
         match ticket.0 {
             InternalStaticTextureTicket::R32Float(t) => {
-                let m = self.texture_rgfloat.get(t.slot).expect("Texture not found");
+                let m = self.texture_r32float.get(t.slot).expect("Texture not found");
                 m.render_side()
             }
             InternalStaticTextureTicket::RGBA16UNorm(t) => {

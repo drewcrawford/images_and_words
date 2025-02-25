@@ -222,6 +222,7 @@ pub fn prepare_bind_group(
     pass_client: &PassClient,
     camera_buffer: &wgpu::Buffer,
     pixel_linear_sampler: &wgpu::Sampler,
+    mipmapped_sampler: &wgpu::Sampler,
 ) -> BindGroup {
     let mut entries = Vec::new();
     let mut build_resources = StableAddressVec::with_capactiy(5);
@@ -255,7 +256,7 @@ pub fn prepare_bind_group(
             BindTarget::Sampler(sampler) => {
                 match sampler {
                     SamplerType::PixelLinear => { BindingResource::Sampler(pixel_linear_sampler) }
-                    SamplerType::Mipmapped => { todo!() }
+                    SamplerType::Mipmapped => { BindingResource::Sampler(mipmapped_sampler) }
                 }
             }
         };
@@ -271,7 +272,7 @@ pub fn prepare_bind_group(
         layout: &prepared.pipeline.get_bind_group_layout(0),
         entries: entries.as_slice(),
     });
-    todo!()
+    bind_group
 }
 
 impl Port {
@@ -335,6 +336,21 @@ impl Port {
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Nearest,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 1.0,
+            compare: None,
+            anisotropy_clamp: 1,
+            border_color: None,
+        });
+
+        let mipmapped_sampler = device.0.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("mipmapped sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
             lod_min_clamp: 0.0,
             lod_max_clamp: 1.0,
             compare: None,
@@ -452,8 +468,8 @@ impl Port {
             //of a multi-buffered resource, which can only be known at runtime.
 
 
-            let bind_group = prepare_bind_group(device, prepared, &self.pass_client, &camera_gpu_access.as_ref().buffer, &pixel_linear_sampler);
-            // render_pass.set_bind_group(0, &bind_group, &[]);
+            let bind_group = prepare_bind_group(device, prepared, &self.pass_client, &camera_gpu_access.as_ref().buffer, &pixel_linear_sampler, &mipmapped_sampler);
+            render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }
 
