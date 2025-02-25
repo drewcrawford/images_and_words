@@ -102,7 +102,11 @@ pub(crate) mod sealed {
         type ItsMappedBuffer;
         type OutGuard<InGuard>;
 
-        fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::ItsMappedBuffer>, Guarded: Mappable;
+        /**
+        Safety: Caller must guarantee that the guard is live for the duration of the GPU read.
+*/
+
+        unsafe fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::ItsMappedBuffer>, Guarded: Mappable;
 
     }
     /**
@@ -178,8 +182,11 @@ impl<T,U> Multibuffer<T,U> {
     Accesses the underlying GPU data.
 
     Returns a guard type providing access to the data.
+
+    # Safety
+    Caller must guarantee that the guard is live for the duration of the GPU read.
     */
-    pub (crate) fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<U,T> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
+    pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<U,T> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
         let imp_guard = self.mappable.gpu().expect("multibuffer access_gpu");
         //now can read dirty flag
         let dirty = unsafe{ *self.shared.gpu_dirty_needs_copy.get() };

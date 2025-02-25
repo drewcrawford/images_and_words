@@ -368,6 +368,7 @@ impl Port {
 
 
         //create per-frame resources
+        let mut frame_guards = StableAddressVec::with_capactiy(10);
         let frame = surface
             .get_current_texture()
             .expect("Acquire swapchain texture");
@@ -419,7 +420,10 @@ impl Port {
         };
 
         let camera_render_side = camera_mappable_buffer.render_side();
-        let camera_gpu_access = camera_render_side.acquire_gpu_buffer(&mut copy_info);
+        let camera_gpu_access = unsafe {
+            let camera_gpu_access = camera_render_side.acquire_gpu_buffer(&mut copy_info);
+            frame_guards.push(camera_gpu_access) //safety
+        };
 
         for prepared in &prepared {
             let depth_stencil_attachment = if prepared.depth_pass {
@@ -452,6 +456,8 @@ impl Port {
             // render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }
+
+        todo!("Move guards into callback");
 
         todo!();
 

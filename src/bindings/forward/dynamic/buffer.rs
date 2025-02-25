@@ -98,12 +98,13 @@ pub struct RenderSide<Element> {
     shared: Arc<Shared<Element>>,
 }
 
-pub struct GPUAccess {
-
+pub struct GPUAccess<Element> {
+    imp: crate::multibuffer::GPUGuard<imp::GPUableBuffer, IndividualBuffer<Element>>
 }
-impl AsRef<imp::GPUableBuffer> for GPUAccess {
-    fn as_ref(&self) -> &imp::GPUableBuffer {
-        todo!()
+impl<Element> GPUAccess<Element> {
+    pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
+        let out_guard = &self.imp.imp;
+        &out_guard.deref()
     }
 }
 impl<Element> RenderSide<Element> {
@@ -111,21 +112,16 @@ impl<Element> RenderSide<Element> {
     pub(crate) fn erased_render_side(&self) -> ErasedRenderSide {
         todo!()
     }
-    pub(crate) fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> GPUAccess {
+    /**
+    # Safety
+
+    Caller must guarantee that the return value is live for the duration of the GPU read.
+     */
+    pub(crate) unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> GPUAccess<Element> {
         let t = self.shared.multibuffer.access_gpu(copy_info);
-        todo!()
-        // match self.shared.multibuffer.access_gpu(copy_info) {
-        //     Ok(_) => {
-        //         GPUAccess {
-        //
-        //         }
-        //     }
-        //     Err(e) => {
-        //         GPUAccess {
-        //
-        //         }
-        //     }
-        // }
+        GPUAccess {
+            imp: t,
+        }
     }
 }
 

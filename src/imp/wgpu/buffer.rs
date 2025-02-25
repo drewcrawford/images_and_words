@@ -41,7 +41,7 @@ impl BindTargetBufferImp {
 
 
 impl MappableBuffer {
-    pub fn new<Initializer: Fn(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
+    pub(crate) fn new<Initializer: Fn(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
         let buffer_usage = match map_type {
             MapType::Read => { BufferUsages::MAP_READ }
             MapType::Write => {BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC }
@@ -134,23 +134,34 @@ impl MappableBuffer {
 /**
 A buffer that can (only) be mapped to GPU.
 */
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct GPUableBuffer {
     pub(super) buffer: wgpu::Buffer,
 }
 
+pub(super) enum UsageType {
+    Uniform,
+}
+
 impl GPUableBuffer {
-    pub fn new(bound_device: &crate::images::BoundDevice, size: usize, debug_name: &str) -> Self {
+    //only visible to wgpu backend
+    pub(super) fn new_imp(bound_device: &crate::images::BoundDevice, size: usize, debug_name: &str, usage_type: UsageType) -> Self {
+        let usage_type = match usage_type {
+            UsageType::Uniform => BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        };
         let descriptor = BufferDescriptor {
             label: Some(debug_name),
             size: size as u64,
-            usage: BufferUsages::COPY_DST,
+            usage: usage_type,
             mapped_at_creation: false,
         };
         let buffer = bound_device.0.device.create_buffer(&descriptor);
         GPUableBuffer {
             buffer,
         }
+    }
+    pub(crate) fn new(bound_device: &crate::images::BoundDevice, size: usize, debug_name: &str) -> Self {
+        Self::new_imp(bound_device, size, debug_name, UsageType::Uniform /* ? */)
     }
     /**
     copies from the source buffer to this buffer
@@ -172,11 +183,21 @@ pub struct CopyInfo<'a> {
 //wrap the underlying guard type, no particular reason
 #[derive(Debug)]
 #[must_use = "Ensure this guard lives for the lifetime of the copy!"]
-pub struct CopyGuard<Guard> {
-    guard: Guard,
+pub struct CopyGuard<SourceGuard> {
+    source_guard: SourceGuard,
+    gpu_buffer: GPUableBuffer,
 }
 
-impl<Guard> Drop for CopyGuard<Guard> {
+impl<SourceGuard> Deref for CopyGuard<SourceGuard> {
+    type Target = GPUableBuffer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.gpu_buffer
+    }
+}
+
+
+impl<SourceGuard> Drop for CopyGuard<SourceGuard> {
     fn drop(&mut self) {
         todo!()
     }
@@ -184,18 +205,21 @@ impl<Guard> Drop for CopyGuard<Guard> {
 
 
 
+
 impl GPUMultibuffer for GPUableBuffer {
     type ItsMappedBuffer = MappableBuffer;
     type OutGuard<InGuard> = CopyGuard<InGuard>;
 
-    fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> CopyGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::ItsMappedBuffer>
+    unsafe fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> CopyGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::ItsMappedBuffer>
     ,Guarded: Mappable /* required to appear inside the GPUGuard */
     {
         //somehow we need to get a MappableBuffer
         let m: &MappableBuffer = &guard.as_ref();
         self.copy_from_buffer_internal(m, source_offset, dest_offset, copy_len, info.command_encoder);
-
-        todo!()
+        CopyGuard {
+            source_guard: guard,
+            gpu_buffer: self.clone(),
+        }
     }
 }
 
