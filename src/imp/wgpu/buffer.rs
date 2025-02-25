@@ -43,10 +43,8 @@ impl BindTargetBufferImp {
 impl MappableBuffer {
     pub fn new<Initializer: Fn(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
         let buffer_usage = match map_type {
-            MapType::None => { BufferUsages::empty()}
             MapType::Read => { BufferUsages::MAP_READ }
-            MapType::Write => {BufferUsages::MAP_WRITE }
-            MapType::ReadWrite => {BufferUsages::MAP_WRITE }
+            MapType::Write => {BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC }
         };
 
         //I think in order to make wgpu happy we need to round up to the nearest COPY_BUFFER_ALIGNMENT

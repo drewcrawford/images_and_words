@@ -153,7 +153,7 @@ impl<Element> Buffer<Element> {
         let byte_size = size * std::mem::size_of::<Element>();
         assert_ne!(byte_size,0, "Zero-sized buffers are not allowed");
 
-        let map_type = crate::bindings::buffer_access::MapType::ReadWrite; //todo: optimize for read vs write, etc.
+        let map_type = crate::bindings::buffer_access::MapType::Write; //todo: optimize for read vs write, etc.
 
         let buffer = imp::MappableBuffer::new(bound_device, byte_size, map_type, debug_name, |byte_array| {
            assert_eq!(byte_array.len(),byte_size);
