@@ -99,8 +99,9 @@ pub(crate) mod sealed {
         So my idea is, maybe we can avoid naming the IndividualBuffer type exactly?
          */
         type ItsMappedBuffer;
+        type OutGuard<InGuard>;
 
-        fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) where Guarded: AsRef<Self::ItsMappedBuffer>, Guarded: Mappable;
+        fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::ItsMappedBuffer>, Guarded: Mappable;
 
     }
     /**

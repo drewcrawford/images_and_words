@@ -173,15 +173,24 @@ pub struct CopyInfo<'a> {
 }
 //wrap the underlying guard type, no particular reason
 #[derive(Debug)]
-#[must_use = "Ensure this guard rlives for the lifetime of the copy!"]
+#[must_use = "Ensure this guard lives for the lifetime of the copy!"]
 pub struct CopyGuard<Guard> {
     guard: Guard,
 }
 
+impl<Guard> Drop for CopyGuard<Guard> {
+    fn drop(&mut self) {
+        todo!()
+    }
+}
+
+
+
 impl GPUMultibuffer for GPUableBuffer {
     type ItsMappedBuffer = MappableBuffer;
+    type OutGuard<InGuard> = CopyGuard<InGuard>;
 
-    fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) where Guarded: AsRef<Self::ItsMappedBuffer>
+    fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> CopyGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::ItsMappedBuffer>
     ,Guarded: Mappable /* required to appear inside the GPUGuard */
     {
         //somehow we need to get a MappableBuffer
