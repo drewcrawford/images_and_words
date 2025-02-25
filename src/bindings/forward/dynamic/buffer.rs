@@ -107,9 +107,7 @@ impl AsRef<imp::GPUableBuffer> for GPUAccess {
     }
 }
 impl<Element> RenderSide<Element> {
-    pub(crate) fn dequeue(&mut self) -> GPUGuard<IndividualBuffer<Element>> {
-        todo!()
-    }
+
     pub(crate) fn erased_render_side(&self) -> ErasedRenderSide {
         todo!()
     }

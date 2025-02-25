@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 use crate::bindings::forward::dynamic::buffer::IndividualBuffer;
+use crate::bindings::resource_tracking;
 use crate::bindings::resource_tracking::{ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::imp;
@@ -51,12 +52,12 @@ impl<'a, Element> Deref for CPUWriteGuard<'a, Element> where Element: Mappable {
 }
 
 #[derive(Debug)]
-pub struct GPUGuard<Element> where Element: Mappable {
-    pub(crate) imp: imp::CopyGuard<crate::bindings::resource_tracking::GPUGuard<Element>>,
+pub struct GPUGuard<GPUSide,CPUSide> where GPUSide: GPUMultibuffer, CPUSide: Mappable {
+    pub(crate) imp: GPUSide::OutGuard<resource_tracking::GPUGuard<CPUSide>>,
     shared: Arc<Shared>,
 }
 
-impl<'a, Element> Drop for GPUGuard<Element> where Element: Mappable {
+impl<GPUSide, CPUSide> Drop for GPUGuard<GPUSide, CPUSide> where GPUSide: GPUMultibuffer, CPUSide: Mappable {
     fn drop(&mut self) {
         //with lock held, we can clear the dirty flag
         unsafe {
@@ -178,13 +179,16 @@ impl<T,U> Multibuffer<T,U> {
 
     Returns a guard type providing access to the data.
     */
-    pub (crate) fn access_gpu(&self, copy_info: &mut CopyInfo) -> u8 where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
+    pub (crate) fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<U,T> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
         let imp_guard = self.mappable.gpu().expect("multibuffer access_gpu");
         //now can read dirty flag
         let dirty = unsafe{ *self.shared.gpu_dirty_needs_copy.get() };
         if dirty {
-            let new_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
-            todo!()
+            let copy_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
+            GPUGuard {
+                imp: copy_guard,
+                shared: self.shared.clone(),
+            }
         }
         else {
             todo!()
