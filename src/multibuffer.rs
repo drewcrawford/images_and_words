@@ -2,6 +2,7 @@ use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, Ordering};
 use crate::bindings::forward::dynamic::buffer::IndividualBuffer;
 use crate::bindings::resource_tracking;
 use crate::bindings::resource_tracking::{ResourceTracker};
@@ -25,16 +26,13 @@ impl<'a, Element> Deref for CPUReadGuard<'a, Element> where Element: Mappable {
 
 pub struct CPUWriteGuard<'a, Element> where Element: Mappable {
     imp: crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>,
-    dirty_needs_copy: &'a UnsafeCell<bool>,
+    dirty_needs_copy: &'a AtomicBool,
 }
 
 impl<'a, Element> Drop for CPUWriteGuard<'a, Element> where Element: Mappable {
     fn drop(&mut self) {
-        //mark the GPU buffer as dirty
-        //we are still holding the lock here so it's ok to write
-        unsafe {
-            *self.dirty_needs_copy.get() = true;
-        }
+        //set dirty
+        self.dirty_needs_copy.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -59,17 +57,20 @@ pub struct GPUGuard<GPUSide,CPUSide> where GPUSide: GPUMultibuffer, CPUSide: Map
 
 impl<GPUSide, CPUSide> Drop for GPUGuard<GPUSide, CPUSide> where GPUSide: GPUMultibuffer, CPUSide: Mappable {
     fn drop(&mut self) {
-        //with lock held, we can clear the dirty flag
-        unsafe {
-            *self.shared.gpu_dirty_needs_copy.get() = false;
-        }
+        //mark the GPU buffer as clean
+        let old = self.shared.gpu_dirty_needs_copy.swap(false, std::sync::atomic::Ordering::Relaxed);
+        assert!(old, "GPU buffer was not dirty??");
     }
 }
 
 ///shared between CPU/GPU
 #[derive(Debug)]
 struct Shared {
-    gpu_dirty_needs_copy: UnsafeCell<bool>,
+    //we want to be able to access this without relying on the underlying lock
+    //in particular, we only want to reserve the lock for the duration of the copy operation
+    //and we need to know if we even need one or not.
+    //Generally it is ok to use relaxed here, since we are not synchronizing any other memory (ResourceTracker handles that).
+    gpu_dirty_needs_copy: AtomicBool,
 }
 
 //safe to send/sync, just not safe to use!
@@ -147,7 +148,7 @@ impl<T,U> Multibuffer<T,U> {
             wake_list: Mutex::new(Vec::new()),
             //initially, GPU buffer type is probably dirty
             shared: Arc::new(Shared {
-                gpu_dirty_needs_copy: UnsafeCell::new(true),
+                gpu_dirty_needs_copy: AtomicBool::new(true),
             })
         }
     }
@@ -187,10 +188,11 @@ impl<T,U> Multibuffer<T,U> {
     Caller must guarantee that the guard is live for the duration of the GPU read.
     */
     pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<U,T> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
-        let imp_guard = self.mappable.gpu().expect("multibuffer access_gpu");
+        let dirty = self.shared.gpu_dirty_needs_copy.load(Ordering::Relaxed);
+
         //now can read dirty flag
-        let dirty = unsafe{ *self.shared.gpu_dirty_needs_copy.get() };
         if dirty {
+            let imp_guard = self.mappable.gpu().expect("multibuffer access_gpu");
             let copy_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
             GPUGuard {
                 imp: copy_guard,
