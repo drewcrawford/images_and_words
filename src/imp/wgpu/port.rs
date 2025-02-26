@@ -2,11 +2,12 @@ use crate::bindings::bind_style::BindTarget;
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::{DrawCommand, PassDescriptor, PassTrait};
-use crate::imp::{CopyInfo, Error};
+use crate::imp::{CopyInfo, Error, GPUableBuffer};
 use std::num::NonZero;
 use std::sync::Arc;
 use wgpu::util::RenderEncoder;
 use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
+use crate::bindings::forward::dynamic::buffer::{GPUAccess, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
 use crate::images::PassClient;
 use crate::stable_address_vec::StableAddressVec;
@@ -216,28 +217,43 @@ fn prepare_pass_descriptor(
     }
 }
 
+/**
+Wrapper type that contains the bind group
+and all guards that are needed to keep the resources alive.
+*/
+pub struct BindGroupGuard {
+    bind_group: BindGroup,
+    guards: StableAddressVec<Box<dyn SomeGPUAccess>>,
+}
+
 pub fn prepare_bind_group(
     bind_device: &crate::images::BoundDevice,
     prepared: &PreparedPass,
     pass_client: &PassClient,
-    camera_buffer: &wgpu::Buffer,
+    camera_buffer: &dyn SomeGPUAccess,
     pixel_linear_sampler: &wgpu::Sampler,
     mipmapped_sampler: &wgpu::Sampler,
-) -> BindGroup {
+    copy_info: &mut CopyInfo,
+) -> BindGroupGuard {
     let mut entries = Vec::new();
     let mut build_resources = StableAddressVec::with_capactiy(5);
+
+    let mut gpu_guard_buffers = StableAddressVec::with_capactiy(5);
+
     for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
         let resource = match &info.target {
             BindTarget::Buffer(buf) => {
+                //safety: Keep the guard alive
+                let build_buffer = unsafe{gpu_guard_buffers.push(buf.imp.acquire_gpu_buffer(copy_info))};
                 BindingResource::Buffer(BufferBinding {
-                    buffer: todo!(),
+                    buffer: &build_buffer.as_imp().buffer,
                     offset: 0,
                     size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
                 })
             }
             BindTarget::Camera => {
                 BindingResource::Buffer(BufferBinding {
-                    buffer: camera_buffer,
+                    buffer: &camera_buffer.as_imp().buffer,
                     offset: 0,
                     size: Some(NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap()),
                 })
@@ -278,7 +294,10 @@ pub fn prepare_bind_group(
         layout: &prepared.pipeline.get_bind_group_layout(0),
         entries: entries.as_slice(),
     });
-    bind_group
+    BindGroupGuard {
+        bind_group,
+        guards: gpu_guard_buffers,
+    }
 }
 
 impl Port {
@@ -443,6 +462,7 @@ impl Port {
 
         let camera_render_side = camera_mappable_buffer.render_side();
         let camera_gpu_access = unsafe {
+            use crate::bindings::forward::dynamic::buffer::SomeRenderSide;
             let camera_gpu_access = camera_render_side.acquire_gpu_buffer(&mut copy_info);
             frame_guards.push(camera_gpu_access) //safety
         };
@@ -460,6 +480,13 @@ impl Port {
             } else {
                 None
             };
+            let mut copy_info = CopyInfo {
+                command_encoder: &mut encoder,
+            };
+
+            let camera_gpu_deref: &dyn SomeGPUAccess = &**camera_gpu_access;
+            let bind_group = prepare_bind_group(device, prepared, &self.pass_client, camera_gpu_deref, &pixel_linear_sampler, &mipmapped_sampler, &mut copy_info);
+
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(color_attachment.clone())],
@@ -474,8 +501,7 @@ impl Port {
             //of a multi-buffered resource, which can only be known at runtime.
 
 
-            let bind_group = prepare_bind_group(device, prepared, &self.pass_client, &camera_gpu_access.as_ref().buffer, &pixel_linear_sampler, &mipmapped_sampler);
-            render_pass.set_bind_group(0, &bind_group, &[]);
+            render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }
 

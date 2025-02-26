@@ -126,12 +126,22 @@ impl<Element> Debug for RenderSide<Element> {
 
 
 pub struct GPUAccess<Element> {
-    imp: crate::multibuffer::GPUGuard<imp::GPUableBuffer, IndividualBuffer<Element>>
+    imp: GPUGuard<imp::GPUableBuffer, IndividualBuffer<Element>>
 }
 impl<Element> GPUAccess<Element> {
     pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
         let out_guard = &self.imp.imp;
         &out_guard.deref()
+    }
+}
+
+pub(crate) trait SomeGPUAccess {
+    fn as_imp(&self) -> &imp::GPUableBuffer;
+}
+
+impl<Element> SomeGPUAccess for GPUAccess<Element> {
+    fn as_imp(&self) -> &imp::GPUableBuffer {
+        self.as_ref()
     }
 }
 impl<Element> RenderSide<Element> {
@@ -144,26 +154,26 @@ impl<Element> RenderSide<Element> {
         }
     }
 
-    /**
-    # Safety
 
-    Caller must guarantee that the return value is live for the duration of the GPU read.
-     */
-    pub(crate) unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> GPUAccess<Element> {
-        let t = self.shared.multibuffer.access_gpu(copy_info);
-        GPUAccess {
-            imp: t,
-        }
-    }
 }
 
 ///Erases the RenderSide generics.
-trait SomeRenderSide: Send + Sync + Debug {
-
+pub(crate) trait SomeRenderSide: Send + Sync + Debug {
+    unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess>;
 }
 
-impl<Element: Send + Sync> SomeRenderSide for RenderSide<Element> {
+impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
+    /**
+    Safety:
 
+    Must keep the returned guard active for the duration of GPU use.
+*/
+    unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess> {
+        let underlying_guard = self.shared.multibuffer.access_gpu(copy_info);
+        Box::new(GPUAccess {
+            imp: underlying_guard,
+        })
+    }
 }
 
 #[derive(Debug)]
