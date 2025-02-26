@@ -4,7 +4,7 @@ A dynamic buffer is data we expect to change dynamically.
 It is not necessarily every frame, the exact optimizations are passed by argument.
 */
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
@@ -28,19 +28,35 @@ pub enum WriteFrequency {
 }
 
 //shared between CPU and render-side
-#[derive(Debug)]
+
 struct Shared<Element> {
     multibuffer: Multibuffer<IndividualBuffer<Element>, imp::GPUableBuffer>,
 }
+impl<Element> Debug for Shared<Element> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Shared")
+            .field("multibuffer", &self.multibuffer)
+            .finish()
+    }
+}
 pub struct Buffer<Element> {
     shared: Arc<Shared<Element>>,
+    count: usize,
 }
 
-#[derive(Debug)]
 pub struct IndividualBuffer<Element> {
     pub(crate) imp: imp::MappableBuffer,
     _marker: PhantomData<Element>,
     count: usize,
+}
+
+impl<Element> Debug for IndividualBuffer<Element> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IndividualBuffer")
+            .field("imp", &self.imp)
+            .field("count", &self.count)
+            .finish()
+    }
 }
 
 
@@ -93,10 +109,21 @@ impl<Element> CPUMultibuffer for IndividualBuffer<Element> {
         &self.imp
     }
 }
-#[derive(Debug)]
 pub struct RenderSide<Element> {
     shared: Arc<Shared<Element>>,
+    count: usize,
 }
+
+impl<Element> Debug for RenderSide<Element> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RenderSide")
+            .field("shared", &self.shared)
+            .field("count", &self.count)
+            .finish()
+    }
+}
+
+
 
 pub struct GPUAccess<Element> {
     imp: crate::multibuffer::GPUGuard<imp::GPUableBuffer, IndividualBuffer<Element>>
@@ -109,9 +136,14 @@ impl<Element> GPUAccess<Element> {
 }
 impl<Element> RenderSide<Element> {
 
-    pub(crate) fn erased_render_side(&self) -> ErasedRenderSide {
-        todo!()
+    pub(crate) fn erased_render_side(self) -> ErasedRenderSide where Element: Send + Sync + 'static {
+        ErasedRenderSide {
+            element_size: std::mem::size_of::<Element>(),
+            byte_size: self.count * std::mem::size_of::<Element>(),
+            imp: Box::new(self),
+        }
     }
+
     /**
     # Safety
 
@@ -125,8 +157,20 @@ impl<Element> RenderSide<Element> {
     }
 }
 
-pub struct ErasedRenderSide {
+///Erases the RenderSide generics.
+trait SomeRenderSide: Send + Sync + Debug {
 
+}
+
+impl<Element: Send + Sync> SomeRenderSide for RenderSide<Element> {
+
+}
+
+#[derive(Debug)]
+pub struct ErasedRenderSide {
+    pub(crate) element_size: usize,
+    pub(crate) imp: Box<dyn SomeRenderSide>,
+    pub(crate) byte_size: usize,
 }
 
 
@@ -175,7 +219,8 @@ impl<Element> Buffer<Element> {
         Ok(Self {
             shared: Arc::new(Shared {
                 multibuffer: Multibuffer::new(individual_buffer, gpu_buffer),
-            })
+            }),
+            count: size,
         })
     }
     /**
@@ -192,6 +237,7 @@ impl<Element> Buffer<Element> {
     pub fn render_side(&self) -> RenderSide<Element> {
         RenderSide {
             shared: self.shared.clone(),
+            count: self.count,
         }
     }
 

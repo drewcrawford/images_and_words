@@ -27,16 +27,12 @@ unsafe impl Sync for MappableBuffer{}
 
 #[derive(Debug)]
 pub struct BindTargetBufferImp {
-    pub(crate) element_size: usize,
+    pub(super) element_size: usize,
+    pub(super) buffer: wgpu::Buffer,
+    pub(super) size: usize,
 }
 
-impl BindTargetBufferImp {
-    pub fn new(element_size: usize) -> Self {
-        BindTargetBufferImp {
-            element_size,
-        }
-    }
-}
+
 
 
 

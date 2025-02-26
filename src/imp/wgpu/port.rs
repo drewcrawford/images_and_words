@@ -228,7 +228,13 @@ pub fn prepare_bind_group(
     let mut build_resources = StableAddressVec::with_capactiy(5);
     for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
         let resource = match &info.target {
-            BindTarget::Buffer(buf) => { todo!() }
+            BindTarget::Buffer(buf) => {
+                BindingResource::Buffer(BufferBinding {
+                    buffer: todo!(),
+                    offset: 0,
+                    size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
+                })
+            }
             BindTarget::Camera => {
                 BindingResource::Buffer(BufferBinding {
                     buffer: camera_buffer,
