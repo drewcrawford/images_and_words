@@ -122,6 +122,13 @@ impl PixelFormat for R32Float {
     type CPixel = f32;
 
 }
+#[derive(Debug, Clone)]
+pub struct R16Float;
+impl PixelFormat for R16Float {
+    const BYTES_PER_PIXEL: u8 = 2;
+    type CPixel = half::f16;
+}
+unsafe impl ReprC for half::f16 {}
 unsafe impl ReprC for f32 {}
 
 ///C-compatible 4-field u8 type

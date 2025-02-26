@@ -6,7 +6,7 @@ use crate::images::device::BoundDevice;
 use crate::images::render_pass::PassTrait;
 use crate::images::Engine;
 use crate::bindings::forward::r#static::texture::Texture;
-use crate::pixel_formats::{R32Float, R8UNorm, RGBA16Unorm, RGBA8UNorm, RGFloat, BGRA8UNormSRGB};
+use crate::pixel_formats::{R32Float, R8UNorm, RGBA16Unorm, RGBA8UNorm, RGFloat, BGRA8UNormSRGB, R16Float};
 use std::sync::atomic::{Ordering,AtomicU32};
 use crate::images::camera::{Camera};
 use std::time::{Instant};
@@ -40,6 +40,7 @@ pub(crate) enum InternalStaticTextureTicket {
     RGBA8Unorm(InstanceTicket<Texture<RGBA8UNorm>>),
     R8UNorm(InstanceTicket<Texture<R8UNorm>>),
     BGRA8UnormSRGB(InstanceTicket<Texture<BGRA8UNormSRGB>>),
+    R16Float(InstanceTicket<Texture<R16Float>>),
 }
 
 
@@ -62,6 +63,7 @@ We want to separate it out from the main port for a few reasons:
 pub struct PassClient {
     //static textures
     pub(crate) texture_r32float: SlotMap<DefaultKey,Texture<R32Float>>,
+    pub(crate) texture_r16float: SlotMap<DefaultKey, Texture<R16Float>>,
     pub(crate) texture_rgba16unorm: SlotMap<DefaultKey, Texture<RGBA16Unorm>>,
     pub(crate) texture_rgfloat: SlotMap<DefaultKey, Texture<RGFloat>>,
     pub(crate) texture_rgba8unorm: SlotMap<DefaultKey,Texture<RGBA8UNorm>>,
@@ -74,6 +76,10 @@ pub struct PassClient {
 impl PassClient {
     pub fn add_texture_r32float(&mut self, texture: Texture<R32Float>) -> StaticTextureTicket {
         StaticTextureTicket(InternalStaticTextureTicket::R32Float(InstanceTicket{slot: self.texture_r32float.insert(texture), _phantom: std::marker::PhantomData} ))
+    }
+
+    pub fn add_texture_r16float(&mut self, texture: Texture<R16Float>) -> StaticTextureTicket {
+        StaticTextureTicket(InternalStaticTextureTicket::R16Float(InstanceTicket{slot: self.texture_r16float.insert(texture), _phantom: std::marker::PhantomData} ))
     }
     pub fn add_texture_rgba16unorm(&mut self, texture: Texture<RGBA16Unorm>) -> StaticTextureTicket {
         StaticTextureTicket(InternalStaticTextureTicket::RGBA16UNorm(InstanceTicket{slot: self.texture_rgba16unorm.insert(texture), _phantom: std::marker::PhantomData}))
@@ -95,6 +101,10 @@ impl PassClient {
         match ticket.0 {
             InternalStaticTextureTicket::R32Float(t) => {
                 let m = self.texture_r32float.get(t.slot).expect("Texture not found");
+                m.render_side()
+            }
+            InternalStaticTextureTicket::R16Float(t) => {
+                let m = self.texture_r16float.get(t.slot).expect("Texture not found");
                 m.render_side()
             }
             InternalStaticTextureTicket::RGBA16UNorm(t) => {
@@ -124,6 +134,7 @@ impl PassClient {
     pub(crate) fn new(bound_device: Arc<BoundDevice>) -> Self {
         PassClient {
             texture_r32float: SlotMap::new(),
+            texture_r16float: SlotMap::new(),
             texture_rgba16unorm: SlotMap::new(),
             texture_rgfloat: SlotMap::new(),
             texture_rgba8unorm: SlotMap::new(),

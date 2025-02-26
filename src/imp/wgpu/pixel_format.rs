@@ -1,4 +1,4 @@
-use crate::pixel_formats::{BGRA8UNormSRGB, R32Float, R32SInt, R8UNorm, RGBA16Unorm, RGBA32Float, RGBA8UNorm, RGBA8UnormSRGB, RGFloat};
+use crate::pixel_formats::{BGRA8UNormSRGB, R16Float, R32Float, R32SInt, R8UNorm, RGBA16Unorm, RGBA32Float, RGBA8UNorm, RGBA8UnormSRGB, RGFloat};
 
 pub trait PixelFormat {
     const WGPU_FORMAT: wgpu::TextureFormat;
@@ -30,4 +30,7 @@ impl PixelFormat for RGBA32Float {
 }
 impl PixelFormat for RGBA8UnormSRGB {
     const WGPU_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+}
+impl PixelFormat for R16Float {
+    const WGPU_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R16Float;
 }
