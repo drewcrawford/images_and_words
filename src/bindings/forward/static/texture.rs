@@ -12,9 +12,11 @@ use crate::pixel_formats::sealed::PixelFormat;
 /**
 Cross-platform, forward, static texture.*/
 #[derive(Debug)]
-pub struct Texture<Format> (
-    pub(crate) imp::Texture<Format>
-);
+pub struct Texture<Format> {
+    pub(crate) imp: imp::Texture<Format>,
+    width: u16,
+    height: u16,
+}
 #[derive(Debug,thiserror::Error)]
 pub struct Error(
     #[from] imp::Error
@@ -27,7 +29,12 @@ impl Display for Error {
 }
 impl<Format: PixelFormat> Texture<Format> {
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initialize_to: Initializer) -> Result<Self,Error>  {
-        Ok(Self(imp::Texture::new(device, width, height, visible_to, debug_name, priority, initialize_to).await?))
+        let imp = imp::Texture::new(device, width, height, visible_to, debug_name, priority, initialize_to).await?;
+        Ok(Self {
+            imp,
+            width,
+            height
+        })
     }
     /**
     Create a texture, copying the data from the attached soft texture.
@@ -48,8 +55,16 @@ impl<Format: PixelFormat> Texture<Format> {
     }
     pub fn render_side(&self) -> RenderSide {
         RenderSide {
-            imp: self.0.render_side()
+            imp: self.imp.render_side()
         }
+    }
+
+    pub fn width(&self) -> u16 {
+        self.width
+    }
+
+    pub fn height(&self) -> u16 {
+        self.height
     }
 }
 

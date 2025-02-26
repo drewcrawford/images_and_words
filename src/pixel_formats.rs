@@ -36,6 +36,8 @@ use std::fmt::Debug;
 use tgar::PixelBGRA;
 use crate::pixel_formats::sealed::{PixelFormat, ReprC};
 
+pub use half::f16;
+
 pub(crate) mod sealed {
     use std::fmt::Debug;
 
