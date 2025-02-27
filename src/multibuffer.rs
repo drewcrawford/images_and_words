@@ -56,11 +56,11 @@ Represents a bindable GPU resource.
 
 Multibuffer type.
 */
-pub(crate) struct GPUGuard<Element> {
-    phantom_data: PhantomData<Element>
+pub(crate) struct GPUGuard<T: Mappable, U: GPUMultibuffer> {
+    imp: U::OutGuard<resource_tracking::GPUGuard<T>>,
 }
 
-impl<Element> GPUGuard<Element> {
+impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T,U> {
     pub fn as_imp(&self) -> &imp::GPUableBuffer {
         todo!()
     }
@@ -189,19 +189,15 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     Returns a guard type providing access to the data.
 
     # Safety
-    Caller must guarantee that the guard is live for the duration of the GPU read.
+    Caller must guarantee that the guard is live for the duration of the GPU copy.
     */
-    pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<U> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
-        let dirty = todo!();
-
-        //now can read dirty flag
-        if dirty {
-            let imp_guard = self.mappable.gpu().expect("multibuffer access_gpu");
+    pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<T,U> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
+        let take_dirty = self.shared.needs_gpu_copy.lock().unwrap().take();
+        if let Some(imp_guard) = take_dirty {
             let copy_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
             GPUGuard {
-                // imp: copy_guard,
+                imp: copy_guard,
                 // shared: self.shared.clone(),
-                phantom_data: PhantomData,
             }
         }
         else {

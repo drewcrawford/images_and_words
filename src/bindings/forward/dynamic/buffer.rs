@@ -129,7 +129,7 @@ impl<Element> Debug for RenderSide<Element> {
 Guards access to the underlying [GPUableBuffer].  Used for binding in the render pass.
  */
 pub struct GPUAccess<Element> {
-    imp: crate::multibuffer::GPUGuard<GPUableBuffer>,
+    imp: crate::multibuffer::GPUGuard<IndividualBuffer<Element>,GPUableBuffer>,
     _phantom: PhantomData<Element>,
 }
 impl<Element> GPUAccess<Element> {
