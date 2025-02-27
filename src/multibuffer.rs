@@ -61,8 +61,8 @@ pub(crate) struct GPUGuard<T: Mappable, U: GPUMultibuffer> {
 }
 
 impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T,U> {
-    pub fn as_imp(&self) -> &imp::GPUableBuffer {
-        todo!()
+    pub fn as_imp(&self) -> &U {
+        self.imp.as_ref()
     }
 }
 
@@ -103,7 +103,7 @@ pub(crate) mod sealed {
         So my idea is, maybe we can avoid naming the IndividualBuffer type exactly?
          */
         type ItsMappedBuffer;
-        type OutGuard<InGuard>;
+        type OutGuard<InGuard>: AsRef<Self>;
 
         /**
         Safety: Caller must guarantee that the guard is live for the duration of the GPU read.

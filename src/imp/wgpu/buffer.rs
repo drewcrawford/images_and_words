@@ -184,10 +184,8 @@ pub struct CopyGuard<SourceGuard> {
     gpu_buffer: GPUableBuffer,
 }
 
-impl<SourceGuard> Deref for CopyGuard<SourceGuard> {
-    type Target = GPUableBuffer;
-
-    fn deref(&self) -> &Self::Target {
+impl<SourceGuard> AsRef<GPUableBuffer> for CopyGuard<SourceGuard> {
+    fn as_ref(&self) -> &GPUableBuffer {
         &self.gpu_buffer
     }
 }
