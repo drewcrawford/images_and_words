@@ -410,6 +410,7 @@ impl Port {
 
         //create per-frame resources
         let mut frame_guards = StableAddressVec::with_capactiy(10);
+        let mut frame_bind_guards = Vec::new();
         let frame = surface
             .get_current_texture()
             .expect("Acquire swapchain texture");
@@ -502,6 +503,7 @@ impl Port {
 
 
             render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
+            frame_bind_guards.push(bind_group.guards);
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }
 
