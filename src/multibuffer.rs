@@ -24,28 +24,28 @@ impl<'a, Element> Deref for CPUReadGuard<'a, Element> where Element: Mappable {
     }
 }
 
-pub struct CPUWriteGuard<'a, Element> where Element: Mappable {
-    imp: crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>,
-    dirty_needs_copy: &'a AtomicBool,
+pub struct CPUWriteGuard<'a, Element, U> where Element: Mappable {
+    imp: Option<crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>>, //option for drop!
+    buffer: &'a Multibuffer<Element, U>
 }
 
-impl<'a, Element> Drop for CPUWriteGuard<'a, Element> where Element: Mappable {
+impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U> where Element: Mappable {
     fn drop(&mut self) {
-        //set dirty
-        self.dirty_needs_copy.store(true, std::sync::atomic::Ordering::Relaxed);
+        let take = self.imp.take().expect("Dropped CPUWriteGuard already");
+        todo!()
     }
 }
 
-impl<'a, Element> DerefMut for CPUWriteGuard<'a, Element> where Element: Mappable {
+impl<'a, Element, U> DerefMut for CPUWriteGuard<'a, Element, U> where Element: Mappable {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.imp
+        self.imp.as_mut().expect("No imp??")
     }
 }
 
-impl<'a, Element> Deref for CPUWriteGuard<'a, Element> where Element: Mappable {
+impl<'a, Element, U> Deref for CPUWriteGuard<'a, Element, U> where Element: Mappable {
     type Target = Element;
     fn deref(&self) -> &Self::Target {
-        &self.imp
+        self.imp.as_ref().expect("No imp??")
     }
 }
 
@@ -57,20 +57,14 @@ pub struct GPUGuard<GPUSide,CPUSide> where GPUSide: GPUMultibuffer, CPUSide: Map
 
 impl<GPUSide, CPUSide> Drop for GPUGuard<GPUSide, CPUSide> where GPUSide: GPUMultibuffer, CPUSide: Mappable {
     fn drop(&mut self) {
-        //mark the GPU buffer as clean
-        let old = self.shared.gpu_dirty_needs_copy.swap(false, std::sync::atomic::Ordering::Relaxed);
-        assert!(old, "GPU buffer was not dirty??");
+        todo!()
     }
 }
 
 ///shared between CPU/GPU
 #[derive(Debug)]
 struct Shared {
-    //we want to be able to access this without relying on the underlying lock
-    //in particular, we only want to reserve the lock for the duration of the copy operation
-    //and we need to know if we even need one or not.
-    //Generally it is ok to use relaxed here, since we are not synchronizing any other memory (ResourceTracker handles that).
-    gpu_dirty_needs_copy: AtomicBool,
+
 }
 
 //safe to send/sync, just not safe to use!
@@ -148,7 +142,6 @@ impl<T,U> Multibuffer<T,U> {
             wake_list: Mutex::new(Vec::new()),
             //initially, GPU buffer type is probably dirty
             shared: Arc::new(Shared {
-                gpu_dirty_needs_copy: AtomicBool::new(true),
             })
         }
     }
@@ -166,14 +159,14 @@ impl<T,U> Multibuffer<T,U> {
         }
     }
 
-    pub async fn access_write(&self) -> CPUWriteGuard<T> where T: Mappable {
+    pub async fn access_write(&self) -> CPUWriteGuard<T, U> where T: Mappable {
         loop {
             //insert first
             let (s, f) = r#continue::continuation();
             self.wake_list.lock().unwrap().push(s);
             //then check
             match self.mappable.cpu_write().await {
-                Ok(guard) => return CPUWriteGuard{ imp: guard, dirty_needs_copy: &self.shared.gpu_dirty_needs_copy },
+                Ok(guard) => return CPUWriteGuard{ imp: Some(guard), buffer: &self },
                 Err(_) => f.await
             }
         }
@@ -188,7 +181,7 @@ impl<T,U> Multibuffer<T,U> {
     Caller must guarantee that the guard is live for the duration of the GPU read.
     */
     pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<U,T> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
-        let dirty = self.shared.gpu_dirty_needs_copy.load(Ordering::Relaxed);
+        let dirty = todo!();
 
         //now can read dirty flag
         if dirty {

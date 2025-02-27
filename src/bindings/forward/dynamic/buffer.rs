@@ -239,7 +239,7 @@ impl<Element> Buffer<Element> {
     pub async fn access_read(&self) -> CPUReadGuard<IndividualBuffer<Element>> {
         self.shared.multibuffer.access_read().await
     }
-    pub async fn access_write(&self) -> CPUWriteGuard<IndividualBuffer<Element>> {
+    pub async fn access_write(&self) -> CPUWriteGuard<IndividualBuffer<Element>, imp::GPUableBuffer> {
         self.shared.multibuffer.access_write().await
     }
 

@@ -173,6 +173,14 @@ impl<Resource> ResourceTrackerInternal<Resource> {
         }
     }
 
+    /**
+    Converts atomically to a GPU resource without dropping the lock.
+    */
+    pub fn convert_to_gpu(self: &Arc<Self>, cpu_guard: CPUWriteGuard<Resource>) -> GPUGuard<Resource> where Resource: sealed::Mappable {
+        self.state.store(GPU, std::sync::atomic::Ordering::Release);
+        GPUGuard { tracker: self.clone() }
+    }
+
     fn unuse_cpu(&self) where Resource: sealed::Mappable {
         unsafe{&mut *self.resource.get()}.unmap();
         let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
@@ -198,5 +206,8 @@ impl<Resource> ResourceTracker<Resource> {
     }
     pub(crate) fn gpu(&self) -> Result<GPUGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
         self.internal.gpu()
+    }
+    pub(crate) fn convert_to_gpu(&self, cpu_guard: CPUWriteGuard<Resource>) -> GPUGuard<Resource> where Resource: sealed::Mappable {
+        self.internal.convert_to_gpu(cpu_guard)
     }
 }
