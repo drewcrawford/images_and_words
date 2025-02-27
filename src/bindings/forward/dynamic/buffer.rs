@@ -11,7 +11,8 @@ use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::sync::Arc;
 use log::debug;
-use crate::multibuffer::{CPUReadGuard, CPUWriteGuard, GPUGuard};
+use crate::bindings::resource_tracking::GPUGuard;
+use crate::multibuffer::{CPUReadGuard, CPUWriteGuard};
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::CPUStrategy;
 use crate::images::BoundDevice;
@@ -124,14 +125,16 @@ impl<Element> Debug for RenderSide<Element> {
 }
 
 
-
+/*
+Guards access to the underlying [GPUableBuffer].  Used for binding in the render pass.
+ */
 pub struct GPUAccess<Element> {
-    imp: GPUGuard<imp::GPUableBuffer, IndividualBuffer<Element>>
+    imp: crate::multibuffer::GPUGuard<GPUableBuffer>,
+    _phantom: PhantomData<Element>,
 }
 impl<Element> GPUAccess<Element> {
     pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
-        let out_guard = &self.imp.imp;
-        &out_guard.deref()
+        &self.imp.as_imp()
     }
 }
 
@@ -172,6 +175,7 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
         let underlying_guard = self.shared.multibuffer.access_gpu(copy_info);
         Box::new(GPUAccess {
             imp: underlying_guard,
+            _phantom: PhantomData::<Element>,
         })
     }
 }

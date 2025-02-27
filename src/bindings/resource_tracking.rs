@@ -21,7 +21,10 @@ impl<Resource> Deref for CPUReadGuard<'_, Resource> where Resource: sealed::Mapp
 }
 impl <Resource> Drop for CPUReadGuard<'_, Resource> where Resource: sealed::Mappable {
     fn drop(&mut self) {
-        self.tracker.unuse_cpu();
+        //safety: it's the guard's responsibility to ensure the lock is held
+        unsafe {
+            self.tracker.unuse_cpu();
+        }
     }
 }
 
@@ -29,6 +32,8 @@ impl <Resource> Drop for CPUReadGuard<'_, Resource> where Resource: sealed::Mapp
 pub struct CPUWriteGuard<'a, Resource> where Resource: sealed::Mappable  {
     tracker: &'a ResourceTrackerInternal<Resource>,
 }
+
+
 
 impl<Resource> Deref for CPUWriteGuard<'_, Resource> where Resource: sealed::Mappable {
     type Target = Resource;
@@ -45,7 +50,11 @@ impl<Resource> DerefMut for CPUWriteGuard<'_, Resource> where Resource: sealed::
 
 impl <Resource> Drop for CPUWriteGuard<'_, Resource> where Resource: sealed::Mappable {
     fn drop(&mut self) {
-        self.tracker.unuse_cpu();
+        //safety: it's the guard's responsibility to ensure the lock is held
+        unsafe {
+            self.tracker.unuse_cpu();
+
+        }
     }
 }
 
@@ -177,14 +186,23 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     Converts atomically to a GPU resource without dropping the lock.
     */
     pub fn convert_to_gpu(self: &Arc<Self>, cpu_guard: CPUWriteGuard<Resource>) -> GPUGuard<Resource> where Resource: sealed::Mappable {
-        self.state.store(GPU, std::sync::atomic::Ordering::Release);
+        self.state.compare_exchange(CPU_WRITE, GPU, std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed).expect("Resource was not in CPU_WRITE state");
+        //unmap the CPU resource
+        //safety: we have the lock
+        unsafe{cpu_guard.tracker.unmap_only_cpu()};
+        std::mem::forget(cpu_guard); //don't run drop
         GPUGuard { tracker: self.clone() }
     }
 
-    fn unuse_cpu(&self) where Resource: sealed::Mappable {
-        unsafe{&mut *self.resource.get()}.unmap();
+    ///safety: ensure lock is held
+    unsafe fn unuse_cpu(&self) where Resource: sealed::Mappable {
+        (*self.resource.get()).unmap();
         let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
         assert_ne!(o, UNUSED, "Resource was not in use");
+    }
+    ///safety: ensure lock is held
+    unsafe fn unmap_only_cpu(&self) where Resource: sealed::Mappable {
+        (*self.resource.get()).unmap();
     }
     fn unuse_gpu(&self) {
         let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
