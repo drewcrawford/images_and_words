@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use wgpu::{Extent3d, TextureDescriptor, TextureDimension, TextureViewDescriptor};
 use wgpu::util::{DeviceExt, TextureDataOrder};
@@ -32,12 +33,32 @@ impl TextureUsage {
     }
 }
 
+pub struct MappableTexture<Format> {
+    //on wgpu, textures cannot be mapped, only buffers.
+    imp: wgpu::Buffer,
+    format: PhantomData<Format>,
+}
+
+impl<Format> Debug for MappableTexture<Format> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MappableTexture")
+            .field("imp", &self.imp)
+            .finish()
+    }
+}
+
+
+
+/**
+A texxture mappable (only) to the GPU.
+*/
+
 #[derive(Debug)]
-pub struct Texture<Format> {
+pub struct GPUableTexture<Format> {
     format: PhantomData<Format>,
     imp: wgpu::Texture,
 }
-impl<Format: crate::pixel_formats::sealed::PixelFormat> Texture<Format> {
+impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initializer: Initializer) -> Result<Self, Error> {
         let texture_descriptor = TextureDescriptor {
             label: Some(debug_name),

@@ -32,7 +32,7 @@ pub use bound_device::BoundDevice;
 pub use engine::Engine;
 pub use port::Port;
 pub use pixel_format::PixelFormat;
-pub use texture::Texture;
+pub use texture::{GPUableTexture, MappableTexture};
 pub use texture::RenderSide as TextureRenderSide;
 pub use sampler::Sampler;
 pub use buffer::{MappableBuffer,BindTargetBufferImp, GPUableBuffer,CopyInfo,CopyGuard};

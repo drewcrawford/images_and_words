@@ -1,9 +1,10 @@
 /*! Cross-platform frame_texture
 
- This represents a dynamic bitmap-like image.
+ This represents a dynamic bitmap-like image.  It is multibuffered.
  */
 
 use std::future::Future;
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -14,13 +15,15 @@ use crate::pixel_formats::sealed::PixelFormat;
 use crate::{imp, Priority};
 use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
+use crate::imp::CopyInfo;
 
 /**
 A single non-multibuffered texture.
 */
 #[derive(Debug)]
 pub struct IndividualTexture<Format> {
-    imp: imp::Texture<Format>,
+    cpu: imp::MappableTexture<Format>,
+    gpu: imp::GPUableTexture<Format>,
     width: u16,
     height: u16,
 }
@@ -31,6 +34,12 @@ An opaque type that references the multibuffered texture for GPU binding.
 #[derive(Debug)]
 pub struct TextureRenderSide {
 
+}
+
+impl TextureRenderSide {
+    pub(crate) fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) {
+        todo!()
+    }
 }
 
 
@@ -114,9 +123,11 @@ impl<Format: PixelFormat> IndividualTexture<Format> {
 impl<Format: PixelFormat> FrameTexture<Format> {
     pub async fn new<I: Fn(Texel) -> Format::CPixel>(bound_device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, cpu_strategy: CPUStrategy, debug_name: &str, initialize_with: I, priority: Priority) -> Self  {
 
-        let imp_texture = imp::Texture::new(bound_device, width, height, visible_to, debug_name, priority, initialize_with).await.unwrap();
+        let gpu = imp::GPUableTexture::new(bound_device, width, height, visible_to, debug_name, priority, initialize_with).await.unwrap();
+        let cpu = todo!();
         let individual_texture = IndividualTexture {
-            imp: imp_texture,
+            gpu,
+            cpu,
             width, height,
         };
         let guarded = ResourceTracker::new(individual_texture, || {});
