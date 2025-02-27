@@ -1,3 +1,16 @@
+/*!
+Multibuffering implementation.
+
+This implements a generic multibucffering algorithm. The main idea is,
+
+1.  We have one or more CPU-visible objects
+2.  We have one (or more) GPU-visible objects
+3.  We write to the CPU side and it triggers a copy to the GPU side.
+
+The objects here are fully generic, and may support buffers or textures.
+
+*/
+
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
