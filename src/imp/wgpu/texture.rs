@@ -62,8 +62,27 @@ pub struct GPUableTexture<Format> {
     imp: wgpu::Texture,
 }
 impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
-    pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initializer: Initializer) -> Result<Self, Error> {
-        let texture_descriptor = TextureDescriptor {
+
+    pub async fn new_initialize<I: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initializer: I) -> Result<Self, Error> {
+        let descriptor = Self::get_descriptor(debug_name, width, height, visible_to);
+        let data_order = TextureDataOrder::default(); //?
+        //todo: could optimize probably?
+        let pixels = (width as usize * height as usize);
+        let mut src_buf = Vec::with_capacity(pixels);
+        for x in 0..width {
+            for y in 0..height {
+                src_buf.push(initializer(Texel{x,y}));
+            }
+        }
+        let texture = bound_device.0.device.create_texture_with_data(&bound_device.0.queue, &descriptor, TextureDataOrder::default(), pixel_as_bytes(&src_buf));
+        Ok(Self {
+            format: PhantomData,
+            imp: texture,
+        })
+    }
+
+    fn get_descriptor(debug_name: &str, width: u16, height: u16, visible_to: TextureUsage) -> TextureDescriptor {
+        TextureDescriptor {
             label: Some(debug_name),
             size: Extent3d {
                 width: width.into(),
@@ -76,19 +95,12 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             format: Format::WGPU_FORMAT,
             usage:visible_to.wgpu_usage(),
             view_formats: &[], //?
-        };
-        let data_order = TextureDataOrder::default(); //?
-        //todo: could optimize probably?
-        let pixels = (width as usize * height as usize);
-        let mut src_buf = Vec::with_capacity(pixels);
-        for x in 0..width {
-            for y in 0..height {
-                src_buf.push(initializer(Texel{x,y}));
-            }
         }
+    }
 
-        let texture = bound_device.0.device.create_texture_with_data(&bound_device.0.queue, &texture_descriptor, data_order, pixel_as_bytes(&src_buf));
-
+    pub async fn new(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority) -> Result<Self, Error> {
+        let descriptor = Self::get_descriptor(debug_name, width, height, visible_to);
+        let texture = bound_device.0.device.create_texture(&descriptor);
         Ok(Self {
             format: PhantomData,
             imp: texture,

@@ -124,7 +124,7 @@ impl<Format: PixelFormat> IndividualTexture<Format> {
 impl<Format: PixelFormat> FrameTexture<Format> {
     pub async fn new<I: Fn(Texel) -> Format::CPixel>(bound_device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, cpu_strategy: CPUStrategy, debug_name: &str, initialize_with: I, priority: Priority) -> Self  {
 
-        let gpu = imp::GPUableTexture::new(bound_device, width, height, visible_to, debug_name, priority, initialize_with).await.unwrap();
+        let gpu = imp::GPUableTexture::new(bound_device, width, height, visible_to, debug_name, priority).await.unwrap();
         let cpu = todo!();
         let individual_texture = IndividualTexture {
             gpu,

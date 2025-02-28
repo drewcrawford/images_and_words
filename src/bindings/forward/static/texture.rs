@@ -29,7 +29,7 @@ impl Display for Error {
 }
 impl<Format: PixelFormat> Texture<Format> {
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initialize_to: Initializer) -> Result<Self,Error>  {
-        let imp = imp::GPUableTexture::new(device, width, height, visible_to, debug_name, priority, initialize_to).await?;
+        let imp = imp::GPUableTexture::new_initialize(device, width, height, visible_to, debug_name, priority, initialize_to).await?;
         Ok(Self {
             imp,
             width,
