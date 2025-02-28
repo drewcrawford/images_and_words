@@ -201,10 +201,10 @@ impl<SourceGuard> Drop for CopyGuard<SourceGuard> {
 
 
 impl GPUMultibuffer for GPUableBuffer {
-    type ItsMappedBuffer = MappableBuffer;
+    type CorrespondingMappedType = MappableBuffer;
     type OutGuard<InGuard> = CopyGuard<InGuard>;
 
-    unsafe fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> CopyGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::ItsMappedBuffer>
+    unsafe fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> CopyGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::CorrespondingMappedType>
     ,Guarded: Mappable /* required to appear inside the GPUGuard */
     {
         //somehow we need to get a MappableBuffer

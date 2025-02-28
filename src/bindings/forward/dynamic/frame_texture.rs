@@ -16,6 +16,7 @@ use crate::{imp, Priority};
 use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::imp::CopyInfo;
+use crate::multibuffer::Multibuffer;
 
 /**
 A single non-multibuffered texture.
@@ -45,7 +46,7 @@ impl TextureRenderSide {
 
 #[derive(Debug)]
 pub struct FrameTexture<Format: PixelFormat>{
-    _imp: ResourceTracker<IndividualTexture<Format>>,
+    multibuffer: Multibuffer<IndividualTexture<Format>,imp::GPUableTexture<Format>>,
     width: u16,
     height: u16,
 }
@@ -130,9 +131,9 @@ impl<Format: PixelFormat> FrameTexture<Format> {
             cpu,
             width, height,
         };
-        let guarded = ResourceTracker::new(individual_texture, || {});
+        let multibuffer = Multibuffer::new(individual_texture, gpu);
         Self {
-            _imp: guarded,
+            multibuffer,
             width, height,
         }
     }
@@ -140,7 +141,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     Dequeues a texture.  Resumes when a texture is available.
      */
     pub async fn dequeue(&mut self) -> CPUWriteGuard<IndividualTexture<Format>>{
-        self._imp.cpu_write().await.expect("Can't write now")
+        todo!()
     }
     /**
     Returns the last texture submitted to the GPU.

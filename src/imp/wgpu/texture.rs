@@ -2,9 +2,12 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use wgpu::{Extent3d, TextureDescriptor, TextureDimension, TextureViewDescriptor};
 use wgpu::util::{DeviceExt, TextureDataOrder};
+use crate::bindings::resource_tracking::GPUGuard;
+use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureUsage;
-use crate::imp::Error;
+use crate::imp::{CopyInfo, Error};
+use crate::multibuffer::sealed::GPUMultibuffer;
 use crate::pixel_formats::pixel_as_bytes;
 use crate::Priority;
 
@@ -98,6 +101,28 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         }
     }
 
+}
+
+pub struct CopyGuard {
+
+}
+impl<Format> AsRef<GPUableTexture<Format>> for CopyGuard {
+    fn as_ref(&self) -> &GPUableTexture<Format> {
+        todo!()
+    }
+}
+
+impl<Format> GPUMultibuffer for GPUableTexture<Format> {
+    type CorrespondingMappedType = MappableTexture<Format>;
+    type OutGuard<InGuard> = CopyGuard;
+
+    unsafe fn copy_from_buffer<'a, Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>>
+    where
+        Guarded: AsRef<Self::CorrespondingMappedType>,
+        Guarded: Mappable
+    {
+        todo!()
+    }
 }
 
 pub struct RenderSide {

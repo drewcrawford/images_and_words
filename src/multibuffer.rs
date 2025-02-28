@@ -115,14 +115,14 @@ pub(crate) mod sealed {
 
         So my idea is, maybe we can avoid naming the IndividualBuffer type exactly?
          */
-        type ItsMappedBuffer;
+        type CorrespondingMappedType;
         type OutGuard<InGuard>: AsRef<Self>;
 
         /**
         Safety: Caller must guarantee that the guard is live for the duration of the GPU read.
 */
 
-        unsafe fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::ItsMappedBuffer>, Guarded: Mappable;
+        unsafe fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::CorrespondingMappedType>, Guarded: Mappable;
 
     }
     /**
@@ -204,7 +204,7 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     # Safety
     Caller must guarantee that the guard is live for the duration of the GPU copy.
     */
-    pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<T,U> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::ItsMappedBuffer> {
+    pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<T,U> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::CorrespondingMappedType> {
         let take_dirty = self.shared.needs_gpu_copy.lock().unwrap().take();
         if let Some(imp_guard) = take_dirty {
             let copy_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
