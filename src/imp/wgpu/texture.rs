@@ -1,14 +1,18 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::mem::MaybeUninit;
+use log::debug;
 use wgpu::{Extent3d, TextureDescriptor, TextureDimension, TextureViewDescriptor};
 use wgpu::util::{DeviceExt, TextureDataOrder};
+use crate::bindings::buffer_access::MapType;
 use crate::bindings::resource_tracking::GPUGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureUsage;
-use crate::imp::{CopyInfo, Error};
+use crate::imp::{CopyInfo, Error, MappableBuffer};
 use crate::multibuffer::sealed::GPUMultibuffer;
 use crate::pixel_formats::pixel_as_bytes;
+use crate::pixel_formats::sealed::PixelFormat;
 use crate::Priority;
 
 impl TextureUsage {
@@ -38,8 +42,36 @@ impl TextureUsage {
 
 pub struct MappableTexture<Format> {
     //on wgpu, textures cannot be mapped, only buffers.
-    imp: wgpu::Buffer,
+    imp: MappableBuffer,
     format: PhantomData<Format>,
+}
+
+impl<Format: PixelFormat> MappableTexture<Format> {
+    pub fn new<Initializer: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, debug_name: &str, priority: Priority, initializer: Initializer) -> Self {
+        let buffer = MappableBuffer::new(&bound_device, width as usize * height as usize * std::mem::size_of::<Format::CPixel>(), MapType::Write, debug_name, |byte_array| {
+            let elements = width as usize * height as usize;
+            assert_eq!(byte_array.len(), elements * std::mem::size_of::<Format::CPixel>());
+            //safety: we know the byte array is the right size
+            let as_elements: &mut [MaybeUninit<Format::CPixel>] = unsafe{std::slice::from_raw_parts_mut(byte_array.as_mut_ptr() as *mut MaybeUninit<Format::CPixel>, elements)};
+            for y in 0..height {
+                for x in 0..width {
+                    let index = y as usize * width as usize + x as usize;
+                    let texel = Texel { x, y };
+                    let pixel = initializer(texel);
+                    as_elements[index] = MaybeUninit::new(pixel);
+                }
+            }
+            //transmute to byte array
+            //safety: we initialized all the elements
+            unsafe {
+                std::slice::from_raw_parts_mut(byte_array.as_mut_ptr() as *mut u8, byte_array.len())
+            }
+        }).expect("Mappable buffer creation");
+        Self {
+            imp: buffer,
+            format: PhantomData,
+        }
+    }
 }
 
 impl<Format> Debug for MappableTexture<Format> {
@@ -53,7 +85,9 @@ impl<Format> Debug for MappableTexture<Format> {
 
 
 /**
-A texxture mappable (only) to the GPU.
+A texture mappable (only) to the GPU.
+
+Design note, we want to track the format in types here.  For a format-less version, grab the render side.
 */
 
 #[derive(Debug)]

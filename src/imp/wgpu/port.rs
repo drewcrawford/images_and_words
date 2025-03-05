@@ -275,9 +275,20 @@ pub fn prepare_bind_group(
                 BindingResource::TextureView(&view)
             }
             BindTarget::DynamicTexture(texture) => {
-                let buf = texture.acquire_gpu_texture(copy_info);
-
-                todo!() }
+                let texture = texture.acquire_gpu_texture(copy_info);
+                let view = build_resources.push(texture.texture.create_view(&wgpu::TextureViewDescriptor {
+                    label: None,
+                    format: None,
+                    dimension: None,
+                    usage: None,
+                    aspect: Default::default(),
+                    base_mip_level: 0,
+                    mip_level_count: None,
+                    base_array_layer: 0,
+                    array_layer_count: None,
+                }));
+                BindingResource::TextureView(&view)
+            }
             BindTarget::Sampler(sampler) => {
                 match sampler {
                     SamplerType::PixelLinear => { BindingResource::Sampler(pixel_linear_sampler) }

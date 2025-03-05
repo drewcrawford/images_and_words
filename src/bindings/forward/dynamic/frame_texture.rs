@@ -24,21 +24,43 @@ A single non-multibuffered texture.
 #[derive(Debug)]
 pub struct IndividualTexture<Format> {
     cpu: imp::MappableTexture<Format>,
-    gpu: imp::GPUableTexture<Format>,
     width: u16,
     height: u16,
+}
+
+#[derive(Debug)]
+pub(crate) struct ErasedTextureRenderSide {
+
+}
+
+impl ErasedTextureRenderSide {
+    pub fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> GPUGuard {
+        todo!()
+    }
 }
 
 /**
 An opaque type that references the multibuffered texture for GPU binding.
 */
 #[derive(Debug)]
-pub struct TextureRenderSide {
-
+pub struct TextureRenderSide<Format> {
+    format: PhantomData<Format>,
 }
 
-impl TextureRenderSide {
-    pub(crate) fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) {
+impl<Format> TextureRenderSide<Format> {
+    pub(crate) fn erased(self) -> ErasedTextureRenderSide {
+        ErasedTextureRenderSide {
+
+        }
+    }
+}
+
+pub struct GPUGuard {
+
+}
+impl Deref for GPUGuard {
+    type Target = imp::TextureRenderSide;
+    fn deref(&self) -> &Self::Target {
         todo!()
     }
 }
@@ -125,9 +147,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     pub async fn new<I: Fn(Texel) -> Format::CPixel>(bound_device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, cpu_strategy: CPUStrategy, debug_name: &str, initialize_with: I, priority: Priority) -> Self  {
 
         let gpu = imp::GPUableTexture::new(bound_device, width, height, visible_to, debug_name, priority).await.unwrap();
-        let cpu = todo!();
+        let cpu = imp::MappableTexture::new(bound_device, width, height, debug_name, priority, initialize_with);
         let individual_texture = IndividualTexture {
-            gpu,
             cpu,
             width, height,
         };
@@ -156,9 +177,9 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /**
     Gets an associated [TextureRenderSide] for this texture.
 */
-    pub fn render_side(&mut self) -> TextureRenderSide {
+    pub fn render_side(&mut self) -> TextureRenderSide<Format> {
         TextureRenderSide {
-
+            format: PhantomData
         }
     }
     pub fn width(&self) -> u16 {

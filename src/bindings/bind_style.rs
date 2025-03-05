@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use crate::bindings::forward::dynamic::buffer::{ErasedRenderSide, RenderSide as DynamicRenderSide};
-use crate::bindings::forward::dynamic::frame_texture::TextureRenderSide;
+use crate::bindings::forward::dynamic::frame_texture::{ErasedTextureRenderSide,TextureRenderSide};
 use crate::bindings::sampler::SamplerType;
 use crate::images::port::InstanceTicket;
 /*
@@ -22,7 +22,7 @@ pub enum BindTarget {
     Buffer(ErasedRenderSide),
     Camera,
     FrameCounter,
-    DynamicTexture(TextureRenderSide),
+    DynamicTexture(ErasedTextureRenderSide),
     StaticTexture(StaticTextureTicket, Option<SamplerType>),
     Sampler(SamplerType),
 }
@@ -84,8 +84,8 @@ impl BindStyle {
             self.bind(BindSlot::new(slot.stage, sampler.pass_index), BindTarget::Sampler(sampler.sampler_type));
         }
     }
-    pub fn bind_dynamic_texture(&mut self, slot: BindSlot, texture: TextureRenderSide) {
-        self.bind(slot, BindTarget::DynamicTexture(texture));
+    pub fn bind_dynamic_texture<Format>(&mut self, slot: BindSlot, texture: TextureRenderSide<Format>) {
+        self.bind(slot, BindTarget::DynamicTexture(texture.erased()));
     }
 
 }
