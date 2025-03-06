@@ -48,7 +48,11 @@ impl<Format> AsRef<imp::MappableTexture<Format>> for IndividualTexture<Format> {
 
 
 trait DynRenderSide: Send + Debug {
-    fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> GPUGuard;
+    fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard;
+}
+
+trait DynGuard {
+
 }
 
 
@@ -59,7 +63,7 @@ pub(crate) struct ErasedTextureRenderSide {
 }
 
 impl ErasedTextureRenderSide {
-    pub fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> GPUGuard {
+    pub fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
 
         todo!()
     }
@@ -90,22 +94,28 @@ impl<Format> Debug for TextureRenderSide<Format> {
     }
 }
 impl<Format> DynRenderSide for TextureRenderSide<Format> {
-    fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> GPUGuard {
+    fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
         let guard = todo!(); //self.shared.multibuffer.access_gpu(copy_info);
-        GPUGuard {
+        ErasedGPUGuard {
             // guard,
         }
     }
 }
 
-pub struct GPUGuard {
+struct GPUGuard<Format> {
+    format: PhantomData<Format>,
 }
-impl Deref for GPUGuard {
+pub struct ErasedGPUGuard {
+
+}
+
+impl Deref for ErasedGPUGuard {
     type Target = imp::TextureRenderSide;
     fn deref(&self) -> &Self::Target {
         todo!()
     }
 }
+
 
 
 ///Shared between FrameTexture and TextureRenderSide
