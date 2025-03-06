@@ -16,7 +16,7 @@ use crate::pixel_formats::sealed::PixelFormat;
 use crate::{imp, Priority};
 use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
-use crate::imp::CopyInfo;
+use crate::imp::{CopyInfo, MappableTexture};
 use crate::multibuffer::Multibuffer;
 
 /**
@@ -29,6 +29,7 @@ pub struct IndividualTexture<Format> {
     height: u16,
 }
 
+
 impl<Format> Debug for IndividualTexture<Format> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IndividualTexture")
@@ -39,9 +40,15 @@ impl<Format> Debug for IndividualTexture<Format> {
     }
 }
 
+impl<Format> AsRef<imp::MappableTexture<Format>> for IndividualTexture<Format> {
+    fn as_ref(&self) -> &MappableTexture<Format> {
+        &self.cpu
+    }
+}
+
 
 trait DynRenderSide: Send + Debug {
-
+    fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> GPUGuard;
 }
 
 
@@ -53,9 +60,8 @@ pub(crate) struct ErasedTextureRenderSide {
 
 impl ErasedTextureRenderSide {
     pub fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> GPUGuard {
-        GPUGuard {
 
-        }
+        todo!()
     }
 }
 
@@ -84,11 +90,15 @@ impl<Format> Debug for TextureRenderSide<Format> {
     }
 }
 impl<Format> DynRenderSide for TextureRenderSide<Format> {
-
+    fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> GPUGuard {
+        let guard = todo!(); //self.shared.multibuffer.access_gpu(copy_info);
+        GPUGuard {
+            // guard,
+        }
+    }
 }
 
 pub struct GPUGuard {
-
 }
 impl Deref for GPUGuard {
     type Target = imp::TextureRenderSide;
