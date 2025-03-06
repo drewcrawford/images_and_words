@@ -117,7 +117,6 @@ A texture mappable (only) to the GPU.
 
 Design note, we want to track the format in types here.  For a format-less version, grab the render side.
 */
-
 pub struct GPUableTexture<Format> {
     format: PhantomData<Format>,
     imp: wgpu::Texture,
@@ -127,6 +126,15 @@ impl<Format> Debug for GPUableTexture<Format> {
         f.debug_struct("GPUableTexture")
             .field("imp", &self.imp)
             .finish()
+    }
+}
+//needed for CopyGuard to work
+impl<Format> Clone for GPUableTexture<Format> {
+    fn clone(&self) -> Self {
+        GPUableTexture {
+            format: PhantomData,
+            imp: self.imp.clone(),
+        }
     }
 }
 //we don't actually send the format!
@@ -189,11 +197,11 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
 
 pub struct CopyGuard<Format,SourceGuard> {
     guard: SourceGuard,
-    format: PhantomData<Format>,
+    gpu: GPUableTexture<Format>,
 }
 impl<Format,SourceGuard> AsRef<GPUableTexture<Format>> for CopyGuard<Format,SourceGuard> {
     fn as_ref(&self) -> &GPUableTexture<Format> {
-        todo!()
+        &self.gpu
     }
 }
 
@@ -223,7 +231,7 @@ impl<Format> GPUMultibuffer for GPUableTexture<Format> {
         });
         CopyGuard {
             guard,
-            format: PhantomData,
+            gpu: self.clone(),
         }
     }
 }
