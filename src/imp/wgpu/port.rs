@@ -239,6 +239,7 @@ pub fn prepare_bind_group(
     let mut build_resources = StableAddressVec::with_capactiy(5);
 
     let mut gpu_guard_buffers = StableAddressVec::with_capactiy(5);
+    let mut gpu_guard_textures = StableAddressVec::with_capactiy(5);
 
     for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
         let resource = match &info.target {
@@ -275,7 +276,8 @@ pub fn prepare_bind_group(
                 BindingResource::TextureView(&view)
             }
             BindTarget::DynamicTexture(texture) => {
-                let texture = texture.acquire_gpu_texture(copy_info);
+                //safety: keep the guard alive
+                let texture = unsafe{gpu_guard_textures.push(texture.acquire_gpu_texture(copy_info))};
                 let view = build_resources.push(texture.texture.create_view(&wgpu::TextureViewDescriptor {
                     label: None,
                     format: None,

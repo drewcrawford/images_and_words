@@ -48,10 +48,16 @@ impl<Format> AsRef<imp::MappableTexture<Format>> for IndividualTexture<Format> {
 
 
 trait DynRenderSide: Send + Debug {
-    fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard;
+    ///
+    /// # Safety
+    /// Must hold the guard for the lifetime of the GPU texture access.
+    unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard;
 }
 
 trait DynGuard {
+
+}
+impl<Format> DynGuard for GPUGuard<Format> {
 
 }
 
@@ -63,8 +69,8 @@ pub(crate) struct ErasedTextureRenderSide {
 }
 
 impl ErasedTextureRenderSide {
-    pub fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
-
+    pub unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
+        self.imp.acquire_gpu_texture(copy_info);
         todo!()
     }
 }
@@ -93,20 +99,23 @@ impl<Format> Debug for TextureRenderSide<Format> {
             .finish()
     }
 }
-impl<Format> DynRenderSide for TextureRenderSide<Format> {
-    fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
-        let guard = todo!(); //self.shared.multibuffer.access_gpu(copy_info);
+impl<Format: 'static> DynRenderSide for TextureRenderSide<Format> {
+    unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
+        let guard =  self.shared.multibuffer.access_gpu(copy_info);
+        let our_guard = GPUGuard {
+            underlying: guard,
+        };
         ErasedGPUGuard {
-            // guard,
+            erasing: Box::new(our_guard),
         }
     }
 }
 
 struct GPUGuard<Format> {
-    format: PhantomData<Format>,
+    underlying: crate::multibuffer::GPUGuard<IndividualTexture<Format>, imp::GPUableTexture<Format>>,
 }
 pub struct ErasedGPUGuard {
-
+    erasing: Box<dyn DynGuard>,
 }
 
 impl Deref for ErasedGPUGuard {
