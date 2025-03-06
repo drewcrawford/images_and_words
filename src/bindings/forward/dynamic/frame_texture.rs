@@ -3,6 +3,7 @@
  This represents a dynamic bitmap-like image.  It is multibuffered.
  */
 
+use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
@@ -21,38 +22,69 @@ use crate::multibuffer::Multibuffer;
 /**
 A single non-multibuffered texture.
 */
-#[derive(Debug)]
+
 pub struct IndividualTexture<Format> {
     cpu: imp::MappableTexture<Format>,
     width: u16,
     height: u16,
 }
 
+impl<Format> Debug for IndividualTexture<Format> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IndividualTexture")
+            .field("cpu", &self.cpu)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .finish()
+    }
+}
+
+
+trait DynRenderSide: Send + Debug {
+
+}
+
+
+
 #[derive(Debug)]
 pub(crate) struct ErasedTextureRenderSide {
-
+    imp: Box<dyn DynRenderSide>,
 }
 
 impl ErasedTextureRenderSide {
     pub fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> GPUGuard {
-        todo!()
+        GPUGuard {
+
+        }
     }
 }
 
 /**
 An opaque type that references the multibuffered texture for GPU binding.
 */
-#[derive(Debug)]
+
 pub struct TextureRenderSide<Format> {
-    format: PhantomData<Format>,
+    shared: Arc<Shared<Format>>
 }
 
 impl<Format> TextureRenderSide<Format> {
-    pub(crate) fn erased(self) -> ErasedTextureRenderSide {
+    pub(crate) fn erased(self) -> ErasedTextureRenderSide where Format: 'static {
         ErasedTextureRenderSide {
-
+            imp: Box::new(self)
         }
     }
+}
+
+
+impl<Format> Debug for TextureRenderSide<Format> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TextureRenderSide")
+            .field("shared", &self.shared)
+            .finish()
+    }
+}
+impl<Format> DynRenderSide for TextureRenderSide<Format> {
+
 }
 
 pub struct GPUGuard {
@@ -66,9 +98,22 @@ impl Deref for GPUGuard {
 }
 
 
+///Shared between FrameTexture and TextureRenderSide
+struct Shared<Format> {
+    multibuffer: Multibuffer<IndividualTexture<Format>,imp::GPUableTexture<Format>>,
+}
+
+impl<Format> Debug for Shared<Format> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Shared")
+            .field("multibuffer", &self.multibuffer)
+            .finish()
+    }
+}
+
 #[derive(Debug)]
 pub struct FrameTexture<Format: PixelFormat>{
-    multibuffer: Multibuffer<IndividualTexture<Format>,imp::GPUableTexture<Format>>,
+    shared: Arc<Shared<Format>>,
     width: u16,
     height: u16,
 }
@@ -153,8 +198,11 @@ impl<Format: PixelFormat> FrameTexture<Format> {
             width, height,
         };
         let multibuffer = Multibuffer::new(individual_texture, gpu);
+        let shared = Arc::new(Shared {
+            multibuffer
+        });
         Self {
-            multibuffer,
+            shared,
             width, height,
         }
     }
@@ -179,7 +227,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
 */
     pub fn render_side(&mut self) -> TextureRenderSide<Format> {
         TextureRenderSide {
-            format: PhantomData
+           shared: self.shared.clone(),
         }
     }
     pub fn width(&self) -> u16 {

@@ -46,6 +46,10 @@ pub struct MappableTexture<Format> {
     format: PhantomData<Format>,
 }
 
+//we don't actually send the format!
+unsafe impl<Format> Send for MappableTexture<Format> {}
+unsafe impl<Format> Sync for MappableTexture<Format> {}
+
 impl<Format: PixelFormat> MappableTexture<Format> {
     pub fn new<Initializer: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, debug_name: &str, priority: Priority, initializer: Initializer) -> Self {
         let buffer = MappableBuffer::new(&bound_device, width as usize * height as usize * std::mem::size_of::<Format::CPixel>(), MapType::Write, debug_name, |byte_array| {
@@ -90,11 +94,21 @@ A texture mappable (only) to the GPU.
 Design note, we want to track the format in types here.  For a format-less version, grab the render side.
 */
 
-#[derive(Debug)]
 pub struct GPUableTexture<Format> {
     format: PhantomData<Format>,
     imp: wgpu::Texture,
 }
+impl<Format> Debug for GPUableTexture<Format> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GPUableTexture")
+            .field("imp", &self.imp)
+            .finish()
+    }
+}
+//we don't actually send the format!
+unsafe impl<Format> Send for GPUableTexture<Format> {}
+unsafe impl<Format> Sync for GPUableTexture<Format> {}
+
 impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
 
     pub async fn new_initialize<I: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initializer: I) -> Result<Self, Error> {
