@@ -55,10 +55,12 @@ trait DynRenderSide: Send + Debug {
 }
 
 trait DynGuard {
-
+    fn as_imp(&self) -> imp::TextureRenderSide;
 }
 impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
-
+    fn as_imp(&self) -> crate::imp::TextureRenderSide {
+        self.underlying.as_imp().render_side()
+    }
 }
 
 
@@ -70,8 +72,8 @@ pub(crate) struct ErasedTextureRenderSide {
 
 impl ErasedTextureRenderSide {
     pub unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
-        self.imp.acquire_gpu_texture(copy_info);
-        todo!()
+        let guard = self.imp.acquire_gpu_texture(copy_info);
+        guard
     }
 }
 
@@ -105,8 +107,10 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
         let our_guard = GPUGuard {
             underlying: guard,
         };
+        let render_side = our_guard.underlying.as_imp().render_side();
         ErasedGPUGuard {
             erasing: Box::new(our_guard),
+            render_side,
         }
     }
 }
@@ -116,6 +120,7 @@ struct GPUGuard<Format: PixelFormat> {
 }
 pub struct ErasedGPUGuard {
     erasing: Box<dyn DynGuard>,
+    render_side: imp::TextureRenderSide
 }
 
 impl Deref for ErasedGPUGuard {

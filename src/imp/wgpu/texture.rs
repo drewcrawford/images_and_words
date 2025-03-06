@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use log::debug;
-use wgpu::{Extent3d, TextureDescriptor, TextureDimension, TextureViewDescriptor};
+use wgpu::{Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase, TextureDescriptor, TextureDimension, TextureViewDescriptor};
 use wgpu::util::{DeviceExt, TextureDataOrder};
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::resource_tracking::GPUGuard;
@@ -44,6 +44,26 @@ pub struct MappableTexture<Format> {
     //on wgpu, textures cannot be mapped, only buffers.
     imp: MappableBuffer,
     format: PhantomData<Format>,
+    width: u16,
+    height: u16,
+}
+
+impl<Format> Mappable for MappableTexture<Format> {
+    async fn map_read(&mut self) {
+        todo!()
+    }
+
+    async fn map_write(&mut self) {
+        todo!()
+    }
+
+    fn byte_len(&self) -> usize {
+        todo!()
+    }
+
+    fn unmap(&mut self) {
+        todo!()
+    }
 }
 
 //we don't actually send the format!
@@ -74,6 +94,8 @@ impl<Format: PixelFormat> MappableTexture<Format> {
         Self {
             imp: buffer,
             format: PhantomData,
+            width,
+            height,
         }
     }
 }
@@ -85,6 +107,8 @@ impl<Format> Debug for MappableTexture<Format> {
             .finish()
     }
 }
+
+
 
 
 
@@ -163,10 +187,11 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
 
 }
 
-pub struct CopyGuard {
-
+pub struct CopyGuard<Format,SourceGuard> {
+    guard: SourceGuard,
+    format: PhantomData<Format>,
 }
-impl<Format> AsRef<GPUableTexture<Format>> for CopyGuard {
+impl<Format,SourceGuard> AsRef<GPUableTexture<Format>> for CopyGuard<Format,SourceGuard> {
     fn as_ref(&self) -> &GPUableTexture<Format> {
         todo!()
     }
@@ -174,14 +199,32 @@ impl<Format> AsRef<GPUableTexture<Format>> for CopyGuard {
 
 impl<Format> GPUMultibuffer for GPUableTexture<Format> {
     type CorrespondingMappedType = MappableTexture<Format>;
-    type OutGuard<InGuard> = CopyGuard;
+    type OutGuard<InGuard> = CopyGuard<Format,InGuard>;
 
     unsafe fn copy_from_buffer<'a, Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>>
     where
         Guarded: AsRef<Self::CorrespondingMappedType>,
         Guarded: Mappable
     {
-        todo!()
+        let source_base = TexelCopyBufferInfoBase {
+            buffer: &guard.as_ref().imp.buffer,
+            layout: Default::default(),
+        };
+        let dest_base = TexelCopyTextureInfoBase {
+            texture: &self.imp,
+            mip_level: 0,
+            origin: Default::default(),
+            aspect: Default::default(),
+        };
+        info.command_encoder.copy_buffer_to_texture(source_base, dest_base, Extent3d {
+            width: guard.as_ref().width as u32,
+            height: guard.as_ref().height as u32,
+            depth_or_array_layers: 0,
+        });
+        CopyGuard {
+            guard,
+            format: PhantomData,
+        }
     }
 }
 
