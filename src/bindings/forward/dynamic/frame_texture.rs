@@ -57,7 +57,7 @@ trait DynRenderSide: Send + Debug {
 trait DynGuard {
 
 }
-impl<Format> DynGuard for GPUGuard<Format> {
+impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
 
 }
 
@@ -79,11 +79,11 @@ impl ErasedTextureRenderSide {
 An opaque type that references the multibuffered texture for GPU binding.
 */
 
-pub struct TextureRenderSide<Format> {
+pub struct TextureRenderSide<Format: PixelFormat> {
     shared: Arc<Shared<Format>>
 }
 
-impl<Format> TextureRenderSide<Format> {
+impl<Format: PixelFormat> TextureRenderSide<Format> {
     pub(crate) fn erased(self) -> ErasedTextureRenderSide where Format: 'static {
         ErasedTextureRenderSide {
             imp: Box::new(self)
@@ -92,14 +92,14 @@ impl<Format> TextureRenderSide<Format> {
 }
 
 
-impl<Format> Debug for TextureRenderSide<Format> {
+impl<Format: PixelFormat> Debug for TextureRenderSide<Format> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TextureRenderSide")
             .field("shared", &self.shared)
             .finish()
     }
 }
-impl<Format: 'static> DynRenderSide for TextureRenderSide<Format> {
+impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
     unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
         let guard =  self.shared.multibuffer.access_gpu(copy_info);
         let our_guard = GPUGuard {
@@ -111,7 +111,7 @@ impl<Format: 'static> DynRenderSide for TextureRenderSide<Format> {
     }
 }
 
-struct GPUGuard<Format> {
+struct GPUGuard<Format: PixelFormat> {
     underlying: crate::multibuffer::GPUGuard<IndividualTexture<Format>, imp::GPUableTexture<Format>>,
 }
 pub struct ErasedGPUGuard {
@@ -128,11 +128,11 @@ impl Deref for ErasedGPUGuard {
 
 
 ///Shared between FrameTexture and TextureRenderSide
-struct Shared<Format> {
+struct Shared<Format: PixelFormat> {
     multibuffer: Multibuffer<IndividualTexture<Format>,imp::GPUableTexture<Format>>,
 }
 
-impl<Format> Debug for Shared<Format> {
+impl<Format: PixelFormat> Debug for Shared<Format> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Shared")
             .field("multibuffer", &self.multibuffer)
@@ -160,7 +160,7 @@ impl<Format> IndividualTexture<Format> {
     }
 }
 
-impl<Format> Mappable for IndividualTexture<Format> {
+impl<Format: PixelFormat> Mappable for IndividualTexture<Format> {
     async fn map_read(&mut self) {
         todo!()
     }
@@ -171,7 +171,7 @@ impl<Format> Mappable for IndividualTexture<Format> {
         todo!()
     }
     fn byte_len(&self) -> usize {
-        todo!()
+        (self.width as usize) * (self.height as usize) * std::mem::size_of::<Format::CPixel>()
     }
 
 }

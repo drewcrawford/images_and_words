@@ -84,7 +84,7 @@ impl BindStyle {
             self.bind(BindSlot::new(slot.stage, sampler.pass_index), BindTarget::Sampler(sampler.sampler_type));
         }
     }
-    pub fn bind_dynamic_texture<Format>(&mut self, slot: BindSlot, texture: TextureRenderSide<Format>) where Format: 'static {
+    pub fn bind_dynamic_texture<Format>(&mut self, slot: BindSlot, texture: TextureRenderSide<Format>) where Format: crate::pixel_formats::sealed::PixelFormat {
         self.bind(slot, BindTarget::DynamicTexture(texture.erased()));
     }
 
@@ -112,7 +112,7 @@ impl BindSlot {
     }
 }
 use crate::images::StaticTextureTicket;
-use crate::imp::BindTargetBufferImp;
+use crate::imp::{BindTargetBufferImp, PixelFormat};
 
 
 
