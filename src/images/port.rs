@@ -11,6 +11,8 @@ use std::sync::atomic::{Ordering,AtomicU32};
 use crate::images::camera::{Camera};
 use std::time::{Instant};
 use slotmap::{DefaultKey, SlotMap};
+use crate::bindings::bind_style::BindTarget;
+use crate::bindings::BindStyle;
 use crate::bittricks::{u16s_to_u32, u32_to_u16s};
 use crate::images::frame::Frame;
 use crate::images::projection::{Projection, WorldCoord};
@@ -412,6 +414,20 @@ impl Port {
         self.imp.render_frame().await;
         //we need to figure out all the dirty stuff
         // let mut dirty_receivers = Vec::new();
+        for pass in &self.descriptors {
+            for (_, bind) in &pass.bind_style.binds {
+                match &bind.target {
+                    BindTarget::Buffer(a) => {
+                        todo!()
+                    }
+                    BindTarget::Camera => {todo!()}
+                    BindTarget::FrameCounter => {/* nothing to do - not considered dirty */}
+                    BindTarget::DynamicTexture(_) => {todo!()}
+                    BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
+                    BindTarget::Sampler(_) => { /* also not considered dirty */}
+                }
+            }
+        }
         todo!("loop frame");
     }
 
