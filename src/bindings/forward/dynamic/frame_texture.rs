@@ -14,6 +14,7 @@ use crate::bindings::visible_to::{CPUStrategy, TextureUsage};
 use crate::images::device::BoundDevice;
 use crate::pixel_formats::sealed::PixelFormat;
 use crate::{imp, Priority};
+use crate::bindings::dirty_tracking::DirtyReceiver;
 use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::imp::{CopyInfo, MappableTexture};
@@ -47,7 +48,7 @@ impl<Format> AsRef<imp::MappableTexture<Format>> for IndividualTexture<Format> {
 }
 
 
-trait DynRenderSide: Send + Debug {
+trait DynRenderSide: Send + Debug + Sync {
     ///
     /// # Safety
     /// Must hold the guard for the lifetime of the GPU texture access.
@@ -65,9 +66,9 @@ impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
 
 
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub(crate) struct ErasedTextureRenderSide {
-    imp: Box<dyn DynRenderSide>,
+    imp: Arc<dyn DynRenderSide>,
 }
 
 impl ErasedTextureRenderSide {
@@ -88,7 +89,7 @@ pub struct TextureRenderSide<Format: PixelFormat> {
 impl<Format: PixelFormat> TextureRenderSide<Format> {
     pub(crate) fn erased(self) -> ErasedTextureRenderSide where Format: 'static {
         ErasedTextureRenderSide {
-            imp: Box::new(self)
+            imp: Arc::new(self)
         }
     }
 }
@@ -126,7 +127,7 @@ pub struct ErasedGPUGuard {
 impl Deref for ErasedGPUGuard {
     type Target = imp::TextureRenderSide;
     fn deref(&self) -> &Self::Target {
-        todo!()
+        &self.render_side
     }
 }
 
@@ -269,6 +270,9 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     }
     pub fn height(&self) -> u16 {
         self.height
+    }
+    pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
+        todo!()
     }
 }
 

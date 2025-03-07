@@ -23,7 +23,7 @@ pub struct Port {
     pass_descriptors: Vec<PassDescriptor>,
     view: crate::images::view::View,
     camera: Camera,
-    pass_client: PassClient,
+    pub(crate) pass_client: PassClient,
 }
 
 /**
@@ -332,15 +332,14 @@ impl Port {
             camera,
         })
     }
-    pub async fn add_fixed_pass<const N: usize, P: PassTrait<N>>(
+    pub async fn add_fixed_pass(
         &mut self,
-        p: P,
-    ) -> P::DescriptorResult {
-        let (descriptors, result) = p.into_descriptor(&mut self.pass_client).await;
-        self.pass_descriptors.extend(descriptors);
-        result
+        descriptor: PassDescriptor,
+    )  {
+        self.pass_descriptors.push(descriptor);
     }
-    pub async fn start(&mut self) -> Result<(), Error> {
+    pub async fn render_frame(&mut self) {
+        //todo: We are currently doing a lot of setup work on each frame, that ought to be moved to initialization?
         let device = self.engine.bound_device().as_ref();
         let mut prepared = Vec::new();
         for descriptor in self.pass_descriptors.drain(..) {
@@ -523,10 +522,13 @@ impl Port {
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }
 
-        todo!("Move guards into callback");
+        let encoded = encoder.finish();
+        device.0.queue.submit(std::iter::once(encoded));
+        device.0.queue.on_submitted_work_done(move || {
+            //callbacks must be alive for full GPU-side render
+            std::mem::drop(frame_bind_guards);
 
-        todo!();
-
-        todo!("wait for gpu completion before kililng the guards!")
+        });
+        frame.present();
     }
 }

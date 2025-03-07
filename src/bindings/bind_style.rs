@@ -10,14 +10,14 @@ Defines the way resources are bound for a render pass.
 This is a high-level description that does not always map to an underlying resource.
 For example, the camera matrix is just a placeholder that is resolved later.
  */
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct BindStyle {
     pub(crate) binds: HashMap<u32,BindInfo>,
 }
 
 
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum BindTarget {
     Buffer(ErasedRenderSide),
     Camera,
@@ -27,7 +27,7 @@ pub enum BindTarget {
     Sampler(SamplerType),
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct BindInfo {
     pub(crate) stage: Stage,
     pub(crate) target: BindTarget,

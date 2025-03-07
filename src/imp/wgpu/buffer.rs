@@ -191,11 +191,7 @@ impl<SourceGuard> AsRef<GPUableBuffer> for CopyGuard<SourceGuard> {
 }
 
 
-impl<SourceGuard> Drop for CopyGuard<SourceGuard> {
-    fn drop(&mut self) {
-        todo!()
-    }
-}
+//I don't think we need to do anything wgpu-specific on CopyGuard's Drop here?
 
 
 

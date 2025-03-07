@@ -11,6 +11,7 @@ use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::sync::Arc;
 use log::debug;
+use crate::bindings::dirty_tracking::DirtyReceiver;
 use crate::bindings::resource_tracking::GPUGuard;
 use crate::multibuffer::{CPUReadGuard, CPUWriteGuard};
 use crate::bindings::resource_tracking::sealed::Mappable;
@@ -138,11 +139,11 @@ impl<Element> GPUAccess<Element> {
     }
 }
 
-pub(crate) trait SomeGPUAccess {
+pub(crate) trait SomeGPUAccess: Send {
     fn as_imp(&self) -> &imp::GPUableBuffer;
 }
 
-impl<Element> SomeGPUAccess for GPUAccess<Element> {
+impl<Element: Send + Sync> SomeGPUAccess for GPUAccess<Element> {
     fn as_imp(&self) -> &imp::GPUableBuffer {
         self.as_ref()
     }
@@ -153,7 +154,7 @@ impl<Element> RenderSide<Element> {
         ErasedRenderSide {
             element_size: std::mem::size_of::<Element>(),
             byte_size: self.count * std::mem::size_of::<Element>(),
-            imp: Box::new(self),
+            imp: Arc::new(self),
         }
     }
 
@@ -180,10 +181,10 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct ErasedRenderSide {
     pub(crate) element_size: usize,
-    pub(crate) imp: Box<dyn SomeRenderSide>,
+    pub(crate) imp: Arc<dyn SomeRenderSide>,
     pub(crate) byte_size: usize,
 }
 
@@ -245,6 +246,10 @@ impl<Element> Buffer<Element> {
     }
     pub async fn access_write(&self) -> CPUWriteGuard<IndividualBuffer<Element>, imp::GPUableBuffer> {
         self.shared.multibuffer.access_write().await
+    }
+
+    pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
+        todo!()
     }
 
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */

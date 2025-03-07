@@ -3,7 +3,7 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
 use crate::images::device::BoundDevice;
-use crate::images::render_pass::PassTrait;
+use crate::images::render_pass::{PassDescriptor, PassTrait};
 use crate::images::Engine;
 use crate::bindings::forward::r#static::texture::Texture;
 use crate::pixel_formats::{R32Float, R8UNorm, RGBA16Unorm, RGBA8UNorm, RGFloat, BGRA8UNormSRGB, R16Float};
@@ -156,6 +156,7 @@ impl PassClient {
 pub struct Port {
     imp: crate::imp::Port,
     port_reporter: PortReporter,
+    descriptors: Vec<PassDescriptor>,
 }
 
 #[derive(Debug)]
@@ -385,6 +386,7 @@ impl Port {
         Ok(Self{
             imp: crate::imp::Port::new(engine, view,  camera,port_sender).map_err(|e| Error(e))?,
             port_reporter,
+            descriptors: Default::default(),
         })
     }
     /**
@@ -398,12 +400,19 @@ impl Port {
     */
 
     pub async fn add_fixed_pass<'s, const DESCRIPTORS: usize, P: PassTrait<DESCRIPTORS> + 'static>(&'s mut self, pass: P) -> P::DescriptorResult  {
-        self.imp.add_fixed_pass(pass).await
+        let (descriptors, result) = pass.into_descriptor(&mut self.imp.pass_client).await;
+        for descriptor in descriptors {
+            self.imp.add_fixed_pass(descriptor.clone());
+            self.descriptors.push(descriptor);
+        }
+        result
     }
     ///Start rendering on the port.  Ports are not rendered by default.
     pub async fn start(&mut self) -> Result<(),Error> {
-        self.imp.start().await?;
-        Ok(())
+        self.imp.render_frame().await;
+        //we need to figure out all the dirty stuff
+        // let mut dirty_receivers = Vec::new();
+        todo!("loop frame");
     }
 
     pub fn port_reporter(&self) -> &PortReporter {

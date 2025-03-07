@@ -20,7 +20,7 @@ On Metal, we specialize via... specialization
 On vulkan, we need to implement different entrypoints, mt2-270 and obsidian.
 
 */
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct ResourceSpecialize {
     ///if there are more than 255 ways to specialize something we are fucked.
     pub(crate) dict: HashMap<u8,bool>
@@ -31,7 +31,7 @@ impl ResourceSpecialize {
         self.dict.entry(index).or_insert(value);
     }
 }
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct PassDescriptor {
     pub(crate) name: String,
     pub(crate) vertex_shader: VertexShader,
@@ -73,7 +73,7 @@ impl PassDescriptor {
     #[allow(dead_code)] //mt2-495
     pub(crate) const fn resource_specialize(&self) -> &ResourceSpecialize { &self.resource_specialize }
 }
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum DrawCommand {
     ///payload is the number of primitives (e.g., triangles)
     TriangleStrip(u32),

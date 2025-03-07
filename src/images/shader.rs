@@ -1,10 +1,9 @@
-#[derive(Debug)]
-
+#[derive(Debug,Clone)]
 pub struct FragmentShader {
     //may need additional type design for future backends
     pub(crate) wgsl_code: String,
 }
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct VertexShader {
     //may need additional type design for future backends
     pub(crate) wgsl_code: String,
