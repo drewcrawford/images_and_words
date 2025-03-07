@@ -2,7 +2,7 @@
 
 use std::sync::{Arc, Mutex};
 use vectormatrix::vector::Vector;
-use crate::bindings::dirty_tracking::DirtySender;
+use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
 use crate::images::projection::{Projection, WorldCoord};
 
 #[derive(Debug,Clone)]
@@ -62,6 +62,9 @@ impl Camera {
     pub(crate) fn projection(&self) -> Projection {
         let guard = self.projection.lock().unwrap();
         guard.clone()
+    }
+    pub(crate) fn dirty_receiver(&self) -> DirtyReceiver {
+        DirtyReceiver::new(&self.dirty_sender)
     }
 
     pub fn changed_size(&mut self, new_size: (u16,u16)) {

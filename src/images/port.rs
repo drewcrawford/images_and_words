@@ -159,6 +159,7 @@ pub struct Port {
     imp: crate::imp::Port,
     port_reporter: PortReporter,
     descriptors: Vec<PassDescriptor>,
+    camera: Camera,
 }
 
 #[derive(Debug)]
@@ -386,9 +387,10 @@ impl Port {
         let (port_sender,port_reporter) = port_reporter(0, &camera);
 
         Ok(Self{
-            imp: crate::imp::Port::new(engine, view,  camera,port_sender).map_err(|e| Error(e))?,
+            imp: crate::imp::Port::new(engine, view,  camera.clone(),port_sender).map_err(|e| Error(e))?,
             port_reporter,
             descriptors: Default::default(),
+            camera,
         })
     }
     /**
@@ -413,14 +415,16 @@ impl Port {
     pub async fn start(&mut self) -> Result<(),Error> {
         self.imp.render_frame().await;
         //we need to figure out all the dirty stuff
-        // let mut dirty_receivers = Vec::new();
+        let mut dirty_receivers = Vec::new();
         for pass in &self.descriptors {
             for (_, bind) in &pass.bind_style.binds {
                 match &bind.target {
                     BindTarget::Buffer(a) => {
                         todo!()
                     }
-                    BindTarget::Camera => {todo!()}
+                    BindTarget::Camera => {
+                        dirty_receivers.push(self.camera.dirty_receiver());
+                    }
                     BindTarget::FrameCounter => {/* nothing to do - not considered dirty */}
                     BindTarget::DynamicTexture(_) => {todo!()}
                     BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
