@@ -8,6 +8,7 @@ its own signal between clean/dirty, whereas it would be challenging to yank valu
 Another distinction is that the receivers can be 'lately-bound' - that is, they can be bound after the sender is created.
 */
 
+#[derive(Debug,Clone)]
 pub struct DirtySender {
 
 }

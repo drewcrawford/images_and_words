@@ -183,7 +183,7 @@ A type that clients can use to find out about port activity and perform frame pa
 #[derive(Clone,Debug)]
 pub struct PortReporter {
     imp: Arc<PortReporterImpl>,
-    camera_projection_receiver: Arc<Mutex<Projection>>,
+    camera: Camera,
     fps: Arc<Mutex<i32>>,
     ms: Arc<Mutex<i32>>,
     cpu_ms: Arc<Mutex<i32>>,
@@ -215,8 +215,8 @@ impl PortReporter {
     Note that there is no particular synchronization guarantee around this type; it is something resembling the same frame as `latest_begin`, but
     it is not guaranteed to be exactly any particular projection.
     */
-    pub fn camera_projection(&self) -> &Arc<Mutex<Projection>> {
-        &self.camera_projection_receiver
+    pub fn camera_projection(&self) -> Projection {
+        self.camera.projection()
     }
 
     /**
@@ -370,7 +370,7 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
         },
         PortReporter {
             imp,
-            camera_projection_receiver: camera.projection().clone(),
+            camera: camera.clone(),
             fps,
             ms,
             cpu_ms,

@@ -11,4 +11,4 @@ pub mod software;
 pub mod buffer_types;
 pub(crate) mod buffer_access;
 pub mod resource_tracking;
-mod dirty_tracking;
+pub(crate) mod dirty_tracking;

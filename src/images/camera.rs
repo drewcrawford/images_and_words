@@ -2,9 +2,10 @@
 
 use std::sync::{Arc, Mutex};
 use vectormatrix::vector::Vector;
+use crate::bindings::dirty_tracking::DirtySender;
 use crate::images::projection::{Projection, WorldCoord};
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Camera {
     /*
     When updating these, we also need to update the matrix.
@@ -12,6 +13,7 @@ pub struct Camera {
     window_size: (u16,u16),
     camera_position: WorldCoord,
     projection: Arc<Mutex<Projection>>,
+    dirty_sender: DirtySender,
 }
 impl Camera {
     // /**Poll for new movement. */
@@ -46,15 +48,22 @@ impl Camera {
     pub fn new(window_size: (u16,u16), initial_position: WorldCoord) -> Camera {
         let initial_projection = Projection::new(initial_position, window_size.0, window_size.1);
         Self {
-
+            dirty_sender: DirtySender::new(false),
             window_size,
             camera_position: initial_position,
             projection: Arc::new(Mutex::new(initial_projection)),
         }
     }
-    pub const fn projection(&self) -> &Arc<Mutex<Projection>> {
-        &self.projection
+    pub(crate) fn copy_projection_and_clear_dirty_bit(&self) -> Projection {
+        let mut guard = self.projection.lock().unwrap();
+        let r = guard.clone();
+        r
     }
+    pub(crate) fn projection(&self) -> Projection {
+        let guard = self.projection.lock().unwrap();
+        guard.clone()
+    }
+
     pub fn changed_size(&mut self, new_size: (u16,u16)) {
         self.window_size = new_size;
         self.rematrix();

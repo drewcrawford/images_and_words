@@ -399,7 +399,7 @@ impl Port {
         });
 
         let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device(), 1, "Camera", |initialize| {
-            let projection = self.camera.projection().lock().unwrap().clone();
+            let projection = self.camera.copy_projection_and_clear_dirty_bit();
             CameraProjection {
                 projection: [
                     *projection.0.columns()[0].x(),
