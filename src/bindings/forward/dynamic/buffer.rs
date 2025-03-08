@@ -164,6 +164,7 @@ impl<Element> RenderSide<Element> {
 ///Erases the RenderSide generics.
 pub(crate) trait SomeRenderSide: Send + Sync + Debug {
     unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess>;
+    fn dirty_receiver(&self) -> DirtyReceiver;
 }
 
 impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
@@ -179,6 +180,9 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
             _phantom: PhantomData::<Element>,
         })
     }
+    fn dirty_receiver(&self) -> DirtyReceiver {
+        self.shared.multibuffer.gpu_dirty_receiver()
+    }
 }
 
 #[derive(Debug,Clone)]
@@ -187,6 +191,7 @@ pub struct ErasedRenderSide {
     pub(crate) imp: Arc<dyn SomeRenderSide>,
     pub(crate) byte_size: usize,
 }
+
 
 
 

@@ -420,6 +420,7 @@ impl Port {
             for (_, bind) in &pass.bind_style.binds {
                 match &bind.target {
                     BindTarget::Buffer(a) => {
+                        dirty_receivers.push(a.imp.dirty_receiver());
                         todo!()
                     }
                     BindTarget::Camera => {

@@ -34,17 +34,27 @@ Examples include:
 In the interests of getting going, current development targets [wgpu](https://wgpu.rs)
 as backend, so we inherit its broad support for DX12, Vulkan, Metal, WebGPU, Angle, WebGL, etc.
 
-On the other hand, a career of more casual GPU programming has left me quite skeptical.  I am skeptical
-of achieving native performance expectations atop a web-designed API, I am skeptical that wgpu's
-actual contribution guidelines are too conservative for me to solve my problems via PRs, and I am skeptical
-of any single graphics API, most of which have come and gone while I'm trying to support applications.
+On the other hand, I have intentionally designed IW to support multiple backends, and have prototyped
+Vulkan and Metal-based approaches myself.  I intend to stand up other backends as I need them.  If
+you need them before I do, get in touch.
 
-Part of my motivation for developing IW is an insurance policy against fickle graphics APIs, so I can
-deal with all that in once place.  Accordingly, IW is inherently designed to be portable to other backends.
-There aren't any published, although I have prototypes for Vulkan and Metal.
+Longer-term I am skeptical of wgpu as a backend.  I am skeptical I can meet native performance expectations
+with a web-based API, I am skeptical of wgpu's guidance on accepting contributions to solve these issues,
+and I am skeptical of any single graphics API as I've seen them come and go while I'm supporting an
+application.
 
-If you are similarly-situated, please contact me such as to join forces, but in any case,
-patches to bring up new backends are welcome.
+A substantial motivation for creating IW is to design an API that can solve these problems and
+become a practical and performant target for my own applications.  In the short term, I need
+features/optimizations that don't happen in design-by-committee APIs.  In the long term, I need to
+maintain my applications after APIs have been deprecated.  IW is the middleware to bridge
+this gap in one place.
+
+# Contributions
+
+If you are motivated enough to consider writing your own solution, I would love to have your help
+here instead.
+
+
 
 */
 

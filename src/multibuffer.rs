@@ -16,6 +16,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, Ordering};
+use crate::bindings::dirty_tracking::DirtyReceiver;
 use crate::bindings::forward::dynamic::buffer::{IndividualBuffer};
 use crate::bindings::resource_tracking;
 use crate::bindings::resource_tracking::{ResourceTracker};
@@ -217,5 +218,9 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
             todo!()
         }
 
+    }
+    ///Returns a [DirtyReceiver] that activates when the GPU side is dirty.
+    pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
+        todo!()
     }
 }
