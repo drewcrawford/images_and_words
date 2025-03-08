@@ -13,6 +13,7 @@ use std::time::{Instant};
 use slotmap::{DefaultKey, SlotMap};
 use crate::bindings::bind_style::BindTarget;
 use crate::bindings::BindStyle;
+use crate::bindings::dirty_tracking::DirtyAggregateReceiver;
 use crate::bittricks::{u16s_to_u32, u32_to_u16s};
 use crate::images::frame::Frame;
 use crate::images::projection::{Projection, WorldCoord};
@@ -414,26 +415,31 @@ impl Port {
     ///Start rendering on the port.  Ports are not rendered by default.
     pub async fn start(&mut self) -> Result<(),Error> {
         self.imp.render_frame().await;
-        //we need to figure out all the dirty stuff
-        let mut dirty_receivers = Vec::new();
-        for pass in &self.descriptors {
-            for (_, bind) in &pass.bind_style.binds {
-                match &bind.target {
-                    BindTarget::Buffer(a) => {
-                        dirty_receivers.push(a.imp.dirty_receiver());
-                        todo!()
+        loop {
+            //we need to figure out all the dirty stuff
+            let mut dirty_receivers = Vec::new();
+            for pass in &self.descriptors {
+                for (_, bind) in &pass.bind_style.binds {
+                    match &bind.target {
+                        BindTarget::Buffer(a) => {
+                            dirty_receivers.push(a.imp.dirty_receiver());
+                        }
+                        BindTarget::Camera => {
+                            dirty_receivers.push(self.camera.dirty_receiver());
+                        }
+                        BindTarget::FrameCounter => {/* nothing to do - not considered dirty */}
+                        BindTarget::DynamicTexture(texture) => {
+                            dirty_receivers.push(texture.gpu_dirty_receiver())
+                        }
+                        BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
+                        BindTarget::Sampler(_) => { /* also not considered dirty */}
                     }
-                    BindTarget::Camera => {
-                        dirty_receivers.push(self.camera.dirty_receiver());
-                    }
-                    BindTarget::FrameCounter => {/* nothing to do - not considered dirty */}
-                    BindTarget::DynamicTexture(_) => {todo!()}
-                    BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
-                    BindTarget::Sampler(_) => { /* also not considered dirty */}
                 }
             }
+            let receiver = DirtyAggregateReceiver::new(dirty_receivers);
+            receiver.wait_for_dirty().await;
+            self.imp.render_frame().await;
         }
-        todo!("loop frame");
     }
 
     pub fn port_reporter(&self) -> &PortReporter {

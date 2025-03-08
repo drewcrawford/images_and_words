@@ -27,7 +27,7 @@ A single non-multibuffered texture.
 pub struct IndividualTexture<Format> {
     cpu: imp::MappableTexture<Format>,
     width: u16,
-    height: u16,
+    height: u16
 }
 
 
@@ -53,6 +53,7 @@ trait DynRenderSide: Send + Debug + Sync {
     /// # Safety
     /// Must hold the guard for the lifetime of the GPU texture access.
     unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard;
+    fn gpu_dirty_receiver(&self) -> DirtyReceiver;
 }
 
 trait DynGuard {
@@ -75,6 +76,9 @@ impl ErasedTextureRenderSide {
     pub unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
         let guard = self.imp.acquire_gpu_texture(copy_info);
         guard
+    }
+    pub fn gpu_dirty_receiver(&self) -> DirtyReceiver {
+        self.imp.gpu_dirty_receiver()
     }
 }
 
@@ -113,6 +117,9 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
             erasing: Box::new(our_guard),
             render_side,
         }
+    }
+    fn gpu_dirty_receiver(&self) -> DirtyReceiver {
+        self.shared.multibuffer.gpu_dirty_receiver()
     }
 }
 

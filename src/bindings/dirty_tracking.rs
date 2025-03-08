@@ -33,12 +33,12 @@ impl DirtyReceiver {
     }
 }
 
-pub struct DirtyAggregareReceiver {
+pub struct DirtyAggregateReceiver {
 
 }
-impl DirtyAggregareReceiver {
-    pub fn new(receivers: Vec<DirtyReceiver>) -> DirtyAggregareReceiver {
-        DirtyAggregareReceiver {}
+impl DirtyAggregateReceiver {
+    pub fn new(receivers: Vec<DirtyReceiver>) -> DirtyAggregateReceiver {
+        DirtyAggregateReceiver {}
     }
 
     ///Waits for a dirty signal.
