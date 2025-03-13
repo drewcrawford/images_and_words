@@ -86,7 +86,9 @@ impl DirtySender {
     }
     pub fn mark_dirty(&self, dirty: bool) {
         self.shared.dirty.store(dirty, Ordering::Relaxed);
-        self.shared.continuation.r#continue();
+        if dirty {
+            self.shared.continuation.r#continue();
+        }
     }
 }
 

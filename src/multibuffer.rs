@@ -38,10 +38,12 @@ impl<'a, Element> Deref for CPUReadGuard<'a, Element> where Element: Mappable {
     }
 }
 
+#[derive(Debug)]
 pub struct CPUWriteGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
     imp: Option<crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>>, //option for drop!
     buffer: &'a Multibuffer<Element, U>
 }
+
 
 impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
     fn drop(&mut self) {

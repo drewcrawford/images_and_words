@@ -15,7 +15,7 @@ use crate::images::device::BoundDevice;
 use crate::pixel_formats::sealed::PixelFormat;
 use crate::{imp, Priority};
 use crate::bindings::dirty_tracking::DirtyReceiver;
-use crate::bindings::resource_tracking::{CPUReadGuard, CPUWriteGuard, ResourceTracker};
+use crate::bindings::resource_tracking::{ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::imp::{CopyInfo, MappableTexture};
 use crate::multibuffer::Multibuffer;
@@ -121,6 +121,27 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
     fn gpu_dirty_receiver(&self) -> DirtyReceiver {
         self.shared.multibuffer.gpu_dirty_receiver()
     }
+}
+
+#[derive(Debug)]
+pub struct CPUWriteGuard<'a, Format: PixelFormat> {
+    underlying: crate::multibuffer::CPUWriteGuard<'a, IndividualTexture<Format>, imp::GPUableTexture<Format>>
+}
+impl<'a, Format: PixelFormat> Deref for CPUWriteGuard<'a, Format> {
+    type Target = IndividualTexture<Format>;
+    fn deref(&self) -> &Self::Target {
+        self.underlying.deref()
+    }
+}
+
+impl<'a, Format: PixelFormat> DerefMut for CPUWriteGuard<'a, Format> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.underlying.deref_mut()
+    }
+}
+#[derive(Debug)]
+pub struct CPUReadGuard<Format: PixelFormat> {
+    format: PhantomData<Format>,
 }
 
 struct GPUGuard<Format: PixelFormat> {
@@ -251,15 +272,18 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /**
     Dequeues a texture.  Resumes when a texture is available.
      */
-    pub async fn dequeue(&mut self) -> CPUWriteGuard<IndividualTexture<Format>>{
-        todo!()
+    pub async fn dequeue(&mut self) -> CPUWriteGuard<Format>{
+        let write_guard = self.shared.multibuffer.access_write().await;
+        CPUWriteGuard {
+            underlying: write_guard,
+        }
     }
     /**
     Returns the last texture submitted to the GPU.
 
     If no texture has ever been submitted to the GPU, returns any initialized texture.
      */
-    pub fn last(&self) -> CPUReadGuard<IndividualTexture<Format>> {
+    pub fn last(&self) -> CPUReadGuard<Format> {
         todo!()
     }
 
