@@ -8,59 +8,64 @@ its own signal between clean/dirty, whereas it would be challenging to yank valu
 Another distinction is that the receivers can be 'lately-bound' - that is, they can be bound after the sender is created.
 */
 
+use std::collections::HashSet;
+use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use crate::images::Engine;
 
+// This represents the shared state between different LateBoundSenders
+#[derive(Debug)]
+struct SharedSend(Mutex<Option<r#continue::Sender<()>>>);
 
-
-///Like [ContinueOnce], but shared and cloneable.
-#[derive(Debug,Clone)]
-struct SharedContinueOnce {
-    /*
-    We need:
-    1.  Arc, for clone
-    2.  Mutex, for interior mutability
-    3.  Option, for late binding
-    4.  Arc, for clone across related types
-    5.  Option, for take
-     */
-    imp: Arc<Mutex<Option<Arc<Option<r#continue::Sender<()>>>>>>
-}
-
-impl SharedContinueOnce {
+impl SharedSend {
+    fn new(sender: Option<r#continue::Sender<()>>) -> Self {
+        SharedSend(Mutex::new(sender))
+    }
     fn r#continue(&self) {
-        todo!()
+        self.0.lock().unwrap().take().map(|t| t.send(()));
     }
-    fn blank() -> Self {
-        SharedContinueOnce {
-            imp: Arc::new(Mutex::new(None))
-        }
-    }
-    fn new(sender: r#continue::Sender<()>) -> Self {
-        SharedContinueOnce {
-            imp: Arc::new(Mutex::new(Some(Arc::new(Some(sender)))))
-        }
-    }
-
-    fn set_continuation(&self, other: &Self) {
-        self.imp //arc
-            .lock().unwrap() //mutex
-            .replace( //late bind
-                other.imp //OTHER: arc
-                    .lock().unwrap() //OTHER: mutex
-                    .clone() //clone
-                    .expect("No continuation") //replace accepts T, not option
-            );
-
+    fn is_bound(&self) -> bool {
+        self.0.lock().unwrap().is_some()
     }
 }
+
+
+#[derive(Debug)]
+struct LateBoundSender(Mutex<Arc<SharedSend>>);
+
+impl LateBoundSender {
+    fn new() -> Self {
+        LateBoundSender(Mutex::new(Arc::new(SharedSend::new(None))))
+    }
+
+    fn with_sender(sender: r#continue::Sender<()>) -> Self {
+        LateBoundSender(Mutex::new(Arc::new(SharedSend::new(Some(sender)))))
+
+    }
+
+    fn bind(&self, other: &LateBoundSender) {
+        // First check if the other sender is bound
+        assert!(other.0.lock().unwrap().is_bound());
+        // Replace our Arc with a clone of the other's Arc
+        *self.0.lock().unwrap() = Arc::clone(&other.0.lock().unwrap());
+    }
+
+    fn r#continue(&self) {
+        if let Ok(mut guard) = self.0.lock() {
+            guard.r#continue();
+        }
+    }
+}
+
+
 
 
 #[derive(Debug)]
 struct SharedSendReceive {
     //each dirty can be independently set and unset
     dirty: AtomicBool,
-    continuation: SharedContinueOnce,
+    continuation: LateBoundSender,
 }
 
 #[derive(Debug,Clone)]
@@ -70,8 +75,7 @@ pub struct DirtySender {
 
 impl DirtySender {
     pub fn new(dirty: bool) -> Self {
-        let (sender, receiver) = r#continue::continuation();
-        let s = SharedContinueOnce::new(sender);
+        let s = LateBoundSender::new();
         DirtySender {
             shared: Arc::new(SharedSendReceive {
                 dirty: AtomicBool::new(dirty),
@@ -86,6 +90,7 @@ impl DirtySender {
     }
 }
 
+#[derive(Debug)]
 pub struct DirtyReceiver {
     shared: Arc<SharedSendReceive>,
 }
@@ -95,10 +100,22 @@ impl DirtyReceiver {
             shared: sender.shared.clone(),
         }
     }
-    fn attach_continuation(&self, continuation: &SharedContinueOnce) {
-        self.shared.continuation.set_continuation(continuation)
+    fn attach_continuation(&self, continuation: &LateBoundSender) {
+        self.shared.continuation.bind(continuation);
     }
+}
 
+impl PartialEq for DirtyReceiver {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.shared, &other.shared)
+    }
+}
+impl Eq for DirtyReceiver {}
+
+impl Hash for DirtyReceiver {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.shared).hash(state);
+    }
 }
 
 pub struct DirtyAggregateReceiver {
@@ -114,16 +131,19 @@ impl DirtyAggregateReceiver {
     ///Waits for a dirty signal.
     pub async fn wait_for_dirty(&self) {
         let (sender, receiver) = r#continue::continuation();
-        let continuation = SharedContinueOnce::new(sender);
+        let late_bound_sender = LateBoundSender::with_sender(sender);
 
         //set continuation up first
-        for receiver in &self.receivers {
-            receiver.attach_continuation(&continuation);
+        for dirty_receiver in &self.receivers {
+            dirty_receiver.attach_continuation(&late_bound_sender);
+            // println!("attached continuation {late_bound_sender:?} to receiver {dirty_receiver:?}");
         }
+        // println!("Attached all continuations");
         //now check dirty value
         for receiver in &self.receivers {
             if receiver.shared.dirty.load(Ordering::Relaxed) {
-                return;
+                //mark future as ready to go immediately; this ensures we don't miss any messages
+                late_bound_sender.r#continue();
             }
         }
         //wait for next receiver!
