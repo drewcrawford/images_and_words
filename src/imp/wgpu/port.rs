@@ -213,7 +213,7 @@ fn prepare_pass_descriptor(
         vertex_count,
         instance_count,
         depth_pass: render_descriptor.depth_stencil.is_some(),
-        pass_descriptor: descriptor,
+        pass_descriptor: descriptor.clone(),
     }
 }
 
@@ -337,13 +337,14 @@ impl Port {
         descriptor: PassDescriptor,
     )  {
         self.pass_descriptors.push(descriptor);
+        println!("now up to {} passes", self.pass_descriptors.len());
     }
     pub async fn render_frame(&mut self) {
         //todo: We are currently doing a lot of setup work on each frame, that ought to be moved to initialization?
         let device = self.engine.bound_device().as_ref();
         let mut prepared = Vec::new();
-        for descriptor in self.pass_descriptors.drain(..) {
-            let pipeline = prepare_pass_descriptor(device, descriptor);
+        for descriptor in &self.pass_descriptors {
+            let pipeline = prepare_pass_descriptor(device, descriptor.clone());
             prepared.push(pipeline);
         }
         let size = self.view.size().await;
@@ -521,14 +522,16 @@ impl Port {
             frame_bind_guards.push(bind_group.guards);
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }
+        println!("encoded {passes} passes", passes = prepared.len());
 
         let encoded = encoder.finish();
         device.0.queue.submit(std::iter::once(encoded));
         device.0.queue.on_submitted_work_done(move || {
             //callbacks must be alive for full GPU-side render
             std::mem::drop(frame_bind_guards);
-
+            println!("frame guards dropped");
         });
         frame.present();
+        println!("frame presented");
     }
 }

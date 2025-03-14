@@ -407,7 +407,7 @@ impl Port {
     pub async fn add_fixed_pass<'s, const DESCRIPTORS: usize, P: PassTrait<DESCRIPTORS> + 'static>(&'s mut self, pass: P) -> P::DescriptorResult  {
         let (descriptors, result) = pass.into_descriptor(&mut self.imp.pass_client).await;
         for descriptor in descriptors {
-            self.imp.add_fixed_pass(descriptor.clone());
+            self.imp.add_fixed_pass(descriptor.clone()).await;
             self.descriptors.push(descriptor);
         }
         result
