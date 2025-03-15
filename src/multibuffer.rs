@@ -74,12 +74,15 @@ Represents a bindable GPU resource.
 Multibuffer type.
 */
 pub(crate) struct GPUGuard<T: Mappable, U: GPUMultibuffer> {
-    imp: U::OutGuard<resource_tracking::GPUGuard<T>>,
+    imp: Result<U,U::OutGuard<resource_tracking::GPUGuard<T>>>,
 }
 
 impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T,U> {
     pub fn as_imp(&self) -> &U {
-        self.imp.as_ref()
+        match self.imp {
+            Ok(ref imp) => imp,
+            Err(ref imp) => imp.as_ref()
+        }
     }
 }
 
@@ -106,7 +109,7 @@ pub(crate) mod sealed {
 
 
 
-    pub trait GPUMultibuffer {
+    pub trait GPUMultibuffer: Clone {
         /*
         So I guess the issue is
         1.  Implementation needs e.g. imp::MappedBuffer, possibly indirectly through IndividualBuffer.
@@ -208,20 +211,23 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     Returns a guard type providing access to the data.
 
     # Safety
-    Caller must guarantee that the guard is live for the duration of the GPU copy.
+    Caller must guarantee that the guard is live for the duration of the GPU access.
     */
     pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<T,U> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::CorrespondingMappedType> {
-        self.shared.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
         let take_dirty = self.shared.needs_gpu_copy.lock().unwrap().take();
+        self.shared.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
         if let Some(imp_guard) = take_dirty {
             let copy_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
             GPUGuard {
-                imp: copy_guard,
+                imp: Err(copy_guard),
                 // shared: self.shared.clone(),
             }
         }
         else {
-            todo!()
+            //GPU isn't necessary so no copy is needed
+            GPUGuard {
+                imp: Ok(self.gpu.clone()),
+            }
         }
 
     }
