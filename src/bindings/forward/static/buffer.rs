@@ -18,7 +18,7 @@ pub struct Buffer<Element> {
 
 #[derive(Debug,Clone)]
 pub struct RenderSide {
-
+    pub(crate) imp: imp::GPUableBuffer,
 }
 
 #[derive(Debug,thiserror::Error)]
@@ -43,16 +43,16 @@ pub(crate) fn initialize_byte_array_with<Element,I: Fn(usize) -> Element>(elemen
 }
 
 impl<Element> Buffer<Element> {
-    pub fn new(device: Arc<BoundDevice>, count: usize, debug_name: &str, initializer: impl Fn(usize) -> Element) -> Result<Self,Error> {
+    pub async fn new(device: Arc<BoundDevice>, count: usize, debug_name: &str, initializer: impl Fn(usize) -> Element) -> Result<Self,Error> {
         let byte_size = std::mem::size_of::<Element>() * count;
         let mappable = imp::MappableBuffer::new(&device, byte_size, MapType::Write, debug_name, |bytes| {
             initialize_byte_array_with(count, bytes, initializer)
         })?;
 
 
-        let imp = imp::GPUableBuffer::new(device, count, debug_name);
+        let imp = imp::GPUableBuffer::new(device, byte_size, debug_name);
 
-        imp.copy_from_buffer(mappable, 0, 0, byte_size);
+        imp.copy_from_buffer(mappable, 0, 0, byte_size).await;
 
         Ok(Self {
             imp,
@@ -62,7 +62,9 @@ impl<Element> Buffer<Element> {
     }
 
     pub fn render_side(&self) -> RenderSide {
-        unimplemented!()
+        RenderSide {
+            imp: self.imp.clone()
+        }
     }
 }
 

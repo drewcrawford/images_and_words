@@ -10,6 +10,7 @@ use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, Bin
 use crate::bindings::forward::dynamic::buffer::{CRepr, GPUAccess, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
 use crate::images::PassClient;
+use crate::imp::wgpu::buffer::StorageType;
 use crate::stable_address_vec::StableAddressVec;
 
 #[repr(C)]
@@ -62,8 +63,12 @@ fn prepare_pass_descriptor(
                 }
             },
             BindTarget::StaticBuffer(imp) => {
+                let buffer_binding_type = match imp.imp.storage_type() {
+                    StorageType::Uniform => BufferBindingType::Uniform,
+                };
+
                 BindingType::Buffer {
-                    ty: todo!(),
+                    ty: buffer_binding_type,
                     has_dynamic_offset: false,
                     min_binding_size: todo!(),
                 }

@@ -2,12 +2,13 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, Index, IndexMut};
 use std::sync::Arc;
-use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder};
+use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label};
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::{IndividualBuffer, WriteFrequency};
 use crate::bindings::resource_tracking::GPUGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::CPUStrategy;
+use crate::images::BoundDevice;
 use crate::imp;
 use crate::multibuffer::sealed::{CPUMultibuffer, GPUMultibuffer};
 
@@ -134,18 +135,20 @@ A buffer that can (only) be mapped to GPU.
 #[derive(Debug,Clone)]
 pub struct GPUableBuffer {
     pub(super) buffer: wgpu::Buffer,
-
+    bound_device: Arc<BoundDevice>,
+    storage_type: StorageType,
 }
 
-pub(super) enum UsageType {
+#[derive(Debug,Clone,Copy)]
+pub(super) enum StorageType {
     Uniform,
 }
 
 impl GPUableBuffer {
     //only visible to wgpu backend
-    pub(super) fn new_imp(bound_device: Arc<crate::images::BoundDevice>, size: usize, debug_name: &str, usage_type: UsageType) -> Self {
-        let usage_type = match usage_type {
-            UsageType::Uniform => BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+    pub(super) fn new_imp(bound_device: Arc<crate::images::BoundDevice>, size: usize, debug_name: &str, storage_type: StorageType) -> Self {
+        let usage_type = match storage_type {
+            StorageType::Uniform => BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         };
         let descriptor = BufferDescriptor {
             label: Some(debug_name),
@@ -156,17 +159,35 @@ impl GPUableBuffer {
         let buffer = bound_device.0.device.create_buffer(&descriptor);
         GPUableBuffer {
             buffer,
+            bound_device,
+            storage_type,
         }
     }
     pub(crate) fn new(bound_device: Arc<crate::images::BoundDevice>, size: usize, debug_name: &str) -> Self {
-        Self::new_imp(bound_device, size, debug_name, UsageType::Uniform /* ? */)
+        Self::new_imp(bound_device, size, debug_name, StorageType::Uniform /* ? */)
+    }
+    pub(crate) fn storage_type(&self) -> StorageType {
+        self.storage_type
     }
     /**Copy from buffer, taking the source buffer to ensure it lives long enough
 
     This creates a command encoder to do the copy.
+
+    This function suspends until the copy operation is completed.
     */
-    pub(crate) fn copy_from_buffer(&self, source: MappableBuffer, source_offset: usize, dest_offset: usize, copy_len: usize) {
-        todo!()
+    pub(crate) async fn copy_from_buffer(&self, source: MappableBuffer, source_offset: usize, dest_offset: usize, copy_len: usize) {
+        let mut encoder = self.bound_device.0.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Label::from("wgpu::GPUableBuffer::copy_from_buffer") });
+        //safety: we take the source, so nobody can deallocate it
+        unsafe { self.copy_from_buffer_internal(&source, source_offset, dest_offset, copy_len, &mut encoder) }
+
+        let command = encoder.finish();
+        let submission_index = self.bound_device.0.queue.submit(std::iter::once(command));
+        let (s,r) = r#continue::continuation();
+        self.bound_device.0.queue.on_submitted_work_done(|| {
+            s.send(());
+        });
+        self.bound_device.0.device.poll(wgpu::Maintain::WaitForSubmissionIndex(submission_index));
+        r.await;
     }
     /**
     copies from the source buffer to this buffer
