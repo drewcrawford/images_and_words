@@ -112,7 +112,6 @@ impl BindSlot {
     }
 }
 use crate::images::StaticTextureTicket;
-use crate::imp::{BindTargetBufferImp, PixelFormat};
 
 
 

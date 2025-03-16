@@ -37,7 +37,7 @@ pub struct BindTargetBufferImp {
 
 
 impl MappableBuffer {
-    pub(crate) fn new<Initializer: Fn(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
+    pub(crate) fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
         let buffer_usage = match map_type {
             MapType::Read => { BufferUsages::MAP_READ }
             MapType::Write => {BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC }
@@ -159,13 +159,20 @@ impl GPUableBuffer {
     pub(crate) fn new(bound_device: &crate::images::BoundDevice, size: usize, debug_name: &str) -> Self {
         Self::new_imp(bound_device, size, debug_name, UsageType::Uniform /* ? */)
     }
+    /**Copy from buffer, taking the source buffer to ensure it lives long enough
+
+    This creates a command encoder to do the copy.
+    */
+    pub(crate) fn copy_from_buffer(&self, source: MappableBuffer, source_offset: usize, dest_offset: usize, copy_len: usize) {
+        todo!()
+    }
     /**
     copies from the source buffer to this buffer
 
     # Warning
     This does no resource tracking - ensure that the source buffer is not deallocated before the copy is complete!
     */
-    fn copy_from_buffer_internal(&self, source: &MappableBuffer, source_offset: usize, dest_offset: usize, copy_len: usize, command_encoder: &mut CommandEncoder) {
+    unsafe fn copy_from_buffer_internal(&self, source: &MappableBuffer, source_offset: usize, dest_offset: usize, copy_len: usize, command_encoder: &mut CommandEncoder) {
         command_encoder.copy_buffer_to_buffer(&source.buffer, source_offset as u64, &self.buffer, dest_offset as u64, copy_len as u64);
     }
 }

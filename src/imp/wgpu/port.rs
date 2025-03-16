@@ -43,6 +43,8 @@ fn prepare_pass_descriptor(
     bind_device: &crate::images::BoundDevice,
     descriptor: PassDescriptor,
 ) -> PreparedPass {
+    let limits = bind_device.0.device.limits();
+
     let mut layouts = Vec::new();
 
     for (pass_index, info) in &descriptor.bind_style().binds {
@@ -51,10 +53,13 @@ fn prepare_pass_descriptor(
             crate::bindings::bind_style::Stage::Vertex => wgpu::ShaderStages::VERTEX,
         };
         let binding_type = match &info.target {
-            BindTarget::Buffer(imp) => BindingType::Buffer {
-                ty: BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: Some(BufferSize::new(imp.element_size as u64).unwrap()),
+            BindTarget::Buffer(imp) => {
+
+                BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: Some(BufferSize::new(imp.element_size as u64).unwrap()),
+                }
             },
             BindTarget::Camera => {
                 //I guess these are implemented with buffers for now...
