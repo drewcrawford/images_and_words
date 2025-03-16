@@ -43,9 +43,9 @@ pub(crate) fn initialize_byte_array_with<Element,I: Fn(usize) -> Element>(elemen
 }
 
 impl<Element> Buffer<Element> {
-    pub fn new(device: &Arc<BoundDevice>, count: usize, debug_name: &str, initializer: impl Fn(usize) -> Element) -> Result<Self,Error> {
+    pub fn new(device: Arc<BoundDevice>, count: usize, debug_name: &str, initializer: impl Fn(usize) -> Element) -> Result<Self,Error> {
         let byte_size = std::mem::size_of::<Element>() * count;
-        let mappable = imp::MappableBuffer::new(device, byte_size, MapType::Write, debug_name, |bytes| {
+        let mappable = imp::MappableBuffer::new(&device, byte_size, MapType::Write, debug_name, |bytes| {
             initialize_byte_array_with(count, bytes, initializer)
         })?;
 

@@ -208,13 +208,13 @@ impl Display for Error {
 
 
 impl<Element> Buffer<Element> {
-    pub fn new(bound_device: &Arc<BoundDevice>, size: usize, debug_name: &str, initialize_with:impl Fn(usize) -> Element) -> Result<Self,Error> where Element: CRepr {
+    pub fn new(bound_device: Arc<BoundDevice>, size: usize, debug_name: &str, initialize_with:impl Fn(usize) -> Element) -> Result<Self,Error> where Element: CRepr {
         let byte_size = size * std::mem::size_of::<Element>();
         assert_ne!(byte_size,0, "Zero-sized buffers are not allowed");
 
         let map_type = crate::bindings::buffer_access::MapType::Write; //todo: optimize for read vs write, etc.
 
-        let buffer = imp::MappableBuffer::new(bound_device, byte_size, map_type, debug_name, move |byte_array| {
+        let buffer = imp::MappableBuffer::new(&bound_device, byte_size, map_type, debug_name, move |byte_array| {
           crate::bindings::forward::r#static::buffer::initialize_byte_array_with(size, byte_array, initialize_with)
         })?;
 

@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, Index, IndexMut};
+use std::sync::Arc;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder};
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::{IndividualBuffer, WriteFrequency};
@@ -133,6 +134,7 @@ A buffer that can (only) be mapped to GPU.
 #[derive(Debug,Clone)]
 pub struct GPUableBuffer {
     pub(super) buffer: wgpu::Buffer,
+
 }
 
 pub(super) enum UsageType {
@@ -141,7 +143,7 @@ pub(super) enum UsageType {
 
 impl GPUableBuffer {
     //only visible to wgpu backend
-    pub(super) fn new_imp(bound_device: &crate::images::BoundDevice, size: usize, debug_name: &str, usage_type: UsageType) -> Self {
+    pub(super) fn new_imp(bound_device: Arc<crate::images::BoundDevice>, size: usize, debug_name: &str, usage_type: UsageType) -> Self {
         let usage_type = match usage_type {
             UsageType::Uniform => BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         };
@@ -156,7 +158,7 @@ impl GPUableBuffer {
             buffer,
         }
     }
-    pub(crate) fn new(bound_device: &crate::images::BoundDevice, size: usize, debug_name: &str) -> Self {
+    pub(crate) fn new(bound_device: Arc<crate::images::BoundDevice>, size: usize, debug_name: &str) -> Self {
         Self::new_imp(bound_device, size, debug_name, UsageType::Uniform /* ? */)
     }
     /**Copy from buffer, taking the source buffer to ensure it lives long enough
