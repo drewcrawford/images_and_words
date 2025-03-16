@@ -4,6 +4,7 @@ use crate::bindings::forward::dynamic::buffer::{ErasedRenderSide, RenderSide as 
 use crate::bindings::forward::dynamic::frame_texture::{ErasedTextureRenderSide,TextureRenderSide};
 use crate::bindings::sampler::SamplerType;
 use crate::images::port::InstanceTicket;
+use crate::bindings::forward::r#static::buffer::RenderSide as StaticBufferRenderSide;
 /*
 Defines the way resources are bound for a render pass.
 
@@ -19,7 +20,8 @@ pub struct BindStyle {
 
 #[derive(Debug,Clone)]
 pub enum BindTarget {
-    Buffer(ErasedRenderSide),
+    StaticBuffer(StaticBufferRenderSide),
+    DynamicBuffer(ErasedRenderSide),
     Camera,
     FrameCounter,
     DynamicTexture(ErasedTextureRenderSide),
@@ -63,6 +65,7 @@ impl BindStyle {
         self.bind(slot, BindTarget::Camera);
     }
 
+
     /**
     Binds a framecounter to the specified slot.
 
@@ -74,8 +77,12 @@ impl BindStyle {
         self.bind(slot, BindTarget::FrameCounter);
     }
 
+    pub fn bind_static_buffer(&mut self, slot: BindSlot, render_side: StaticBufferRenderSide) {
+        self.bind(slot, BindTarget::StaticBuffer(render_side));
+    }
+
     pub fn bind_dynamic_buffer<Element>(&mut self, slot: BindSlot, render_side: DynamicRenderSide<Element>) where Element: Send + Sync + 'static {
-        self.bind(slot, BindTarget::Buffer(render_side.erased_render_side()));
+        self.bind(slot, BindTarget::DynamicBuffer(render_side.erased_render_side()));
     }
 
     pub fn bind_static_texture(&mut self, slot: BindSlot, texture: StaticTextureTicket, sampler_type: Option<SamplerInfo>) {

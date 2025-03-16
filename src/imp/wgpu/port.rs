@@ -53,12 +53,19 @@ fn prepare_pass_descriptor(
             crate::bindings::bind_style::Stage::Vertex => wgpu::ShaderStages::VERTEX,
         };
         let binding_type = match &info.target {
-            BindTarget::Buffer(imp) => {
+            BindTarget::DynamicBuffer(imp) => {
 
                 BindingType::Buffer {
                     ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,
                     min_binding_size: Some(BufferSize::new(imp.element_size as u64).unwrap()),
+                }
+            },
+            BindTarget::StaticBuffer(imp) => {
+                BindingType::Buffer {
+                    ty: todo!(),
+                    has_dynamic_offset: false,
+                    min_binding_size: todo!(),
                 }
             },
             BindTarget::Camera => {
@@ -250,7 +257,7 @@ pub fn prepare_bind_group(
 
     for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
         let resource = match &info.target {
-            BindTarget::Buffer(buf) => {
+            BindTarget::DynamicBuffer(buf) => {
                 //safety: Keep the guard alive
                 let build_buffer = unsafe{gpu_guard_buffers.push(buf.imp.acquire_gpu_buffer(copy_info))};
                 BindingResource::Buffer(BufferBinding {
@@ -258,6 +265,9 @@ pub fn prepare_bind_group(
                     offset: 0,
                     size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
                 })
+            }
+            BindTarget::StaticBuffer(buf) => {
+                todo!()
             }
             BindTarget::Camera => {
                 BindingResource::Buffer(BufferBinding {

@@ -16,6 +16,11 @@ pub struct Buffer<Element> {
     element: PhantomData<Element>,
 }
 
+#[derive(Debug,Clone)]
+pub struct RenderSide {
+
+}
+
 #[derive(Debug,thiserror::Error)]
 #[error("Texture error")]
 pub struct Error(#[from] imp::Error);
@@ -25,7 +30,7 @@ pub(crate) fn initialize_byte_array_with<Element,I: Fn(usize) -> Element>(elemen
     assert_eq!(byte_array.len(),byte_size);
     //transmute to element type
     let as_elements: &mut [MaybeUninit<Element>] = unsafe {
-        std::slice::from_raw_parts_mut(byte_array.as_mut_ptr() as *mut MaybeUninit<Element>, byte_size)
+        std::slice::from_raw_parts_mut(byte_array.as_mut_ptr() as *mut MaybeUninit<Element>, element_count)
     };
     for (i,element) in as_elements.iter_mut().enumerate() {
         *element = MaybeUninit::new(initializer(i));
@@ -54,6 +59,10 @@ impl<Element> Buffer<Element> {
             count,
             element: PhantomData,
         })
+    }
+
+    pub fn render_side(&self) -> RenderSide {
+        unimplemented!()
     }
 }
 
