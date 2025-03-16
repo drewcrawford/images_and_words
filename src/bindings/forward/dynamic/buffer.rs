@@ -206,8 +206,9 @@ impl Display for Error {
 
 
 
+
 impl<Element> Buffer<Element> {
-    pub fn new<I: Fn(usize) -> Element>(bound_device: &Arc<BoundDevice>, size: usize, debug_name: &str, initialize_with:I) -> Result<Self,Error> {
+    pub fn new<I: Fn(usize) -> Element>(bound_device: &Arc<BoundDevice>, size: usize, debug_name: &str, initialize_with:I) -> Result<Self,Error> where Element: CRepr {
         let byte_size = size * std::mem::size_of::<Element>();
         assert_ne!(byte_size,0, "Zero-sized buffers are not allowed");
 
@@ -267,3 +268,21 @@ impl<Element> Buffer<Element> {
 
 
 }
+
+/**
+Implementing this trait guarantees the type has C layout.
+*/
+pub unsafe trait CRepr {
+
+}
+
+unsafe impl CRepr for u64 {}
+unsafe impl CRepr for u32 {}
+unsafe impl CRepr for u16 {}
+unsafe impl CRepr for u8 {}
+unsafe impl CRepr for f32 {}
+unsafe impl CRepr for f64 {}
+unsafe impl CRepr for i32 {}
+unsafe impl CRepr for i16 {}
+unsafe impl CRepr for i8 {}
+

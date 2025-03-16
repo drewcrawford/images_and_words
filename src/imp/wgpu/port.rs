@@ -7,7 +7,7 @@ use std::num::NonZero;
 use std::sync::Arc;
 use wgpu::util::RenderEncoder;
 use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
-use crate::bindings::forward::dynamic::buffer::{GPUAccess, SomeGPUAccess};
+use crate::bindings::forward::dynamic::buffer::{CRepr, GPUAccess, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
 use crate::images::PassClient;
 use crate::stable_address_vec::StableAddressVec;
@@ -16,6 +16,8 @@ use crate::stable_address_vec::StableAddressVec;
 pub struct CameraProjection {
     pub projection: [f32; 16],
 }
+
+unsafe impl CRepr for CameraProjection {}
 
 #[derive(Debug)]
 pub struct Port {
