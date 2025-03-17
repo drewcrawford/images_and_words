@@ -447,5 +447,11 @@ impl Port {
     pub fn port_reporter(&self) -> &PortReporter {
         &self.port_reporter
     }
+    /**
+    Accesses the camera for the port.
+    */
+    pub fn camera(&self) -> &Camera {
+        &self.camera
+    }
 
 }

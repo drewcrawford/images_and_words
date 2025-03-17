@@ -234,7 +234,7 @@ impl Projection {
 
 pub struct ScreenCoord;
 #[derive(Debug,Clone,Copy)]
-pub struct WorldCoord(Vector<f32,3>);
+pub struct WorldCoord(pub(crate) Vector<f32,3>);
 impl WorldCoord {
     pub fn new(x: f32, y: f32, z: f32) -> WorldCoord {
         WorldCoord(Vector::new([x,y,z]))
