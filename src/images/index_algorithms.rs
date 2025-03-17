@@ -47,7 +47,7 @@ Considering a single cell of two triangles, vertices are chosen as follows:
      │ │ ╱       │
      │ │╱        │
      ▼ □─────────┘
-      1,5          4
+      1,4          5
 ```
 
 */
@@ -95,13 +95,13 @@ impl IndexGenerator {
             0 => {
                 (cell_x, cell_y)
             }
-            1|5 => {
-                (cell_x, cell_y + 1)
+            1|4 => {
+                (cell_x, cell_y+1)
             }
             2 | 3 => {
-                (cell_x + 1, cell_y)
+                (cell_x+1, cell_y)
             }
-            4 => {
+            5 => {
                 (cell_x + 1, cell_y + 1)
             }
             _ => {
