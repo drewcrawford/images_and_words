@@ -142,6 +142,7 @@ pub struct GPUableBuffer {
 #[derive(Debug,Clone,Copy)]
 pub(super) enum StorageType {
     Uniform,
+    Storage,
 }
 
 impl GPUableBuffer {
@@ -149,6 +150,7 @@ impl GPUableBuffer {
     pub(super) fn new_imp(bound_device: Arc<crate::images::BoundDevice>, size: usize, debug_name: &str, storage_type: StorageType) -> Self {
         let usage_type = match storage_type {
             StorageType::Uniform => BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            StorageType::Storage => BufferUsages::STORAGE | BufferUsages::COPY_DST,
         };
         let descriptor = BufferDescriptor {
             label: Some(debug_name),
@@ -164,7 +166,13 @@ impl GPUableBuffer {
         }
     }
     pub(crate) fn new(bound_device: Arc<crate::images::BoundDevice>, size: usize, debug_name: &str) -> Self {
-        Self::new_imp(bound_device, size, debug_name, StorageType::Uniform /* ? */)
+        let storage_type = if bound_device.0.device.limits().max_uniform_buffer_binding_size as usize > size  {
+            StorageType::Uniform
+        }
+        else {
+            StorageType::Storage
+        };
+        Self::new_imp(bound_device, size, debug_name,  storage_type)
     }
     pub(crate) fn storage_type(&self) -> StorageType {
         self.storage_type

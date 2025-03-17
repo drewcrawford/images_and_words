@@ -65,12 +65,13 @@ fn prepare_pass_descriptor(
             BindTarget::StaticBuffer(imp) => {
                 let buffer_binding_type = match imp.imp.storage_type() {
                     StorageType::Uniform => BufferBindingType::Uniform,
+                    StorageType::Storage => BufferBindingType::Storage { read_only: true },
                 };
 
                 BindingType::Buffer {
                     ty: buffer_binding_type,
                     has_dynamic_offset: false,
-                    min_binding_size: todo!(),
+                    min_binding_size: NonZero::new(imp.imp.buffer.size()),
                 }
             },
             BindTarget::Camera => {
@@ -170,22 +171,39 @@ fn prepare_pass_descriptor(
         conservative: false,
     };
 
-    let depth_state = if descriptor.depth {
-        Some(DepthStencilState {
-            format: TextureFormat::Depth16Unorm,
-            depth_write_enabled: false,                   //??
-            depth_compare: CompareFunction::GreaterEqual, //?
-            stencil: StencilState {
-                front: StencilFaceState::IGNORE,
-                back: StencilFaceState::IGNORE,
-                read_mask: 0,
-                write_mask: 0,
-            },
-            bias: Default::default(), //?
-        })
-    } else {
-        None
-    };
+    // let depth_state = if descriptor.depth {
+    //     Some(DepthStencilState {
+    //         format: TextureFormat::Depth16Unorm,
+    //         depth_write_enabled: false,                   //??
+    //         depth_compare: CompareFunction::GreaterEqual, //?
+    //         stencil: StencilState {
+    //             front: StencilFaceState::IGNORE,
+    //             back: StencilFaceState::IGNORE,
+    //             read_mask: 0,
+    //             write_mask: 0,
+    //         },
+    //         bias: Default::default(), //?
+    //     })
+    // } else {
+    //     None
+    // };
+
+    //because everything is in one render pass, we need all the depth states to match
+    //at the moment let's just assume that all passes need depth, whether they report that
+    //or not!
+
+    let depth_state = Some(DepthStencilState {
+        format: TextureFormat::Depth16Unorm,
+        depth_write_enabled: false,                   //??
+        depth_compare: CompareFunction::GreaterEqual, //?
+        stencil: StencilState {
+            front: StencilFaceState::IGNORE,
+            back: StencilFaceState::IGNORE,
+            read_mask: 0,
+            write_mask: 0,
+        },
+        bias: Default::default(), //?
+    });
 
     let multisample_state = MultisampleState {
         count: 1,
@@ -272,7 +290,11 @@ pub fn prepare_bind_group(
                 })
             }
             BindTarget::StaticBuffer(buf) => {
-                todo!()
+                BindingResource::Buffer(BufferBinding {
+                    buffer: &buf.imp.buffer,
+                    offset: 0,
+                    size: Some(NonZero::new(buf.imp.buffer.size() as u64).unwrap()),
+                })
             }
             BindTarget::Camera => {
                 BindingResource::Buffer(BufferBinding {
@@ -448,7 +470,6 @@ impl Port {
 
         //create per-frame resources
         let mut frame_guards = StableAddressVec::with_capactiy(10);
-        let mut frame_bind_guards = Vec::new();
         let frame = surface
             .get_current_texture()
             .expect("Acquire swapchain texture");
@@ -506,51 +527,56 @@ impl Port {
             frame_guards.push(camera_gpu_access) //safety
         };
 
-        for prepared in &prepared {
-            let depth_stencil_attachment = if prepared.depth_pass {
-                Some(RenderPassDepthStencilAttachment {
-                    view: &depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: StoreOp::Discard,
-                    }),
-                    stencil_ops: None,
-                })
-            } else {
-                None
-            };
-            let mut copy_info = CopyInfo {
-                command_encoder: &mut encoder,
-            };
+        let depth_stencil_attachment = if prepared.iter().any(|e| e.depth_pass) {
+            Some(RenderPassDepthStencilAttachment {
+                view: &depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: StoreOp::Discard,
+                }),
+                stencil_ops: None,
+            })
+        } else {
+            None
+        };
 
+        //we're going to do two passes.  The first pass is to prepare our bind groups.
+        //note that we do this per-frame, because in dynamic cases we want to bind to a buffer only known at runtime
+        let mut copy_info = CopyInfo {
+            command_encoder: &mut encoder,
+        };
+        let mut frame_bind_groups = Vec::new();
+        for prepared in &prepared {
             let camera_gpu_deref: &dyn SomeGPUAccess = &**camera_gpu_access;
             let bind_group = prepare_bind_group(device, prepared, &self.pass_client, camera_gpu_deref, &pixel_linear_sampler, &mipmapped_sampler, &mut copy_info);
+            frame_bind_groups.push(bind_group);
+        }
+        //in the second pass, we encode our render pass
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Port render"),
+            color_attachments: &[Some(color_attachment.clone())],
+            depth_stencil_attachment,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
 
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(color_attachment.clone())],
-                depth_stencil_attachment,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
+        for (p,prepared) in prepared.iter().enumerate() {
             render_pass.set_pipeline(&prepared.pipeline);
 
-            //now create the bind group.
-            //We do this per-frame, because chances are we want to bind to a specific buffer
-            //of a multi-buffered resource, which can only be known at runtime.
-
+            //use the bind group we declared earlier
+            let bind_group = &frame_bind_groups[p];
 
             render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
-            frame_bind_guards.push(bind_group.guards);
             render_pass.draw(0..prepared.vertex_count, 0..1);
         }
         println!("encoded {passes} passes", passes = prepared.len());
 
+        std::mem::drop(render_pass); //stop mutably borrowing the encoder
         let encoded = encoder.finish();
         device.0.queue.submit(std::iter::once(encoded));
         device.0.queue.on_submitted_work_done(move || {
             //callbacks must be alive for full GPU-side render
-            std::mem::drop(frame_bind_guards);
+            std::mem::drop(frame_bind_groups);
             println!("frame guards dropped");
         });
         frame.present();
