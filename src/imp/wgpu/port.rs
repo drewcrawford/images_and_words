@@ -68,7 +68,7 @@ fn prepare_pass_descriptor(
                 let buffer_binding_type = match imp.imp.storage_type() {
                     StorageType::Uniform => BufferBindingType::Uniform,
                     StorageType::Storage => BufferBindingType::Storage { read_only: true },
-                    StorageType::Vertex => unreachable!()
+                    StorageType::Vertex | StorageType::Index => unreachable!(),
                 };
 
                 BindingType::Buffer {
@@ -157,7 +157,7 @@ fn prepare_pass_descriptor(
 
     for (b,buffer) in &descriptor.bind_style.binds {
         match &buffer.target {
-            BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_)=> {}
+            BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_)  => {}
             BindTarget::VB(layout,render_side) => {
                 let mut each_vertex_attributes = Vec::new();
                 let mut offset = 0;
@@ -303,6 +303,7 @@ pub struct BindGroupGuard {
     bind_group: BindGroup,
     guards: StableAddressVec<Box<dyn SomeGPUAccess>>,
     vertex_buffers: Vec<(u32, wgpu::Buffer)>,
+    index_buffer: Option<wgpu::Buffer>,
 }
 
 pub fn prepare_bind_group(
@@ -320,7 +321,6 @@ pub fn prepare_bind_group(
     let mut gpu_guard_buffers = StableAddressVec::with_capactiy(5);
     let mut gpu_guard_textures = StableAddressVec::with_capactiy(5);
 
-    let mut vertex_buffers = Vec::new();
 
     for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
         let resource = match &info.target {
@@ -385,9 +385,10 @@ pub fn prepare_bind_group(
                     SamplerType::Mipmapped => { BindingResource::Sampler(mipmapped_sampler) }
                 }
             }
-            BindTarget::VB(..) => {
+            BindTarget::VB(..)  => {
                 continue //not considered as a binding
             }
+
         };
 
         let entry = BindGroupEntry {
@@ -403,6 +404,7 @@ pub fn prepare_bind_group(
     });
 
     //find vertex buffers
+    let mut vertex_buffers = Vec::new();
     for (b,buffer) in &prepared.pass_descriptor.bind_style().binds {
         match &buffer.target {
             BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_) => {}
@@ -413,10 +415,19 @@ pub fn prepare_bind_group(
         }
     }
 
+    let index_buffer = if let Some(buffer) = &prepared.pass_descriptor.bind_style().index_buffer {
+        let buffer = buffer.imp.buffer.clone();
+        Some(buffer)
+    } else {
+        None
+    };
+
+
     BindGroupGuard {
         bind_group,
         guards: gpu_guard_buffers,
         vertex_buffers,
+        index_buffer,
     }
 }
 
@@ -630,10 +641,15 @@ impl Port {
             render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
 
             for (v,buffer) in &bind_group.vertex_buffers {
-                todo!("I think this does not work until we can unset a vertex buffer later")
-                //see https://github.com/gfx-rs/wgpu/discussions/7353
+                render_pass.set_vertex_buffer(*v, buffer.slice(..));
             }
-            render_pass.draw(0..prepared.vertex_count, 0..1);
+            if let Some(buffer) = &bind_group.index_buffer {
+                render_pass.set_index_buffer(buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(0..prepared.vertex_count, 0, 0..1);
+            }
+            else {
+                render_pass.draw(0..prepared.vertex_count, 0..1);
+            }
             render_pass.pop_debug_group();
         }
         println!("encoded {passes} passes", passes = prepared.len());

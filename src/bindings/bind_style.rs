@@ -14,6 +14,7 @@ For example, the camera matrix is just a placeholder that is resolved later.
 #[derive(Debug,Clone)]
 pub struct BindStyle {
     pub(crate) binds: HashMap<u32,BindInfo>,
+    pub(crate) index_buffer: Option<StaticBufferRenderSide>,
 }
 
 
@@ -49,6 +50,7 @@ impl BindStyle {
     pub fn new() -> Self {
         BindStyle{
             binds: HashMap::new(),
+            index_buffer: None,
         }
     }
 
@@ -106,6 +108,15 @@ impl BindStyle {
         self.bind(slot, Stage::Vertex, BindTarget::VB(layout, buffer));
     }
 
+    /**
+    Binds a static index buffer to the specified slot.
+
+    Index buffers are separate from other buffers because they are bound differently.
+    */
+
+    pub fn bind_static_index_buffer(&mut self, buffer: &crate::bindings::forward::r#static::buffer::Buffer<u16>) {
+        self.index_buffer = Some(buffer.render_side())
+    }
 }
 
 ///A slot where we will bind something.

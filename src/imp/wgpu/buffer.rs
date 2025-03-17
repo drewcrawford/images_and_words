@@ -144,6 +144,7 @@ pub(super) enum StorageType {
     Uniform,
     Storage,
     Vertex,
+    Index,
 }
 
 impl GPUableBuffer {
@@ -153,6 +154,7 @@ impl GPUableBuffer {
             StorageType::Uniform => BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             StorageType::Storage => BufferUsages::STORAGE | BufferUsages::COPY_DST,
             StorageType::Vertex => BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            StorageType::Index => BufferUsages::INDEX | BufferUsages::COPY_DST,
         };
         let descriptor = BufferDescriptor {
             label: Some(debug_name),
@@ -179,6 +181,9 @@ impl GPUableBuffer {
             }
             GPUBufferUsage::VertexBuffer => {
                 StorageType::Vertex
+            }
+            GPUBufferUsage::Index => {
+                StorageType::Index
             }
         };
         Self::new_imp(bound_device, size, debug_name,  storage_type)

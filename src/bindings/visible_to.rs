@@ -21,6 +21,8 @@ pub enum GPUBufferUsage {
     FragmentShaderRead,
     ///This is a vertex buffer object
     VertexBuffer,
+    ///This is an index buffer object
+    Index,
 }
 
 pub enum CPUStrategy {

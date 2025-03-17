@@ -434,7 +434,7 @@ impl Port {
                         }
                         BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
                         BindTarget::Sampler(_) => { /* also not considered dirty */}
-                        BindTarget::VB(..) => { /* also not considered dirty */}
+                        BindTarget::VB(..)  => { /* also not considered dirty */}
                     }
                 }
             }
