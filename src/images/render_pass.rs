@@ -77,6 +77,8 @@ impl PassDescriptor {
 pub enum DrawCommand {
     ///payload is the number of primitives (e.g., triangles)
     TriangleStrip(u32),
+    ///payload is the number of primitives (e.g., triangles)
+    TriangleList(u32),
 }
 pub trait PassTrait<const DESCRIPTORS: usize> {
     ///A type returned by the process of making a descriptor.

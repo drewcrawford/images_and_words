@@ -14,6 +14,20 @@ For example, the camera matrix is just a placeholder that is resolved later.
 #[derive(Debug,Clone)]
 pub struct BindStyle {
     pub(crate) binds: HashMap<u32,BindInfo>,
+    pub(crate) vertex_buffers: HashMap<u32,VertexBuffer>,
+}
+
+#[derive(Debug,Clone)]
+pub(crate) enum VertexBuffer {
+    Static(StaticBufferRenderSide, VertexLayout),
+}
+
+impl VertexBuffer {
+    pub fn layout(&self) -> &VertexLayout {
+        match self {
+            VertexBuffer::Static(_, layout) => layout,
+        }
+    }
 }
 
 
@@ -46,6 +60,7 @@ impl BindStyle {
     pub fn new() -> Self {
         BindStyle{
             binds: HashMap::new(),
+            vertex_buffers: HashMap::new(),
         }
     }
 
@@ -94,6 +109,14 @@ impl BindStyle {
     pub fn bind_dynamic_texture<Format>(&mut self, slot: BindSlot, texture: TextureRenderSide<Format>) where Format: crate::pixel_formats::sealed::PixelFormat {
         self.bind(slot, BindTarget::DynamicTexture(texture.erased()));
     }
+    /**
+    Binds a static buffer to the specified slot.
+
+    Vertex buffers are separate from other buffers because they are bound differently.
+    */
+    pub fn bind_static_vertex_buffer(&mut self, slot: u32, buffer: StaticBufferRenderSide, layout: VertexLayout) {
+        self.vertex_buffers.insert(slot, VertexBuffer::Static(buffer, layout));
+    }
 
 }
 
@@ -119,6 +142,7 @@ impl BindSlot {
     }
 }
 use crate::images::StaticTextureTicket;
+use crate::images::vertex_layout::VertexLayout;
 
 
 

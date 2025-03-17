@@ -6,7 +6,7 @@ use crate::imp::{CopyInfo, Error, GPUableBuffer};
 use std::num::NonZero;
 use std::sync::Arc;
 use wgpu::util::RenderEncoder;
-use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexState};
+use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexBufferLayout, VertexState};
 use crate::bindings::forward::dynamic::buffer::{CRepr, GPUAccess, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
 use crate::images::PassClient;
@@ -145,20 +145,34 @@ fn prepare_pass_descriptor(
             )),
         });
 
+    //calculate vertex buffers
+    let mut vertex_buffers = Vec::new();
+    for (b,buffer) in &descriptor.bind_style.vertex_buffers {
+        let vertex_buffer_layout = VertexBufferLayout {
+            array_stride: buffer.layout().element_stride() as u64,
+            step_mode: todo!(),
+            attributes: &[todo!()],
+        };
+        vertex_buffers.push(vertex_buffer_layout);
+    }
+
     let vertex_state = VertexState {
         module: &vertex_module,
         entry_point: None,
         compilation_options: Default::default(),
-        buffers: &[],
+        buffers: &vertex_buffers,
     };
     let topology = match descriptor.draw_command() {
         DrawCommand::TriangleStrip(count) => PrimitiveTopology::TriangleStrip,
+        DrawCommand::TriangleList(..) => PrimitiveTopology::TriangleList,
     };
     let vertex_count = match descriptor.draw_command {
         DrawCommand::TriangleStrip(count) => count,
+        DrawCommand::TriangleList(triangles) => triangles * 3,
     };
     let instance_count = match descriptor.draw_command {
         DrawCommand::TriangleStrip(..) => 1,
+        DrawCommand::TriangleList(triangles) => triangles,
     };
 
     let primitive_state = PrimitiveState {
