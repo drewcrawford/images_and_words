@@ -14,6 +14,15 @@ pub enum TextureUsage {
     VertexAndFragmentShaderSample,
 }
 
+pub enum GPUBufferUsage {
+    ///We will read this resource in the vertex shader.
+    VertexShaderRead,
+    ///We will read this resource in the fragment shader.
+    FragmentShaderRead,
+    ///This is a vertex buffer object
+    VertexBuffer,
+}
+
 pub enum CPUStrategy {
     ///CPU will frequently read the resource.
     ReadsFrequently,

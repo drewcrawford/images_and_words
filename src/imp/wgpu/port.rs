@@ -9,6 +9,7 @@ use wgpu::util::RenderEncoder;
 use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
 use crate::bindings::forward::dynamic::buffer::{CRepr, GPUAccess, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
+use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::PassClient;
 use crate::images::vertex_layout::VertexFieldType;
 use crate::imp::wgpu::buffer::StorageType;
@@ -501,7 +502,7 @@ impl Port {
             border_color: None,
         });
 
-        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device().clone(), 1, "Camera", |initialize| {
+        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device().clone(), 1, GPUBufferUsage::VertexBuffer, "Camera", |initialize| {
             let projection = self.camera.copy_projection_and_clear_dirty_bit();
             CameraProjection {
                 projection: [
