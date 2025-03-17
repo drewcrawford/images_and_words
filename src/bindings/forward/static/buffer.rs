@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 use crate::bindings::buffer_access::MapType;
+use crate::bindings::forward::dynamic::buffer::CRepr;
 use crate::images::BoundDevice;
 use crate::imp;
 use crate::multibuffer::sealed::GPUMultibuffer;
@@ -25,7 +26,7 @@ pub struct RenderSide {
 #[error("Texture error")]
 pub struct Error(#[from] imp::Error);
 
-pub(crate) fn initialize_byte_array_with<Element,I: Fn(usize) -> Element>(element_count: usize, byte_array: &mut [MaybeUninit<u8>], initializer: I) -> &mut [u8] {
+pub(crate) fn initialize_byte_array_with<Element,I: Fn(usize) -> Element>(element_count: usize, byte_array: &mut [MaybeUninit<u8>], initializer: I) -> &mut [u8] where Element: CRepr {
     let byte_size = element_count * std::mem::size_of::<Element>();
     assert_eq!(byte_array.len(),byte_size);
     //transmute to element type
@@ -43,7 +44,7 @@ pub(crate) fn initialize_byte_array_with<Element,I: Fn(usize) -> Element>(elemen
 }
 
 impl<Element> Buffer<Element> {
-    pub async fn new(device: Arc<BoundDevice>, count: usize, usage: crate::bindings::visible_to::GPUBufferUsage, debug_name: &str, initializer: impl Fn(usize) -> Element) -> Result<Self,Error> {
+    pub async fn new(device: Arc<BoundDevice>, count: usize, usage: crate::bindings::visible_to::GPUBufferUsage, debug_name: &str, initializer: impl Fn(usize) -> Element) -> Result<Self,Error> where Element: CRepr {
         let byte_size = std::mem::size_of::<Element>() * count;
         let mappable = imp::MappableBuffer::new(&device, byte_size, MapType::Write, debug_name, |bytes| {
             initialize_byte_array_with(count, bytes, initializer)

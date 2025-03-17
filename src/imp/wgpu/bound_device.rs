@@ -15,7 +15,7 @@ impl BoundDevice {
             label,
             required_features: Default::default(),
             //todo: choose better limits?
-            required_limits: Limits::downlevel_defaults(),
+            required_limits: Limits::downlevel_webgl2_defaults(),
             memory_hints: Default::default(),
         };
         let (device,q) = unbound_device.0.adapter.request_device(&descriptor, None).await?;
