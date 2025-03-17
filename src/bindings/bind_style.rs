@@ -14,21 +14,8 @@ For example, the camera matrix is just a placeholder that is resolved later.
 #[derive(Debug,Clone)]
 pub struct BindStyle {
     pub(crate) binds: HashMap<u32,BindInfo>,
-    pub(crate) vertex_buffers: HashMap<u32,VertexBuffer>,
 }
 
-#[derive(Debug,Clone)]
-pub(crate) enum VertexBuffer {
-    Static(StaticBufferRenderSide, VertexLayout),
-}
-
-impl VertexBuffer {
-    pub fn layout(&self) -> &VertexLayout {
-        match self {
-            VertexBuffer::Static(_, layout) => layout,
-        }
-    }
-}
 
 
 
@@ -60,13 +47,12 @@ impl BindStyle {
     pub fn new() -> Self {
         BindStyle{
             binds: HashMap::new(),
-            vertex_buffers: HashMap::new(),
         }
     }
 
-    fn bind(&mut self, slot: BindSlot,target: BindTarget) {
+    fn bind(&mut self, slot: BindSlot, stage: Stage, target: BindTarget) {
         let old = self.binds.insert(slot.pass_index, BindInfo {
-            stage: slot.stage,
+            stage: stage,
             target,
         });
         assert!(old.is_none(), "Already bound to slot {:?}", slot);
@@ -76,8 +62,8 @@ impl BindStyle {
     ///Indicates we want to bind the camera matrix.  By default, we do not.
     ///
     /// This will be bound to the well-known slot position IMAGES_CAMERA_SLOT.
-    pub fn bind_camera_matrix(&mut self, slot: BindSlot) {
-        self.bind(slot, BindTarget::Camera);
+    pub fn bind_camera_matrix(&mut self, slot: BindSlot, stage: Stage) {
+        self.bind(slot, stage, BindTarget::Camera);
     }
 
 
@@ -88,55 +74,55 @@ impl BindStyle {
     over back to 0.
 
      */
-    pub fn bind_frame_counter(&mut self, slot: BindSlot) {
-        self.bind(slot, BindTarget::FrameCounter);
+    pub fn bind_frame_counter(&mut self, slot: BindSlot, stage: Stage) {
+        self.bind(slot, stage, BindTarget::FrameCounter);
     }
 
-    pub fn bind_static_buffer(&mut self, slot: BindSlot, render_side: StaticBufferRenderSide) {
-        self.bind(slot, BindTarget::StaticBuffer(render_side));
+    pub fn bind_static_buffer(&mut self, slot: BindSlot, stage: Stage, render_side: StaticBufferRenderSide) {
+        self.bind(slot, stage, BindTarget::StaticBuffer(render_side));
     }
 
-    pub fn bind_dynamic_buffer<Element>(&mut self, slot: BindSlot, render_side: DynamicRenderSide<Element>) where Element: Send + Sync + 'static {
-        self.bind(slot, BindTarget::DynamicBuffer(render_side.erased_render_side()));
+    pub fn bind_dynamic_buffer<Element>(&mut self, slot: BindSlot, stage: Stage, render_side: DynamicRenderSide<Element>) where Element: Send + Sync + 'static {
+        self.bind(slot, stage, BindTarget::DynamicBuffer(render_side.erased_render_side()));
     }
 
-    pub fn bind_static_texture(&mut self, slot: BindSlot, texture: StaticTextureTicket, sampler_type: Option<SamplerInfo>) {
-        self.bind(slot, BindTarget::StaticTexture(texture, sampler_type.as_ref().map(|x| x.sampler_type)));
+    pub fn bind_static_texture(&mut self, slot: BindSlot, stage: Stage, texture: StaticTextureTicket, sampler_type: Option<SamplerInfo>) {
+        self.bind(slot, stage.clone(), BindTarget::StaticTexture(texture, sampler_type.as_ref().map(|x| x.sampler_type)));
         if let Some(sampler) = sampler_type {
-            self.bind(BindSlot::new(slot.stage, sampler.pass_index), BindTarget::Sampler(sampler.sampler_type));
+            self.bind(BindSlot::new(sampler.pass_index), stage, BindTarget::Sampler(sampler.sampler_type));
         }
     }
-    pub fn bind_dynamic_texture<Format>(&mut self, slot: BindSlot, texture: TextureRenderSide<Format>) where Format: crate::pixel_formats::sealed::PixelFormat {
-        self.bind(slot, BindTarget::DynamicTexture(texture.erased()));
+    pub fn bind_dynamic_texture<Format>(&mut self, slot: BindSlot, stage: Stage, texture: TextureRenderSide<Format>) where Format: crate::pixel_formats::sealed::PixelFormat {
+        self.bind(slot, stage, BindTarget::DynamicTexture(texture.erased()));
     }
     /**
     Binds a static buffer to the specified slot.
 
     Vertex buffers are separate from other buffers because they are bound differently.
     */
-    pub fn bind_static_vertex_buffer(&mut self, slot: u32, buffer: StaticBufferRenderSide, layout: VertexLayout) {
-        self.vertex_buffers.insert(slot, VertexBuffer::Static(buffer, layout));
+    pub fn bind_static_vertex_buffer(&mut self, slot: u32, stage: Stage, buffer: StaticBufferRenderSide, layout: VertexLayout) {
+        todo!()
     }
 
 }
 
 ///A slot where we will bind something.
-#[derive(Copy,Clone,Debug,Hash,Eq,PartialEq)]
+#[derive(Clone,Debug)]
 pub enum Stage {
     ///bound to fragment shaders
     Fragment,
     ///Bound to vertex shaders
     Vertex,
+    /// Bound as a vertex buffer
+    VertexBuffer(VertexLayout),
 }
-#[derive(Copy,Clone,Debug)]
+#[derive(Clone,Debug)]
 pub struct BindSlot {
-    pub(crate) stage: Stage,
     pub(crate) pass_index: u32,
 }
 impl BindSlot {
-    pub fn new(namespace: Stage, pass_index: u32) -> Self {
+    pub fn new(pass_index: u32) -> Self {
         Self {
-            stage: namespace,
             pass_index,
         }
     }

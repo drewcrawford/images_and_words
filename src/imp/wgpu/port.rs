@@ -1,4 +1,4 @@
-use crate::bindings::bind_style::BindTarget;
+use crate::bindings::bind_style::{BindTarget, Stage};
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::{DrawCommand, PassDescriptor, PassTrait};
@@ -52,6 +52,7 @@ fn prepare_pass_descriptor(
         let stage = match info.stage {
             crate::bindings::bind_style::Stage::Fragment => wgpu::ShaderStages::FRAGMENT,
             crate::bindings::bind_style::Stage::Vertex => wgpu::ShaderStages::VERTEX,
+            crate::bindings::bind_style::Stage::VertexBuffer(..) => continue, //handled separately
         };
         let binding_type = match &info.target {
             BindTarget::DynamicBuffer(imp) => {
@@ -147,13 +148,18 @@ fn prepare_pass_descriptor(
 
     //calculate vertex buffers
     let mut vertex_buffers = Vec::new();
-    for (b,buffer) in &descriptor.bind_style.vertex_buffers {
-        let vertex_buffer_layout = VertexBufferLayout {
-            array_stride: buffer.layout().element_stride() as u64,
-            step_mode: todo!(),
-            attributes: &[todo!()],
-        };
-        vertex_buffers.push(vertex_buffer_layout);
+    for (b,buffer) in &descriptor.bind_style.binds {
+        match &buffer.stage {
+            Stage::Fragment | Stage::Vertex => {} //not a vertex buffer
+            Stage::VertexBuffer(layout) => {
+                let vertex_buffer_layout = VertexBufferLayout {
+                    array_stride: layout.element_stride() as u64,
+                    step_mode: todo!(),
+                    attributes: &[todo!()],
+                };
+                vertex_buffers.push(vertex_buffer_layout);
+            }
+        }
     }
 
     let vertex_state = VertexState {
