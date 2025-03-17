@@ -6,10 +6,11 @@ use crate::imp::{CopyInfo, Error, GPUableBuffer};
 use std::num::NonZero;
 use std::sync::Arc;
 use wgpu::util::RenderEncoder;
-use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexBufferLayout, VertexState};
+use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
 use crate::bindings::forward::dynamic::buffer::{CRepr, GPUAccess, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
 use crate::images::PassClient;
+use crate::images::vertex_layout::VertexFieldType;
 use crate::imp::wgpu::buffer::StorageType;
 use crate::stable_address_vec::StableAddressVec;
 
@@ -52,7 +53,6 @@ fn prepare_pass_descriptor(
         let stage = match info.stage {
             crate::bindings::bind_style::Stage::Fragment => wgpu::ShaderStages::FRAGMENT,
             crate::bindings::bind_style::Stage::Vertex => wgpu::ShaderStages::VERTEX,
-            crate::bindings::bind_style::Stage::VertexBuffer(..) => continue, //handled separately
         };
         let binding_type = match &info.target {
             BindTarget::DynamicBuffer(imp) => {
@@ -106,6 +106,9 @@ fn prepare_pass_descriptor(
                 }
             }
             BindTarget::Sampler(sampler) => BindingType::Sampler(SamplerBindingType::Filtering),
+            BindTarget::VB(..) => {
+                continue //not considered as a binding
+            }
         };
         let layout = BindGroupLayoutEntry {
             binding: *pass_index,
@@ -148,16 +151,32 @@ fn prepare_pass_descriptor(
 
     //calculate vertex buffers
     let mut vertex_buffers = Vec::new();
+    let mut all_vertex_attributes = StableAddressVec::with_capactiy(5);
+
     for (b,buffer) in &descriptor.bind_style.binds {
-        match &buffer.stage {
-            Stage::Fragment | Stage::Vertex => {} //not a vertex buffer
-            Stage::VertexBuffer(layout) => {
-                let vertex_buffer_layout = VertexBufferLayout {
+        match &buffer.target {
+            BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_)=> {}
+            BindTarget::VB(layout,render_side) => {
+                let mut each_vertex_attributes = Vec::new();
+                let mut offset = 0;
+                for (f,field) in layout.fields.iter().enumerate() {
+                    let attribute = VertexAttribute {
+                        format: match field.r#type {
+                            VertexFieldType::f32 => { wgpu::VertexFormat::Float32 },
+                        },
+                        offset,
+                        shader_location: f as u32,
+                    };
+                    offset += field.r#type.stride() as u64;
+                    each_vertex_attributes.push(attribute);
+                }
+                let strong_vertex_attributes = all_vertex_attributes.push(each_vertex_attributes);
+                let layout = VertexBufferLayout {
                     array_stride: layout.element_stride() as u64,
-                    step_mode: todo!(),
-                    attributes: &[todo!()],
+                    step_mode: VertexStepMode::Vertex,
+                    attributes: strong_vertex_attributes,
                 };
-                vertex_buffers.push(vertex_buffer_layout);
+                vertex_buffers.push(layout);
             }
         }
     }
@@ -281,6 +300,7 @@ and all guards that are needed to keep the resources alive.
 pub struct BindGroupGuard {
     bind_group: BindGroup,
     guards: StableAddressVec<Box<dyn SomeGPUAccess>>,
+    vertex_buffers: Vec<(u32, wgpu::Buffer)>,
 }
 
 pub fn prepare_bind_group(
@@ -297,6 +317,8 @@ pub fn prepare_bind_group(
 
     let mut gpu_guard_buffers = StableAddressVec::with_capactiy(5);
     let mut gpu_guard_textures = StableAddressVec::with_capactiy(5);
+
+    let mut vertex_buffers = Vec::new();
 
     for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
         let resource = match &info.target {
@@ -361,6 +383,9 @@ pub fn prepare_bind_group(
                     SamplerType::Mipmapped => { BindingResource::Sampler(mipmapped_sampler) }
                 }
             }
+            BindTarget::VB(..) => {
+                continue //not considered as a binding
+            }
         };
 
         let entry = BindGroupEntry {
@@ -374,9 +399,22 @@ pub fn prepare_bind_group(
         layout: &prepared.pipeline.get_bind_group_layout(0),
         entries: entries.as_slice(),
     });
+
+    //find vertex buffers
+    for (b,buffer) in &prepared.pass_descriptor.bind_style().binds {
+        match &buffer.target {
+            BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_) => {}
+            BindTarget::VB(layout,render_side) => {
+                let buffer = render_side.imp.buffer.clone();
+                vertex_buffers.push((*b, buffer));
+            }
+        }
+    }
+
     BindGroupGuard {
         bind_group,
         guards: gpu_guard_buffers,
+        vertex_buffers,
     }
 }
 
@@ -588,6 +626,9 @@ impl Port {
             let bind_group = &frame_bind_groups[p];
 
             render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
+            for (v,buffer) in &bind_group.vertex_buffers {
+                render_pass.set_vertex_buffer(*v, buffer.slice(..));
+            }
             render_pass.draw(0..prepared.vertex_count, 0..1);
             render_pass.pop_debug_group();
         }

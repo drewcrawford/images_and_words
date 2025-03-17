@@ -28,6 +28,7 @@ pub enum BindTarget {
     DynamicTexture(ErasedTextureRenderSide),
     StaticTexture(StaticTextureTicket, Option<SamplerType>),
     Sampler(SamplerType),
+    VB(VertexLayout,StaticBufferRenderSide),
 }
 
 #[derive(Debug,Clone)]
@@ -35,6 +36,7 @@ pub struct BindInfo {
     pub(crate) stage: Stage,
     pub(crate) target: BindTarget,
 }
+
 
 #[derive(Debug)]
 pub struct SamplerInfo {
@@ -52,7 +54,7 @@ impl BindStyle {
 
     fn bind(&mut self, slot: BindSlot, stage: Stage, target: BindTarget) {
         let old = self.binds.insert(slot.pass_index, BindInfo {
-            stage: stage,
+            stage,
             target,
         });
         assert!(old.is_none(), "Already bound to slot {:?}", slot);
@@ -100,8 +102,8 @@ impl BindStyle {
 
     Vertex buffers are separate from other buffers because they are bound differently.
     */
-    pub fn bind_static_vertex_buffer(&mut self, slot: u32, stage: Stage, buffer: StaticBufferRenderSide, layout: VertexLayout) {
-        todo!()
+    pub fn bind_static_vertex_buffer(&mut self, slot: BindSlot, buffer: StaticBufferRenderSide, layout: VertexLayout) {
+        self.bind(slot, Stage::Vertex, BindTarget::VB(layout, buffer));
     }
 
 }
@@ -113,9 +115,9 @@ pub enum Stage {
     Fragment,
     ///Bound to vertex shaders
     Vertex,
-    /// Bound as a vertex buffer
-    VertexBuffer(VertexLayout),
 }
+
+
 #[derive(Clone,Debug)]
 pub struct BindSlot {
     pub(crate) pass_index: u32,

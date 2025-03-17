@@ -18,7 +18,7 @@ pub mod view;
 pub mod projection;
 mod frame;
 mod index_algorithms;
-pub(crate) mod vertex_layout;
+pub mod vertex_layout;
 
 pub use device::BoundDevice;
 
