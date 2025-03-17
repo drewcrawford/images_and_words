@@ -7,7 +7,7 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::{IndividualBuffer, WriteFrequency};
 use crate::bindings::resource_tracking::GPUGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
-use crate::bindings::visible_to::CPUStrategy;
+use crate::bindings::visible_to::{CPUStrategy, GPUBufferUsage};
 use crate::images::BoundDevice;
 use crate::imp;
 use crate::multibuffer::sealed::{CPUMultibuffer, GPUMultibuffer};
@@ -143,6 +143,7 @@ pub struct GPUableBuffer {
 pub(super) enum StorageType {
     Uniform,
     Storage,
+    Vertex,
 }
 
 impl GPUableBuffer {
@@ -151,6 +152,7 @@ impl GPUableBuffer {
         let usage_type = match storage_type {
             StorageType::Uniform => BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             StorageType::Storage => BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            StorageType::Vertex => BufferUsages::VERTEX | BufferUsages::COPY_DST,
         };
         let descriptor = BufferDescriptor {
             label: Some(debug_name),
@@ -165,12 +167,19 @@ impl GPUableBuffer {
             storage_type,
         }
     }
-    pub(crate) fn new(bound_device: Arc<crate::images::BoundDevice>, size: usize, debug_name: &str) -> Self {
-        let storage_type = if bound_device.0.device.limits().max_uniform_buffer_binding_size as usize > size  {
-            StorageType::Uniform
-        }
-        else {
-            StorageType::Storage
+    pub(crate) fn new(bound_device: Arc<crate::images::BoundDevice>, size: usize, usage: GPUBufferUsage, debug_name: &str) -> Self {
+        let storage_type = match usage {
+            GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
+                if bound_device.0.device.limits().max_uniform_buffer_binding_size as usize > size  {
+                    StorageType::Uniform
+                }
+                else {
+                    StorageType::Storage
+                }
+            }
+            GPUBufferUsage::VertexBuffer => {
+                StorageType::Vertex
+            }
         };
         Self::new_imp(bound_device, size, debug_name,  storage_type)
     }

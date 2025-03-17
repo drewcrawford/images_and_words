@@ -17,7 +17,7 @@ pub mod shader;
 pub mod view;
 pub mod projection;
 mod frame;
-mod index_algorithms;
+pub mod index_algorithms;
 pub mod vertex_layout;
 
 pub use device::BoundDevice;

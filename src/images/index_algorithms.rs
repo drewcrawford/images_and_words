@@ -76,6 +76,8 @@ impl IndexGenerator {
         self.num_triangles() * VERTEX_PER_TRIANGLE
     }
 
+
+
     /**
     Returns the number of triangles in the mesh.
 */
@@ -86,8 +88,8 @@ impl IndexGenerator {
     pub fn index_for(&self, buffer_pos: usize) -> usize {
         let cell_vertex = buffer_pos % VERTEX_PER_CELL;
         let cell = buffer_pos / VERTEX_PER_CELL;
-        let cell_x = cell % self.width;
-        let cell_y = cell / self.width;
+        let cell_x = cell % (self.width - 1);
+        let cell_y = cell / (self.width - 1);
         assert!(cell_y < self.height, "Index out of bounds");
         let (x,y) = match cell_vertex {
             0 => {

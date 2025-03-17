@@ -223,7 +223,7 @@ impl<Element> Buffer<Element> {
             _marker: PhantomData,
             count: size,
         };
-        let gpu_buffer = imp::GPUableBuffer::new(bound_device,byte_size, debug_name);
+        let gpu_buffer = imp::GPUableBuffer::new(bound_device,byte_size, usage,debug_name);
 
         Ok(Self {
             shared: Arc::new(Shared {

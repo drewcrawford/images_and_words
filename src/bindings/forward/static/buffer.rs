@@ -50,7 +50,7 @@ impl<Element> Buffer<Element> {
         })?;
 
 
-        let imp = imp::GPUableBuffer::new(device, byte_size, debug_name);
+        let imp = imp::GPUableBuffer::new(device, byte_size, usage, debug_name);
 
         imp.copy_from_buffer(mappable, 0, 0, byte_size).await;
 

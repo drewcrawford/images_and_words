@@ -68,6 +68,7 @@ fn prepare_pass_descriptor(
                 let buffer_binding_type = match imp.imp.storage_type() {
                     StorageType::Uniform => BufferBindingType::Uniform,
                     StorageType::Storage => BufferBindingType::Storage { read_only: true },
+                    StorageType::Vertex => unreachable!()
                 };
 
                 BindingType::Buffer {
@@ -502,7 +503,7 @@ impl Port {
             border_color: None,
         });
 
-        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device().clone(), 1, GPUBufferUsage::VertexBuffer, "Camera", |initialize| {
+        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device().clone(), 1, GPUBufferUsage::VertexShaderRead, "Camera", |initialize| {
             let projection = self.camera.copy_projection_and_clear_dirty_bit();
             CameraProjection {
                 projection: [
@@ -627,8 +628,10 @@ impl Port {
             let bind_group = &frame_bind_groups[p];
 
             render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
+
             for (v,buffer) in &bind_group.vertex_buffers {
-                render_pass.set_vertex_buffer(*v, buffer.slice(..));
+                todo!("I think this does not work until we can unset a vertex buffer later")
+                //see https://github.com/gfx-rs/wgpu/discussions/7353
             }
             render_pass.draw(0..prepared.vertex_count, 0..1);
             render_pass.pop_debug_group();
