@@ -139,7 +139,7 @@ fn prepare_pass_descriptor(
         .0
         .device
         .create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(&(descriptor.name().to_owned() + "_vtx")),
+            label: Some(&descriptor.vertex_shader.label),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
                 &descriptor.vertex_shader.wgsl_code,
             )),
@@ -215,7 +215,7 @@ fn prepare_pass_descriptor(
         .0
         .device
         .create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(&(descriptor.name().to_owned() + "_frag")),
+            label: Some(descriptor.fragment_shader.label),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
                 &descriptor.fragment_shader.wgsl_code,
             )),
@@ -561,6 +561,7 @@ impl Port {
         });
 
         for (p,prepared) in prepared.iter().enumerate() {
+            render_pass.push_debug_group(prepared.pass_descriptor.name());
             render_pass.set_pipeline(&prepared.pipeline);
 
             //use the bind group we declared earlier
@@ -568,6 +569,7 @@ impl Port {
 
             render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
             render_pass.draw(0..prepared.vertex_count, 0..1);
+            render_pass.pop_debug_group();
         }
         println!("encoded {passes} passes", passes = prepared.len());
 
