@@ -12,6 +12,7 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use crate::images::Engine;
 
 // This represents the shared state between different LateBoundSenders
@@ -132,6 +133,9 @@ impl DirtyAggregateReceiver {
 
     ///Waits for a dirty signal.
     pub async fn wait_for_dirty(&self) {
+        //todo!
+        
+        portable_async_sleep::async_sleep(Duration::from_millis(100)).await;
         return; //todo!
         let (sender, receiver) = r#continue::continuation();
         let late_bound_sender = LateBoundSender::with_sender(sender);

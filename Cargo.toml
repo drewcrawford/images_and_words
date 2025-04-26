@@ -20,7 +20,7 @@ test_executors = "0.3.2"
 raw-window-handle = "0.6.2"
 continue = {version = "0.1.0"}
 half = "2.4.1"
-
+portable-async-sleep = {path = "../portable-async-sleep"}
 # optional
 app_window = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/app_window.git", optional=true}
 # used for wgpu backend
