@@ -149,8 +149,8 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         //todo: could optimize probably?
         let pixels = (width as usize * height as usize);
         let mut src_buf = Vec::with_capacity(pixels);
-        for x in 0..width {
-            for y in 0..height {
+        for y in 0..height {
+            for x in 0..width {
                 src_buf.push(initializer(Texel{x,y}));
             }
         }
