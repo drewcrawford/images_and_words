@@ -31,7 +31,8 @@ Assume that the points are in a 2D grid, with upper left origin.  Triangles gene
      ▼└□────┘└□────┘└□────┘
 ```
 
-Considering a single cell of two triangles, vertices are chosen as follows:
+Considering a single cell of two triangles, for CCW frontface order,
+vertices chosen as follows
 
 ```text
      0

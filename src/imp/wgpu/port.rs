@@ -235,8 +235,8 @@ fn prepare_pass_descriptor(
 
     let depth_state = Some(DepthStencilState {
         format: TextureFormat::Depth16Unorm,
-        depth_write_enabled: false,                   //??
-        depth_compare: CompareFunction::GreaterEqual, //?
+        depth_write_enabled: true,                   //??
+        depth_compare: CompareFunction::LessEqual, //?
         stencil: StencilState {
             front: StencilFaceState::IGNORE,
             back: StencilFaceState::IGNORE,
