@@ -508,7 +508,7 @@ impl Port {
             min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Linear,
             lod_min_clamp: 0.0,
-            lod_max_clamp: 1.0,
+            lod_max_clamp: 14.0,
             compare: None,
             anisotropy_clamp: 1,
             border_color: None,
