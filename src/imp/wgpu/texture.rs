@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::thread::current;
 use log::debug;
 use wgpu::{Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase, TextureDescriptor, TextureDimension, TextureViewDescriptor};
 use wgpu::util::{DeviceExt, TextureDataOrder};
@@ -143,8 +144,8 @@ unsafe impl<Format> Sync for GPUableTexture<Format> {}
 
 impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
 
-    pub async fn new_initialize<I: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initializer: I) -> Result<Self, Error> {
-        let descriptor = Self::get_descriptor(debug_name, width, height, visible_to);
+    pub async fn new_initialize<I: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, generate_mipmaps: bool, debug_name: &str, priority: Priority, initializer: I) -> Result<Self, Error> {
+        let descriptor = Self::get_descriptor(debug_name, width, height, visible_to, generate_mipmaps);
         let data_order = TextureDataOrder::default(); //?
         //todo: could optimize probably?
         let pixels = (width as usize * height as usize);
@@ -154,6 +155,96 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
                 src_buf.push(initializer(Texel{x,y}));
             }
         }
+        if generate_mipmaps {
+            let mut current_mip_level = 1;
+            //these properties are per base mip
+            let mut base_mip_start = 0;
+            let mut base_mip_width = width;
+            let mut base_mip_height = height;
+            let mut _mip_size = descriptor.mip_level_size(current_mip_level);
+
+            while let Some(mip_size) = _mip_size {
+                //generate a new mipmap
+                let mip_width = mip_size.width as u16;
+                let mip_height = mip_size.height as u16;
+                let physical_size = mip_size.physical_size(descriptor.format);
+                let pad_x = physical_size.width as u16 - mip_width;
+                let pad_y = physical_size.height as u16 - mip_height;
+                let current_mip_start = src_buf.len();
+                
+                //get the base mip level
+                for mip_y in 0..mip_height {
+                    for mip_x in 0..mip_width {
+                        //get upper left texel in base mip
+                        let base_x = mip_x * 2;
+                        let base_y = mip_y * 2;
+                        //calculate each index
+                        let base_index = base_y as usize * base_mip_width as usize + base_x as usize;
+                        let base_index_right = base_y as usize * base_mip_width as usize + (base_x + 1) as usize;
+                        let base_index_down = (base_y + 1) as usize * base_mip_width as usize + base_x as usize;
+                        let base_index_down_right = (base_y + 1) as usize * base_mip_width as usize + (base_x + 1) as usize;
+                        //get the pixels
+                        let base_pixel = src_buf[base_mip_start + base_index].clone();
+                        let base_pixel_right = if base_mip_width <= 1 {
+                            //no right pixel
+                            base_pixel.clone()
+                        }
+                        else {
+                            src_buf[base_mip_start + base_index_right].clone()
+                        };
+                        //get the pixel below
+                        let base_pixel_down = if base_mip_height <= 1 {
+                            //no down pixel
+                            base_pixel.clone()
+                        }
+                        else {
+                            src_buf[base_mip_start + base_index_down].clone()
+                        };
+                        //get the pixel down right
+                        let base_pixel_down_right = if base_mip_width <= 1 && base_mip_height <= 1 {
+                            //only one pixel; use base
+                            base_pixel.clone()
+                        }
+                        else if base_mip_width <= 1 {
+                            //no right pixel
+                            base_pixel_down.clone() //use down pixel?
+                        }
+                        else if base_mip_height <= 1 {
+                            //no down pixel
+                            base_pixel_right.clone() //use right pixel?
+                        }
+                        else {
+                            src_buf[base_mip_start + base_index_down_right].clone()
+                        };
+                        //average them
+                        use crate::pixel_formats::sealed::CPixelTrait;
+                        let average_pixel = Format::CPixel::avg(&[base_pixel, base_pixel_right, base_pixel_down, base_pixel_down_right]);
+                        //set the pixel
+                        src_buf.push(average_pixel);
+                    }
+                    let last_px = src_buf.last().unwrap().clone();
+                    for _pad_x in 0..pad_x {
+                        //pad by extending last pixel
+                        src_buf.push(last_px.clone());
+                    }
+                }
+                let last_px = src_buf.last().unwrap().clone();
+                for _pad_y in 0..pad_y {
+                    for x in 0..physical_size.width as u16 {
+                        //pad by extending last pixel
+                        src_buf.push(last_px.clone());
+                    }
+                }
+                //finish the mip level
+                base_mip_start = current_mip_start;
+                base_mip_width = mip_width;
+                base_mip_height = mip_height;
+                current_mip_level += 1;
+                _mip_size = descriptor.mip_level_size(current_mip_level);
+            }
+
+        }
+
         let texture = bound_device.0.device.create_texture_with_data(&bound_device.0.queue, &descriptor, TextureDataOrder::default(), pixel_as_bytes(&src_buf));
         Ok(Self {
             format: PhantomData,
@@ -161,7 +252,13 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         })
     }
 
-    fn get_descriptor(debug_name: &str, width: u16, height: u16, visible_to: TextureUsage) -> TextureDescriptor {
+    fn get_descriptor(debug_name: &str, width: u16, height: u16, visible_to: TextureUsage, mipmaps: bool) -> TextureDescriptor {
+        let mip_level_count = if mipmaps {
+            // 3
+            width.max(height).ilog2() as u32 + 1
+        } else {
+            1
+        };
         TextureDescriptor {
             label: Some(debug_name),
             size: Extent3d {
@@ -169,7 +266,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
                 height: height.into(),
                 depth_or_array_layers: 1,
             },
-            mip_level_count: 1, //?
+            mip_level_count,
             sample_count: 1, //?
             dimension: TextureDimension::D2,
             format: Format::WGPU_FORMAT,
@@ -179,7 +276,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
     }
 
     pub async fn new(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority) -> Result<Self, Error> {
-        let descriptor = Self::get_descriptor(debug_name, width, height, visible_to);
+        let descriptor = Self::get_descriptor(debug_name, width, height, visible_to, false);
         let texture = bound_device.0.device.create_texture(&descriptor);
         Ok(Self {
             format: PhantomData,

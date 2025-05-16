@@ -34,7 +34,7 @@ pub(crate) mod png_support;
 
 use std::fmt::Debug;
 use tgar::PixelBGRA;
-use crate::pixel_formats::sealed::{PixelFormat, ReprC};
+use crate::pixel_formats::sealed::{CPixelTrait, PixelFormat, ReprC};
 
 pub use half::f16;
 
@@ -44,13 +44,17 @@ pub(crate) mod sealed {
     pub trait PixelFormat: std::fmt::Debug + Send + Sync + 'static + crate::imp::PixelFormat {
         const BYTES_PER_PIXEL: u8;
         ///A type we can use.  Guaranteed to have correct memory layout.
-        type CPixel: Clone + Debug + Send + ReprC;
+        type CPixel: Clone + Debug + Send + ReprC + CPixelTrait;
     }
     /**
     Marker trait that indicates that the type has a C-compatible memory layout.
     */
     pub unsafe trait ReprC {
 
+    }
+
+    pub trait CPixelTrait {
+        fn avg<const C: usize>(arr: &[Self; C]) -> Self where Self: Sized;
     }
 }
 
@@ -72,6 +76,15 @@ impl PixelFormat for R8UNorm {
 }
 
 unsafe impl ReprC for u8 {}
+impl CPixelTrait for u8 {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = 0;
+        for i in arr {
+            sum += *i as u32;
+        }
+        (sum / C as u32) as u8
+    }
+}
 
 #[derive(Debug,Clone)]
 pub struct RGBA16Unorm;
@@ -80,12 +93,46 @@ impl PixelFormat for RGBA16Unorm {
     type CPixel = RGBA16Pixel;
 }
 
+impl CPixelTrait for RGBA16Pixel {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = (0 as u32, 0 as u32, 0 as u32, 0 as u32);
+        for i in arr {
+            sum.0 += i.r as u32;
+            sum.1 += i.g as u32;
+            sum.2 += i.b as u32;
+            sum.3 += i.a as u32;
+        }
+        let c = C as u32;
+        RGBA16Pixel {
+            r: (sum.0 / c).try_into().unwrap(),
+            g: (sum.1 / c).try_into().unwrap(),
+            b: (sum.2 / c).try_into().unwrap(),
+            a: (sum.3 / c).try_into().unwrap(),
+        }
+    }
+}
+
 #[derive(Debug,Clone)]
 pub struct RGFloat;
 impl PixelFormat for RGFloat {
     const BYTES_PER_PIXEL: u8 = 8;
     type CPixel = RGFloatPixel;
 
+}
+
+impl CPixelTrait for RGFloatPixel {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = (0.0, 0.0);
+        for i in arr {
+            sum.0 += i.r as f32;
+            sum.1 += i.g as f32;
+        }
+        let c = C as f32;
+        RGFloatPixel {
+            r: sum.0 / c,
+            g: sum.1 / c,
+        }
+    }
 }
 
 #[repr(C)]
@@ -115,6 +162,15 @@ impl PixelFormat for R32SInt {
 
 }
 unsafe impl ReprC for i32 {}
+impl CPixelTrait for i32 {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = 0;
+        for i in arr {
+            sum += *i;
+        }
+        sum / C as i32
+    }
+}
 
 #[derive(Debug,Clone)]
 ///Single-precision float format.  This is sampleable on Metal.
@@ -124,11 +180,31 @@ impl PixelFormat for R32Float {
     type CPixel = f32;
 
 }
+
+impl CPixelTrait for f32 {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = 0.0;
+        for i in arr {
+            sum += *i;
+        }
+        sum / C as f32
+    }
+}
 #[derive(Debug, Clone)]
 pub struct R16Float;
 impl PixelFormat for R16Float {
     const BYTES_PER_PIXEL: u8 = 2;
     type CPixel = half::f16;
+}
+
+impl CPixelTrait for half::f16 {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = half::f16::ZERO;
+        for i in arr {
+            sum += *i;
+        }
+        sum / half::f16::from_f32(C as f32)
+    }
 }
 unsafe impl ReprC for half::f16 {}
 unsafe impl ReprC for f32 {}
@@ -176,6 +252,25 @@ impl PixelFormat for RGBA8UNorm {
     type CPixel = Unorm4;
 }
 
+impl CPixelTrait for Unorm4 {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = (0, 0, 0, 0);
+        for i in arr {
+            sum.0 += i.r as u32;
+            sum.1 += i.g as u32;
+            sum.2 += i.b as u32;
+            sum.3 += i.a as u32;
+        }
+        let c = C as u32;
+        Unorm4 {
+            r: (sum.0 / c) as u8,
+            g: (sum.1 / c) as u8,
+            b: (sum.2 / c) as u8,
+            a: (sum.3 / c) as u8,
+        }
+    }
+}
+
 
 /**
 Currently the preferred form for pre-lit, narrow-color textures.
@@ -187,6 +282,25 @@ pub struct BGRA8UNormSRGB;
 impl PixelFormat for BGRA8UNormSRGB {
     const BYTES_PER_PIXEL: u8 = 4;
     type CPixel = BGRA8UnormPixelSRGB;
+}
+
+impl CPixelTrait for BGRA8UnormPixelSRGB {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = (0, 0, 0, 0);
+        for i in arr {
+            sum.0 += i.b as u32;
+            sum.1 += i.g as u32;
+            sum.2 += i.r as u32;
+            sum.3 += i.a as u32;
+        }
+        let c = C as u32;
+        BGRA8UnormPixelSRGB {
+            b: (sum.0 / c) as u8,
+            g: (sum.1 / c) as u8,
+            r: (sum.2 / c) as u8,
+            a: (sum.3 / c) as u8,
+        }
+    }
 }
 #[derive(Debug,Clone,Copy,PartialEq)]
 #[repr(C)]
@@ -296,11 +410,49 @@ impl PixelFormat for RGBA32Float {
     const BYTES_PER_PIXEL: u8 = 16;
     type CPixel = Float4;
 }
+
+impl CPixelTrait for Float4 {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = (0.0, 0.0, 0.0, 0.0);
+        for i in arr {
+            sum.0 += i.r;
+            sum.1 += i.g;
+            sum.2 += i.b;
+            sum.3 += i.a;
+        }
+        let c = C as f32;
+        Float4 {
+            r: sum.0 / c,
+            g: sum.1 / c,
+            b: sum.2 / c,
+            a: sum.3 / c,
+        }
+    }
+}
 #[derive(Debug,Clone)]
 pub struct RGBA8UnormSRGB;
 impl PixelFormat for RGBA8UnormSRGB {
     const BYTES_PER_PIXEL: u8 = 4;
     type CPixel = RGBA8UnormSRGBPixel;
+}
+
+impl CPixelTrait for RGBA8UnormSRGBPixel {
+    fn avg<const C: usize>(arr: &[Self; C]) -> Self {
+        let mut sum = (0, 0, 0, 0);
+        for i in arr {
+            sum.0 += i.r as u32;
+            sum.1 += i.g as u32;
+            sum.2 += i.b as u32;
+            sum.3 += i.a as u32;
+        }
+        let c = C as u32;
+        RGBA8UnormSRGBPixel {
+            r: (sum.0 / c) as u8,
+            g: (sum.1 / c) as u8,
+            b: (sum.2 / c) as u8,
+            a: (sum.3 / c) as u8,
+        }
+    }
 }
 
 unsafe impl ReprC for RGBA8UnormSRGBPixel {}

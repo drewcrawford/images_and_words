@@ -28,8 +28,8 @@ impl Display for Error {
     }
 }
 impl<Format: PixelFormat> Texture<Format> {
-    pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority, initialize_to: Initializer) -> Result<Self,Error>  {
-        let imp = imp::GPUableTexture::new_initialize(device, width, height, visible_to, debug_name, priority, initialize_to).await?;
+    pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, mipmaps: bool, debug_name: &str, priority: Priority, initialize_to: Initializer) -> Result<Self,Error>  {
+        let imp = imp::GPUableTexture::new_initialize(device, width, height, visible_to, mipmaps, debug_name, priority, initialize_to).await?;
         Ok(Self {
             imp,
             width,
@@ -40,7 +40,7 @@ impl<Format: PixelFormat> Texture<Format> {
     Create a texture, copying the data from the attached soft texture.
     */
     pub async fn from_software(device: &Arc<BoundDevice>, texture: &crate::bindings::software::texture::Texture<Format>, visible_to: TextureUsage, debug_name: &str, priority: Priority) -> Result<Self,Error> {
-        Self::new(device, texture.width(), texture.height(), visible_to, debug_name, priority, |texel| {
+        Self::new(device, texture.width(), texture.height(), visible_to, false, debug_name, priority, |texel| {
             texture.read(texel)
         }).await
     }
@@ -49,7 +49,7 @@ impl<Format: PixelFormat> Texture<Format> {
         todo!()
     }
     pub async fn new_slice(slice: &[Format::CPixel], width: u16, bound_device: &Arc<BoundDevice>, visible_to: TextureUsage, mipmaps: bool, debug_name: &str, priority: Priority) -> Result<Self,Error> {
-        Self::new(bound_device, width, slice.len() as u16 / width, visible_to, debug_name, priority, |texel| {
+        Self::new(bound_device, width, slice.len() as u16 / width, visible_to, mipmaps, debug_name, priority, |texel| {
             slice[texel.y as usize * width as usize + texel.x as usize].clone()
         }).await
     }
