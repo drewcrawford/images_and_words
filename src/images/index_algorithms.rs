@@ -56,12 +56,22 @@ const VERTEX_PER_TRIANGLE: usize = 3;
 const TRIANGLES_PER_CELL: usize = 2;
 
 const VERTEX_PER_CELL: usize = VERTEX_PER_TRIANGLE * TRIANGLES_PER_CELL;
+/**
+Generates indices for a grid of points.
+*/
 pub struct IndexGenerator {
     width: usize,
     height: usize,
 }
 
 impl IndexGenerator {
+    /**
+    Creates a new index generator for a grid of points.
+    
+    The grid is assumed to be a rectangle of points, with the width and height
+    given as vertex counts.  The width and height must be greater than 1.
+    */
+    
     pub fn new(width: usize, height: usize) -> Self {
         assert!(width > 1 && height > 1, "Invalid geometry");
         Self {
@@ -128,5 +138,9 @@ impl IndexGenerator {
         assert_eq!(g.index_for(5), 2);
         assert_eq!(g.num_triangles(), 2);
         assert_eq!(g.num_indices(), 6);
+    }
+    
+    #[test] fn test_strip() {
+        let g = IndexGenerator::new(2,2);
     }
 }

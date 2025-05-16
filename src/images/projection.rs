@@ -116,8 +116,8 @@ impl Projection {
     pub fn new(camera_position: WorldCoord,w: u16,h:u16) -> Projection {
         let m_view = m_view(camera_position);
 
-         let proj = m_ortho(camera_position,w,h);
-        //let proj = m_proj(w,h);
+         // let proj = m_ortho(camera_position,w,h);
+        let proj = m_proj(w,h);
         let r =  proj * flip() * m_view;
         Projection(r)
     }
