@@ -6,7 +6,7 @@ use crate::imp::{CopyInfo, Error, GPUableBuffer};
 use std::num::NonZero;
 use std::sync::Arc;
 use wgpu::util::RenderEncoder;
-use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
+use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendComponent, BlendState, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
 use crate::bindings::forward::dynamic::buffer::{CRepr, GPUAccess, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::GPUBufferUsage;
@@ -57,9 +57,15 @@ fn prepare_pass_descriptor(
         };
         let binding_type = match &info.target {
             BindTarget::DynamicBuffer(imp) => {
-
+                //safe because we're not using the buffer
+                let storage_type = unsafe { imp.imp.unsafe_imp().storage_type() };
+                let buffer_binding_type = match storage_type {
+                    StorageType::Uniform => BufferBindingType::Uniform,
+                    StorageType::Storage => BufferBindingType::Storage { read_only: true },
+                    StorageType::Vertex | StorageType::Index => unreachable!(),
+                };
                 BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
+                    ty: buffer_binding_type,
                     has_dynamic_offset: false,
                     min_binding_size: Some(BufferSize::new(imp.element_size as u64).unwrap()),
                 }
@@ -111,6 +117,9 @@ fn prepare_pass_descriptor(
             BindTarget::VB(..) => {
                 continue //not considered as a binding
             }
+            BindTarget::DynamicVB(..) => {
+                continue //not considered as a binding
+            }
         };
         let layout = BindGroupLayoutEntry {
             binding: *pass_index,
@@ -158,7 +167,7 @@ fn prepare_pass_descriptor(
     for (b,buffer) in &descriptor.bind_style.binds {
         match &buffer.target {
             BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_)  => {}
-            BindTarget::VB(layout,render_side) => {
+            BindTarget::VB(layout,_)  | BindTarget::DynamicVB(layout,_) => {
                 let mut each_vertex_attributes = Vec::new();
                 let mut offset = 0;
                 for (f,field) in layout.fields.iter().enumerate() {
@@ -261,9 +270,15 @@ fn prepare_pass_descriptor(
                 &descriptor.fragment_shader.wgsl_code,
             )),
         });
+    let blend = if descriptor.alpha {
+        Some(BlendState::ALPHA_BLENDING)
+    }
+    else {
+        None
+    };
     let color_target_state = ColorTargetState {
         format: TextureFormat::Bgra8UnormSrgb,
-        blend: None,
+        blend,
         write_mask: Default::default(),
     };
     let fragment_state = wgpu::FragmentState {
@@ -303,6 +318,7 @@ pub struct BindGroupGuard {
     bind_group: BindGroup,
     guards: StableAddressVec<Box<dyn SomeGPUAccess>>,
     vertex_buffers: Vec<(u32, wgpu::Buffer)>,
+    dynamic_vertex_buffers: Vec<(u32, Box<dyn SomeGPUAccess>)>,
     index_buffer: Option<wgpu::Buffer>,
 }
 
@@ -385,7 +401,7 @@ pub fn prepare_bind_group(
                     SamplerType::Mipmapped => { BindingResource::Sampler(mipmapped_sampler) }
                 }
             }
-            BindTarget::VB(..)  => {
+            BindTarget::VB(..) | BindTarget::DynamicVB(..) => {
                 continue //not considered as a binding
             }
 
@@ -405,12 +421,18 @@ pub fn prepare_bind_group(
 
     //find vertex buffers
     let mut vertex_buffers = Vec::new();
+    let mut dynamic_vertex_buffers = Vec::new();
     for (b,buffer) in &prepared.pass_descriptor.bind_style().binds {
         match &buffer.target {
             BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_) => {}
             BindTarget::VB(layout,render_side) => {
                 let buffer = render_side.imp.buffer.clone();
                 vertex_buffers.push((*b, buffer));
+            }
+            BindTarget::DynamicVB(layout,render_side) => {
+                //safety: guard kept alive
+                let buffer = unsafe{render_side.imp.acquire_gpu_buffer(copy_info)};
+                dynamic_vertex_buffers.push((*b, buffer));
             }
         }
     }
@@ -427,6 +449,7 @@ pub fn prepare_bind_group(
         bind_group,
         guards: gpu_guard_buffers,
         vertex_buffers,
+        dynamic_vertex_buffers,
         index_buffer,
     }
 }

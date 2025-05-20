@@ -424,6 +424,9 @@ impl Port {
                         BindTarget::DynamicBuffer(a) => {
                             dirty_receivers.push(a.imp.dirty_receiver());
                         }
+                        BindTarget::DynamicVB(_,a) => {
+                            dirty_receivers.push(a.imp.dirty_receiver());
+                        }
                         BindTarget::Camera => {
                             dirty_receivers.push(self.camera.dirty_receiver());
                         }
@@ -435,6 +438,7 @@ impl Port {
                         BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
                         BindTarget::Sampler(_) => { /* also not considered dirty */}
                         BindTarget::VB(..)  => { /* also not considered dirty */}
+
                     }
                 }
             }

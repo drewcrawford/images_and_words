@@ -49,7 +49,9 @@ impl<Format: PixelFormat> Texture<Format> {
         todo!()
     }
     pub async fn new_slice(slice: &[Format::CPixel], width: u16, bound_device: &Arc<BoundDevice>, visible_to: TextureUsage, mipmaps: bool, debug_name: &str, priority: Priority) -> Result<Self,Error> {
-        Self::new(bound_device, width, slice.len() as u16 / width, visible_to, mipmaps, debug_name, priority, |texel| {
+        let height = slice.len() / width as usize;
+        let height_u16 = height.try_into().unwrap();
+        Self::new(bound_device, width, height_u16, visible_to, mipmaps, debug_name, priority, |texel| {
             slice[texel.y as usize * width as usize + texel.x as usize].clone()
         }).await
     }

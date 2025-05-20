@@ -191,6 +191,15 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
             }
         }
     }
+    
+    /**
+    Accesses the underlying data.
+    
+    This function is unsafe because we perform no locking or checks.
+    */
+    pub(crate) unsafe fn access_gpu_unsafe(&self) -> &U {
+        &self.gpu
+    }
 
     pub async fn access_write(&self) -> CPUWriteGuard<T, U> where T: Mappable, U: GPUMultibuffer {
         loop {

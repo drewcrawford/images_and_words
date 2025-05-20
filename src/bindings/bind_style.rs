@@ -30,6 +30,7 @@ pub enum BindTarget {
     StaticTexture(StaticTextureTicket, Option<SamplerType>),
     Sampler(SamplerType),
     VB(VertexLayout,StaticBufferRenderSide),
+    DynamicVB(VertexLayout,ErasedRenderSide),
 }
 
 #[derive(Debug,Clone)]
@@ -106,6 +107,15 @@ impl BindStyle {
     */
     pub fn bind_static_vertex_buffer(&mut self, slot: BindSlot, buffer: StaticBufferRenderSide, layout: VertexLayout) {
         self.bind(slot, Stage::Vertex, BindTarget::VB(layout, buffer));
+    }
+
+    /**
+    Binds a dynamic buffer to the specified slot.
+
+    Vertex buffers are separate from other buffers because they are bound differently.
+    */
+    pub fn bind_dynamic_vertex_buffer<Element>(&mut self, slot: BindSlot, buffer: DynamicRenderSide<Element>, layout: VertexLayout) where Element: Send + Sync + 'static {
+        self.bind(slot, Stage::Vertex, BindTarget::DynamicVB(layout, buffer.erased_render_side()));
     }
 
     /**

@@ -228,4 +228,12 @@ impl<Resource> ResourceTracker<Resource> {
     pub(crate) fn convert_to_gpu(&self, cpu_guard: CPUWriteGuard<Resource>) -> GPUGuard<Resource> where Resource: sealed::Mappable {
         self.internal.convert_to_gpu(cpu_guard)
     }
+    /**
+    Unsafely accesses the underlying resource.
+    
+    This is unsafe because it does not check if the resource is in use.
+    */
+    pub(crate) fn access_unsafe(&self) -> &Resource {
+        unsafe { &*self.internal.resource.get() }
+    }
 }
