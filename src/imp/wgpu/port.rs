@@ -666,6 +666,10 @@ impl Port {
             for (v,buffer) in &bind_group.vertex_buffers {
                 render_pass.set_vertex_buffer(*v, buffer.slice(..));
             }
+            for (v, buffer) in &bind_group.dynamic_vertex_buffers {
+                let buffer = unsafe { buffer.as_imp().buffer.slice(..) };
+                render_pass.set_vertex_buffer(*v, buffer);
+            }
             if let Some(buffer) = &bind_group.index_buffer {
                 render_pass.set_index_buffer(buffer.slice(..), wgpu::IndexFormat::Uint16);
                 render_pass.draw_indexed(0..prepared.vertex_count, 0, 0..1);
