@@ -38,6 +38,7 @@ pub struct BindTargetBufferImp {
 
 
 
+
 impl MappableBuffer {
     pub(crate) fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
         let buffer_usage = match map_type {
@@ -92,10 +93,15 @@ impl MappableBuffer {
         }
     }
 
-    pub fn as_slice_mut(&mut self) -> &mut [u8] {
+    pub fn write(&mut self, data: &[u8],  dst_offset: usize) {
         unsafe{
             let (ptr, len) = self.mapped_mut.as_ref().expect("Map first");
-            std::slice::from_raw_parts_mut(*ptr, *len)
+            assert!(*len >= data.len() + dst_offset, "Buffer too small");
+            std::ptr::copy(
+                data.as_ptr(),
+                (*ptr).add(dst_offset),
+                data.len()
+            );
         }
     }
 

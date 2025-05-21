@@ -37,7 +37,14 @@ impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U> where Element: Mappab
     fn drop(&mut self) {
         _ = self.imp.take().expect("Dropped CPUReadGuard already");
         //wake up the waiting threads
-        for waker in self.buffer.wake_list.lock().unwrap().drain(..) {
+        // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
+        let wakers_to_send: Vec<r#continue::Sender<()>> = {
+            let mut locked_wake_list = self.buffer.wake_list.lock().unwrap();
+            locked_wake_list.drain(..).collect()
+        }; // MutexGuard is dropped here, so the lock is released.
+
+        // Step 2: Iterate and send notifications *after* the lock is released.
+        for waker in wakers_to_send {
             waker.send(());
         }
     }
@@ -63,6 +70,17 @@ impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U> where Element: Mappa
         let gpu = self.buffer.mappable.convert_to_gpu(take);
         *self.buffer.needs_gpu_copy.lock().unwrap() = Some(gpu);
         self.buffer.gpu_side_is_dirty.mark_dirty(true);
+        //wake up the waiting threads
+        // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
+        let wakers_to_send: Vec<r#continue::Sender<()>> = {
+            let mut locked_wake_list = self.buffer.wake_list.lock().unwrap();
+            locked_wake_list.drain(..).collect()
+        }; // MutexGuard is dropped here, so the lock is released.
+
+        // Step 2: Iterate and send notifications *after* the lock is released.
+        for waker in wakers_to_send {
+            waker.send(());
+        }
     }
 }
 
@@ -86,14 +104,34 @@ Represents a bindable GPU resource.
 Multibuffer type.
 */
 pub(crate) struct GPUGuard<T: Mappable, U: GPUMultibuffer> {
-    imp: Result<U,U::OutGuard<resource_tracking::GPUGuard<T>>>,
+    imp: Option<Result<U,U::OutGuard<resource_tracking::GPUGuard<T>>>>,
+    wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
+}
+
+//drop impl for GPUGuard
+impl<T: Mappable, U: GPUMultibuffer> Drop for GPUGuard<T,U> {
+    fn drop(&mut self) {
+        self.imp.take().unwrap();
+        //wake up the waiting threads
+        // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
+        let wakers_to_send: Vec<r#continue::Sender<()>> = {
+            let mut locked_wake_list = self.wake_list.lock().unwrap();
+            locked_wake_list.drain(..).collect()
+        }; // MutexGuard is dropped here, so the lock is released.
+
+        // Step 2: Iterate and send notifications *after* the lock is released.
+        for waker in wakers_to_send {
+            waker.send(());
+        }
+    }
 }
 
 impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T,U> {
     pub fn as_imp(&self) -> &U {
         match self.imp {
-            Ok(ref imp) => imp,
-            Err(ref imp) => imp.as_ref()
+            Some(Ok(ref imp)) => imp,
+            Some(Err(ref imp)) => imp.as_ref(),
+            None => unreachable!()
         }
     }
 }
@@ -229,14 +267,16 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
         if let Some(imp_guard) = take_dirty {
             let copy_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
             GPUGuard {
-                imp: Err(copy_guard),
+                imp: Some(Err(copy_guard)),
+                wake_list: self.wake_list.clone(),
                 // shared: self.shared.clone(),
             }
         }
         else {
             //GPU isn't necessary so no copy is needed
             GPUGuard {
-                imp: Ok(self.gpu.clone()),
+                imp: Some(Ok(self.gpu.clone())),
+                wake_list: self.wake_list.clone(),
             }
         }
 

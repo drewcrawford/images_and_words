@@ -73,14 +73,18 @@ impl<Element> Index<usize> for IndividualBuffer<Element> {
     }
 }
 
-impl<Element> IndexMut<usize> for IndividualBuffer<Element> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        let offset = index * std::mem::size_of::<Element>();
-        let bytes: &mut [u8] = &mut self.imp.as_slice_mut()[offset..offset+std::mem::size_of::<Element>()];
-        unsafe {
-            &mut *(bytes.as_mut_ptr() as *mut Element)
-        }
+impl<Element> IndividualBuffer<Element> {
+    /**
+    Writes data to the buffer at the given offset.
+    */
+    pub fn write(&mut self, data: &[Element], dst_offset: usize) where Element: CRepr {
+        let offset = dst_offset * std::mem::size_of::<Element>();
+        let bytes = unsafe {
+            std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * std::mem::size_of::<Element>())
+        };
+        self.imp.write(bytes, offset);
     }
+
 }
 impl<Element> Mappable for IndividualBuffer<Element> {
     async fn map_read(&mut self) {
