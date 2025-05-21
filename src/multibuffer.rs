@@ -49,8 +49,8 @@ impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U> where Element: Mappa
     fn drop(&mut self) {
         let take = self.imp.take().expect("Dropped CPUWriteGuard already");
         let gpu = self.buffer.mappable.convert_to_gpu(take);
-        *self.buffer.shared.needs_gpu_copy.lock().unwrap() = Some(gpu);
-        self.buffer.shared.gpu_side_is_dirty.mark_dirty(true);
+        *self.buffer.needs_gpu_copy.lock().unwrap() = Some(gpu);
+        self.buffer.gpu_side_is_dirty.mark_dirty(true);
     }
 }
 
@@ -86,19 +86,9 @@ impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T,U> {
     }
 }
 
-///shared between CPU/GPU
-#[derive(Debug)]
-struct Shared<CPUSide> where
-//since we need to hold the guard type, we need the constraints it will require..
-CPUSide: Mappable
-{
-    needs_gpu_copy: Mutex<Option<resource_tracking::GPUGuard<CPUSide>>>,
-    gpu_side_is_dirty: DirtySender,
-}
 
-//safe to send/sync, just not safe to use!
-unsafe impl<T> Send for Shared<T> where T: Mappable  {}
-unsafe impl<T> Sync for Shared<T> where T: Mappable {}
+
+
 
 pub(crate) mod sealed {
     use std::ops::Deref;
@@ -157,7 +147,8 @@ pub struct Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     mappable: ResourceTracker<T>,
     wake_list: Mutex<Vec<r#continue::Sender<()>>>,
     gpu: U,
-    shared: Arc<Shared<T>>,
+    needs_gpu_copy: Mutex<Option<resource_tracking::GPUGuard<T>>>,
+    gpu_side_is_dirty: DirtySender,
 }
 
 impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
@@ -172,10 +163,8 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
             gpu,
             wake_list: Mutex::new(Vec::new()),
             //initially, GPU buffer type is probably dirty
-            shared: Arc::new(Shared {
-                needs_gpu_copy: Mutex::new(Some(dirty_copy_to_gpu)),
-                gpu_side_is_dirty: DirtySender::new(true) //agrees with needs_gpu_copy property
-            })
+            needs_gpu_copy: Mutex::new(Some(dirty_copy_to_gpu)),
+            gpu_side_is_dirty: DirtySender::new(true) //agrees with needs_gpu_copy property
         }
     }
 
@@ -223,8 +212,8 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     Caller must guarantee that the guard is live for the duration of the GPU access.
     */
     pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<T,U> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::CorrespondingMappedType> {
-        let take_dirty = self.shared.needs_gpu_copy.lock().unwrap().take();
-        self.shared.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
+        let take_dirty = self.needs_gpu_copy.lock().unwrap().take();
+        self.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
         if let Some(imp_guard) = take_dirty {
             let copy_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
             GPUGuard {
@@ -242,6 +231,6 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     }
     ///Returns a [DirtyReceiver] that activates when the GPU side is dirty.
     pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
-        DirtyReceiver::new(&self.shared.gpu_side_is_dirty)
+        DirtyReceiver::new(&self.gpu_side_is_dirty)
     }
 }
