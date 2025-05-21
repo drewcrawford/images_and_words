@@ -27,14 +27,26 @@ use crate::multibuffer::sealed::{CPUMultibuffer, GPUMultibuffer};
 
 //We need to wrap the ResourceTracker types in a newtype so that we can implement multibuffering behaviors.
 //primarily, we want to mark things dirty.
-pub struct CPUReadGuard<'a, Element> where Element: Mappable {
-    imp: crate::bindings::resource_tracking::CPUReadGuard<'a, Element>,
+pub struct CPUReadGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
+    //option so we can take on drop
+    imp: Option<crate::bindings::resource_tracking::CPUReadGuard<'a, Element>>,
+    buffer: &'a Multibuffer<Element, U>
 }
 
-impl<'a, Element> Deref for CPUReadGuard<'a, Element> where Element: Mappable {
+impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
+    fn drop(&mut self) {
+        _ = self.imp.take().expect("Dropped CPUReadGuard already");
+        //wake up the waiting threads
+        for waker in self.buffer.wake_list.lock().unwrap().drain(..) {
+            waker.send(());
+        }
+    }
+}
+
+impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
     type Target = Element;
     fn deref(&self) -> &Self::Target {
-        &self.imp
+        self.imp.as_ref().unwrap()
     }
 }
 
@@ -145,7 +157,7 @@ Implements multibuffering.
 pub struct Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     //right now, not really a multibuffer!
     mappable: ResourceTracker<T>,
-    wake_list: Mutex<Vec<r#continue::Sender<()>>>,
+    wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
     gpu: U,
     needs_gpu_copy: Mutex<Option<resource_tracking::GPUGuard<T>>>,
     gpu_side_is_dirty: DirtySender,
@@ -161,21 +173,21 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
         Multibuffer {
             mappable: tracker,
             gpu,
-            wake_list: Mutex::new(Vec::new()),
+            wake_list: Arc::new(Mutex::new(Vec::new())),
             //initially, GPU buffer type is probably dirty
             needs_gpu_copy: Mutex::new(Some(dirty_copy_to_gpu)),
             gpu_side_is_dirty: DirtySender::new(true) //agrees with needs_gpu_copy property
         }
     }
 
-    pub async fn access_read(&self) -> CPUReadGuard<T> where T: Mappable, U: GPUMultibuffer {
+    pub async fn access_read(&self) -> CPUReadGuard<T,U> where T: Mappable, U: GPUMultibuffer {
         loop {
             //insert first
             let (s,f) = r#continue::continuation();
             self.wake_list.lock().unwrap().push(s);
             //then check
             match self.mappable.cpu_read().await {
-                Ok(guard) => return CPUReadGuard{ imp: guard },
+                Ok(guard) => return CPUReadGuard{ imp: Some(guard), buffer: self },
                 Err(_) => f.await
             }
         }
