@@ -44,6 +44,7 @@ impl<Element> Debug for Shared<Element> {
 pub struct Buffer<Element> {
     shared: Arc<Shared<Element>>,
     count: usize,
+    debug_name: String,
 }
 
 pub struct IndividualBuffer<Element> {
@@ -118,6 +119,7 @@ impl<Element> CPUMultibuffer for IndividualBuffer<Element> {
 pub struct RenderSide<Element> {
     shared: Arc<Shared<Element>>,
     count: usize,
+    debug_name: String,
 }
 
 impl<Element> Debug for RenderSide<Element> {
@@ -239,6 +241,7 @@ impl<Element> Buffer<Element> {
                 multibuffer: Multibuffer::new(individual_buffer, gpu_buffer),
             }),
             count: size,
+            debug_name: debug_name.to_string(),
         })
     }
     /**
@@ -260,6 +263,7 @@ impl<Element> Buffer<Element> {
         RenderSide {
             shared: self.shared.clone(),
             count: self.count,
+            debug_name: self.debug_name.clone(),
         }
     }
 
