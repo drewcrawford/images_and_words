@@ -196,13 +196,13 @@ impl<Format> IndividualTexture<Format> {
 
 impl<Format: PixelFormat> Mappable for IndividualTexture<Format> {
     async fn map_read(&mut self) {
-        todo!()
+        self.cpu.map_read().await;
     }
     async fn map_write(&mut self) {
-        todo!()
+        self.cpu.map_write().await;
     }
     fn unmap(&mut self) {
-        todo!()
+        self.cpu.unmap();
     }
     fn byte_len(&self) -> usize {
         (self.width as usize) * (self.height as usize) * std::mem::size_of::<Format::CPixel>()
@@ -212,38 +212,6 @@ impl<Format: PixelFormat> Mappable for IndividualTexture<Format> {
 
 
 
-impl<Format: PixelFormat> Index<Texel> for IndividualTexture<Format> {
-    type Output = Format::CPixel;
-
-    fn index(&self, index: Texel) -> &Self::Output {
-        todo!()
-    }
-}
-
-impl<Format: PixelFormat> IndexMut<Texel> for IndividualTexture<Format> {
-    fn index_mut(&mut self, index: Texel) -> &mut Self::Output {
-        todo!()
-    }
-}
-
-impl<Format: PixelFormat> IndividualTexture<Format> {
-    /**
-    A fast path for iterating over pixel addresses.  You can read or write each pixel as desired.
-
-    This function is substantially faster than Index for bulk operations because we can eliminate bounds checking on a per-pixel basis.
-
-    * start: The starting texel
-    * past_end: The texel after the last one to iterate over.  This will be bounds-checked against the texture size.
-    * f: A function that will be called for each pixel.  It will be passed the pixel address and the texel.  You can read or write
-    the pixel as desired.
-    */
-    pub fn blend<Blend: Fn(Texel, &mut Format::CPixel)>(&mut self, start: Texel, past_end: Texel,blend: Blend) {
-        todo!()
-    }
-    pub fn clear(&mut self, color: Format::CPixel) {
-        todo!()
-    }
-}
 
 
 

@@ -131,6 +131,10 @@ impl MappableBuffer {
         self.mapped = None;
         self.mapped_mut = None;
     }
+    
+    pub fn byte_len(&self) -> usize {
+        self.buffer.size() as usize
+    }
 
 }
 

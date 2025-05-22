@@ -51,19 +51,19 @@ pub struct MappableTexture<Format> {
 
 impl<Format> Mappable for MappableTexture<Format> {
     async fn map_read(&mut self) {
-        todo!()
+        self.imp.map_read().await;
     }
 
     async fn map_write(&mut self) {
-        todo!()
+        self.imp.map_write().await;
     }
 
     fn byte_len(&self) -> usize {
-        todo!()
+        self.imp.byte_len()
     }
 
     fn unmap(&mut self) {
-        todo!()
+        self.imp.unmap();
     }
 }
 
