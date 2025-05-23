@@ -96,14 +96,14 @@ fn prepare_pass_descriptor(
                     min_binding_size: Some(NonZero::new(1).unwrap()), //???
                 }
             }
-            BindTarget::StaticTexture(texture, sampler_type) => {
+            BindTarget::StaticTexture(_texture, sampler_type) => {
                 BindingType::Texture {
                     sample_type: TextureSampleType::Float { filterable: sampler_type.is_some() },
                     view_dimension: TextureViewDimension::D2,
                     multisampled: false,
                 }
             }
-            BindTarget::DynamicTexture(texture) => {
+            BindTarget::DynamicTexture(_texture) => {
                 BindingType::Texture {
                     sample_type: TextureSampleType::Float { filterable: false }, //??
                     view_dimension: TextureViewDimension::D2,
