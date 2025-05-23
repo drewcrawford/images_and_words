@@ -26,7 +26,7 @@ impl Engine {
     pub async fn rendering_to<'this>(mut view: View, initial_camera_position: WorldCoord) -> Result<Arc<Self>,CreateError> {
         let entry_point =   Arc::new(EntryPoint::new().await?);
         view.provide_entry_point(&entry_point).await.expect("Can't provide entry point");
-        let initial_size = view.size().await;
+        let (initial_width, initial_height, initial_scale) = view.size_scale().await;
 
         let unbound_device = UnboundDevice::pick(&view,&entry_point).await?;
         let bound_device = Arc::new(BoundDevice::bind(unbound_device,entry_point.clone()).await?);
@@ -38,7 +38,7 @@ impl Engine {
             _entry_point: entry_point,
             _engine: imp,
         });
-        let final_port = Port::new(&r, view, initial_camera_position, initial_size).unwrap();
+        let final_port = Port::new(&r, view, initial_camera_position, (initial_width, initial_height, initial_scale)).unwrap();
         r.main_port.lock().unwrap().replace(final_port);
         Ok(r)
     }

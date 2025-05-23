@@ -406,7 +406,7 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
 
 
 impl Port {
-    pub fn new(engine: &Arc<Engine>, view: View, initial_camera_position: WorldCoord,window_size: (u16,u16)) -> Result<Self,Error> {
+    pub fn new(engine: &Arc<Engine>, view: View, initial_camera_position: WorldCoord,window_size: (u16,u16,f64)) -> Result<Self,Error> {
         let camera = Camera::new(window_size, initial_camera_position);
         let (port_sender,port_reporter) = port_reporter(0, &camera);
 

@@ -10,7 +10,7 @@ struct Shared {
     /*
 When updating these, we also need to update the matrix.
  */
-    window_size: (u16,u16),
+    window_size_scale: (u16,u16,f64),
     camera_position: WorldCoord,
     projection: Projection,
     dirty_sender: DirtySender,
@@ -18,7 +18,7 @@ When updating these, we also need to update the matrix.
 
 impl Shared {
     fn rematrix(&mut self) {
-        self.projection = Projection::new(self.camera_position, self.window_size.0, self.window_size.1);
+        self.projection = Projection::new(self.camera_position, self.window_size_scale.0, self.window_size_scale.1, self.window_size_scale.2);
     }
 }
 
@@ -28,12 +28,12 @@ pub struct Camera {
 }
 impl Camera {
 
-    pub fn new(window_size: (u16,u16), initial_position: WorldCoord) -> Camera {
-        let initial_projection = Projection::new(initial_position, window_size.0, window_size.1);
+    pub fn new(window_size: (u16,u16,f64), initial_position: WorldCoord) -> Camera {
+        let initial_projection = Projection::new(initial_position, window_size.0, window_size.1, window_size.2);
         Self {
             shared: Arc::new(Mutex::new(Shared {
                 dirty_sender: DirtySender::new(false),
-                window_size,
+                window_size_scale: window_size,
                 camera_position: initial_position,
                 projection: initial_projection,
             }))
@@ -62,7 +62,8 @@ impl Camera {
 
     pub fn changed_size(&mut self, new_size: (u16,u16)) {
         let mut guard = self.shared.lock().unwrap();
-        guard.window_size = new_size;
+        guard.window_size_scale.0 = new_size.0;
+        guard.window_size_scale.1 = new_size.1;
         guard.rematrix();
     }
 }

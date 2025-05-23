@@ -484,7 +484,7 @@ impl Port {
             let pipeline = prepare_pass_descriptor(device, descriptor.clone());
             prepared.push(pipeline);
         }
-        let size = self.view.size().await;
+        let unscaled_size = self.view.size_scale().await;
         let surface = &self
             .view
             .imp
@@ -492,13 +492,18 @@ impl Port {
             .expect("View not initialized")
             .surface;
 
+        let scaled_size = (
+            (unscaled_size.0 as f64 * unscaled_size.2) as u32,
+            (unscaled_size.1 as f64 * unscaled_size.2) as u32,
+        );
+
         surface.configure(
             &device.0.device,
             &wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                width: size.0.into(),
-                height: size.1.into(),
+                width: scaled_size.0,
+                height: scaled_size.1,
                 present_mode: wgpu::PresentMode::Fifo,
                 desired_maximum_frame_latency: 1,
                 alpha_mode: CompositeAlphaMode::Opaque,
@@ -584,8 +589,8 @@ impl Port {
         let depth_texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
             size: wgpu::Extent3d {
-                width: size.0.into(),
-                height: size.1.into(),
+                width: scaled_size.0,
+                height:  scaled_size.1,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,

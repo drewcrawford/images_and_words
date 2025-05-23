@@ -50,13 +50,13 @@ impl View {
 }
 
 impl View {
-    pub(crate) async fn size(&self) -> (u16,u16) {
+    pub(crate) async fn size_scale(&self) -> (u16,u16,f64) {
         #[cfg(feature = "app_window")]
         {
             return match &self.os_impl {
                 OSImpl::AppWindow(surface, _, _) => {
-                    let size = surface.size().await;
-                    (size.width() as u16,size.height() as u16)
+                    let (size,scale) = surface.size_scale().await;
+                    (size.width() as u16,size.height() as u16, scale)
                 }
             };
         }
