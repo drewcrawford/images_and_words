@@ -1,16 +1,12 @@
-use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::ops::{Deref, Index, IndexMut};
 use std::sync::Arc;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label};
 use crate::bindings::buffer_access::MapType;
-use crate::bindings::forward::dynamic::buffer::{IndividualBuffer, WriteFrequency};
 use crate::bindings::resource_tracking::GPUGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
-use crate::bindings::visible_to::{CPUStrategy, GPUBufferUsage};
+use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
-use crate::imp;
-use crate::multibuffer::sealed::{CPUMultibuffer, GPUMultibuffer};
+use crate::multibuffer::sealed::GPUMultibuffer;
 
 /**
 A buffer that can be mapped onto the host.
@@ -55,12 +51,12 @@ impl MappableBuffer {
             usage: buffer_usage,
             mapped_at_creation: true,
         };
-        let mut buffer = bound_device.0.device.create_buffer(&descriptor);
+        let buffer = bound_device.0.device.create_buffer(&descriptor);
 
         //data we access is only up to the requested size, omitting any padding
         let mut entire_map = buffer.slice(..).get_mapped_range_mut();
 
-        let mut map_entire_view = entire_map.as_mut();
+        let map_entire_view = entire_map.as_mut();
         //ensure we only access the requested size
         let map_requested_view = &mut map_entire_view[..requested_size];
         //These bytes are probably uninitialized and we should represent that to callers

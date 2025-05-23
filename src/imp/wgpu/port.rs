@@ -159,7 +159,7 @@ fn prepare_pass_descriptor(
 
     //calculate vertex buffers
     let mut vertex_buffers = Vec::new();
-    let mut all_vertex_attributes = StableAddressVec::with_capactiy(5);
+    let all_vertex_attributes = StableAddressVec::with_capactiy(5);
 
     for (b,buffer) in &descriptor.bind_style.binds {
         match &buffer.target {
@@ -329,10 +329,10 @@ pub fn prepare_bind_group(
     copy_info: &mut CopyInfo,
 ) -> BindGroupGuard {
     let mut entries = Vec::new();
-    let mut build_resources = StableAddressVec::with_capactiy(5);
+    let build_resources = StableAddressVec::with_capactiy(5);
 
-    let mut gpu_guard_buffers = StableAddressVec::with_capactiy(5);
-    let mut gpu_guard_textures = StableAddressVec::with_capactiy(5);
+    let gpu_guard_buffers = StableAddressVec::with_capactiy(5);
+    let gpu_guard_textures = StableAddressVec::with_capactiy(5);
 
 
     for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
@@ -560,7 +560,7 @@ impl Port {
 
 
         //create per-frame resources
-        let mut frame_guards = StableAddressVec::with_capactiy(10);
+        let frame_guards = StableAddressVec::with_capactiy(10);
         let frame = surface
             .get_current_texture()
             .expect("Acquire swapchain texture");

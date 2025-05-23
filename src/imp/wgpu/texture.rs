@@ -1,9 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::thread::current;
-use log::debug;
-use wgpu::{Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase, TextureDescriptor, TextureDimension, TextureViewDescriptor};
+use wgpu::{Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase, TextureDescriptor, TextureDimension};
 use wgpu::util::{DeviceExt, TextureDataOrder};
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::resource_tracking::GPUGuard;
@@ -160,7 +158,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         let descriptor = Self::get_descriptor(debug_name, width, height, visible_to, generate_mipmaps);
         let data_order = TextureDataOrder::default(); //?
         //todo: could optimize probably?
-        let pixels = (width as usize * height as usize);
+        let pixels = width as usize * height as usize;
         let mut src_buf = Vec::with_capacity(pixels);
         for y in 0..height {
             for x in 0..width {
