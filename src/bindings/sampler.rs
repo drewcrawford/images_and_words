@@ -1,8 +1,5 @@
 /*! Cross-platform sampler type. */
-use std::fmt::{Debug, Display};
-use std::sync::Arc;
-use crate::images::device::BoundDevice;
-use crate::imp;
+use std::fmt::Debug;
 
 
 

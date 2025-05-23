@@ -11,19 +11,14 @@ The objects here are fully generic, and may support buffers or textures.
 
 */
 
-use std::cell::UnsafeCell;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU32, Ordering};
 use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
-use crate::bindings::forward::dynamic::buffer::{IndividualBuffer};
 use crate::bindings::resource_tracking;
 use crate::bindings::resource_tracking::{ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
-use crate::imp;
 use crate::imp::CopyInfo;
-use crate::multibuffer::sealed::{CPUMultibuffer, GPUMultibuffer};
+use crate::multibuffer::sealed::GPUMultibuffer;
 
 //We need to wrap the ResourceTracker types in a newtype so that we can implement multibuffering behaviors.
 //primarily, we want to mark things dirty.
@@ -111,7 +106,7 @@ pub(crate) struct GPUGuard<T: Mappable, U: GPUMultibuffer> {
 //drop impl for GPUGuard
 impl<T: Mappable, U: GPUMultibuffer> Drop for GPUGuard<T,U> {
     fn drop(&mut self) {
-        self.imp.take().unwrap();
+        let _ = self.imp.take().unwrap();
         //wake up the waiting threads
         // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
         let wakers_to_send: Vec<r#continue::Sender<()>> = {
@@ -141,11 +136,11 @@ impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T,U> {
 
 
 pub(crate) mod sealed {
-    use std::ops::Deref;
-    use crate::bindings::forward::dynamic::buffer::IndividualBuffer;
+    
+    
     use crate::bindings::resource_tracking::GPUGuard;
     use crate::bindings::resource_tracking::sealed::Mappable;
-    use crate::imp::{CopyInfo, CopyGuard};
+    use crate::imp::CopyInfo;
 
 
 
@@ -178,6 +173,7 @@ pub(crate) mod sealed {
 */
     pub trait CPUMultibuffer {
         type Source;
+        #[allow(dead_code)] //nop implementation does not use
         fn as_source(&self) -> &Self::Source;
     }
 }
@@ -203,9 +199,7 @@ pub struct Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
 
 impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     pub fn new(element: T, gpu: U) -> Self {
-        let tracker = ResourceTracker::new(element, || {
-            todo!()
-        });
+        let tracker = ResourceTracker::new(element);
         let dirty_copy_to_gpu = tracker.gpu().expect("multibuffer new");
 
         Multibuffer {
@@ -236,6 +230,7 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     
     This function is unsafe because we perform no locking or checks.
     */
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) unsafe fn access_gpu_unsafe(&self) -> &U {
         &self.gpu
     }

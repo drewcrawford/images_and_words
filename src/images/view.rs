@@ -1,4 +1,4 @@
-use std::sync::Arc;
+#[cfg(feature = "app_window")]
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use crate::entry_point::EntryPoint;
 
@@ -18,8 +18,10 @@ impl std::fmt::Display for Error {
 
 #[derive(Debug)]
 pub struct View{
+    #[allow(dead_code)] //nop implementation does not use
     os_impl: OSImpl,
     //late initialized once entrypoint is ready
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) imp: Option<crate::imp::View>,
 }
 
@@ -29,28 +31,38 @@ unsafe impl Send for View {
 }
 
 impl View {
-    pub(crate) async fn provide_entry_point(&mut self, entry_point: &EntryPoint) -> Result<(),Error> {
-        let (window_handle, display_handle): (RawWindowHandle, RawDisplayHandle) = match &self.os_impl {
-            #[cfg(feature = "app_window")]
-            OSImpl::AppWindow(_, window_handle, display_handle) => (*window_handle, *display_handle),
-            _ => todo!(),
-        };
-        self.imp = Some(
-            crate::imp::View::from_surface(entry_point, window_handle, display_handle).await?
-        );
-        Ok(())
+    pub(crate) async fn provide_entry_point(&mut self, _entry_point: &EntryPoint) -> Result<(),Error> {
+        #[cfg(feature = "app_window")]
+        {
+            let (_window_handle, _display_handle): (RawWindowHandle, RawDisplayHandle) = match &self.os_impl {
+                OSImpl::AppWindow(_, window_handle, display_handle) => (*window_handle, *display_handle),
+            };
+            self.imp = Some(
+                crate::imp::View::from_surface(_entry_point, _window_handle, _display_handle).await?
+            );
+            return Ok(());
+        }
+        #[cfg(not(feature = "app_window"))]
+        {
+            todo!("app_window feature not enabled")
+        }
     }
 }
 
 impl View {
     pub(crate) async fn size(&self) -> (u16,u16) {
-        match &self.os_impl {
-            #[cfg(feature = "app_window")]
-            OSImpl::AppWindow(surface, _, _) => {
-                let size = surface.size().await;
-                (size.width() as u16,size.height() as u16)
-            }
-            _ => todo!(),
+        #[cfg(feature = "app_window")]
+        {
+            return match &self.os_impl {
+                OSImpl::AppWindow(surface, _, _) => {
+                    let size = surface.size().await;
+                    (size.width() as u16,size.height() as u16)
+                }
+            };
+        }
+        #[cfg(not(feature = "app_window"))]
+        {
+            todo!("app_window feature not enabled")
         }
     }
 

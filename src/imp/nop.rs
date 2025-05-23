@@ -1,14 +1,17 @@
+#![allow(dead_code)]
+
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use raw_window_handle::RawDisplayHandle;
+use crate::send_phantom::SendPhantom;
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::{CPUStrategy, TextureUsage, GPUBufferUsage};
 use crate::images::camera::Camera;
 use crate::images::port::{PortReporterSend, PassClient};
-use crate::images::render_pass::{PassTrait, PassDescriptor};
+use crate::images::render_pass::PassDescriptor;
 use crate::pixel_formats::sealed::PixelFormat as CratePixelFormat;
 use crate::Priority;
 
@@ -38,7 +41,7 @@ pub struct View {
 
 }
 impl View {
-    pub async fn from_surface(entrypoint: &crate::entry_point::EntryPoint, raw_window_handle: raw_window_handle::RawWindowHandle, raw_display_handle: RawDisplayHandle) -> Result<Self, Error> {
+    pub async fn from_surface(_entrypoint: &crate::entry_point::EntryPoint, _raw_window_handle: raw_window_handle::RawWindowHandle, _raw_display_handle: RawDisplayHandle) -> Result<Self, Error> {
         todo!()
     }
 }
@@ -153,12 +156,12 @@ impl<Format> GPUableTexture<Format> {
     }
 }
 
-pub struct MappableTexture<Format>(PhantomData<Format>);
+pub struct MappableTexture<Format>(SendPhantom<Format>);
 
 impl<Format> std::fmt::Debug for MappableTexture<Format> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("MappableTexture")
-            .field(&"PhantomData")
+            .field(&"SendPhantom")
             .finish()
     }
 }

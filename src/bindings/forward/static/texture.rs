@@ -70,7 +70,8 @@ impl<Format: PixelFormat> Texture<Format> {
     }
 }
 
-pub (crate) struct RenderSide {
+pub struct RenderSide {
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) imp: imp::TextureRenderSide,
 }
 

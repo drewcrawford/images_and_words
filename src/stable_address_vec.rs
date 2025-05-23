@@ -7,6 +7,7 @@ be done in two passes, but this is more convenient.
 
 use std::cell::UnsafeCell;
 
+#[allow(dead_code)] //nop implementation does not use
 pub struct StableAddressVec<T> {
     vec: UnsafeCell<Vec<T>>,
 }
@@ -18,16 +19,18 @@ impl<T> StableAddressVec<T> {
     Unlike a normal Vec, this capacity cannot be changed later, as reallocation
     would change the element addresses.
     */
+    #[allow(dead_code)] //nop implementation does not use
     pub fn with_capactiy(capacity: usize) -> Self {
         Self {
             vec: UnsafeCell::new(Vec::with_capacity(capacity)),
         }
     }
 
+    #[allow(dead_code)] //nop implementation does not use
     pub fn push(&self, value: T) -> &T {
         let (next_len,capacity) = unsafe {
             //safe because we are the only ones with access to the vec, and we only perform read ops
-            let vec = (&*self.vec.get());
+            let vec = &*self.vec.get();
             (vec.len() + 1, vec.capacity())
         };
 

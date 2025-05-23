@@ -5,20 +5,16 @@ It is not necessarily every frame, the exact optimizations are passed by argumen
 */
 
 use std::fmt::{Debug, Display, Formatter};
-use std::future::Future;
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::ops::Index;
 use std::sync::Arc;
-use log::debug;
 use crate::bindings::dirty_tracking::DirtyReceiver;
-use crate::bindings::resource_tracking::GPUGuard;
 use crate::multibuffer::{CPUReadGuard, CPUWriteGuard};
 use crate::bindings::resource_tracking::sealed::Mappable;
-use crate::bindings::visible_to::{CPUStrategy, GPUBufferUsage};
+use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp;
-use crate::imp::{CopyInfo, GPUableBuffer};
+use crate::imp::{CopyInfo, GPUableBuffer, SendPhantom};
 use crate::multibuffer::Multibuffer;
 use crate::multibuffer::sealed::CPUMultibuffer;
 
@@ -49,7 +45,7 @@ pub struct Buffer<Element> {
 
 pub struct IndividualBuffer<Element> {
     pub(crate) imp: imp::MappableBuffer,
-    _marker: PhantomData<Element>,
+    _marker: SendPhantom<Element>,
     count: usize,
 }
 
@@ -119,6 +115,7 @@ impl<Element> CPUMultibuffer for IndividualBuffer<Element> {
 pub struct RenderSide<Element> {
     shared: Arc<Shared<Element>>,
     count: usize,
+    #[allow(dead_code)] //nop implementation does not use
     debug_name: String,
 }
 
@@ -136,15 +133,18 @@ impl<Element> Debug for RenderSide<Element> {
 Guards access to the underlying [GPUableBuffer].  Used for binding in the render pass.
  */
 pub struct GPUAccess<Element> {
+    #[allow(dead_code)] //nop implementation does not use
     imp: crate::multibuffer::GPUGuard<IndividualBuffer<Element>,GPUableBuffer>,
     _phantom: PhantomData<Element>,
 }
 impl<Element> GPUAccess<Element> {
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
         &self.imp.as_imp()
     }
 }
 
+#[allow(dead_code)] //nop implementation does not use
 pub(crate) trait SomeGPUAccess: Send {
     fn as_imp(&self) -> &imp::GPUableBuffer;
 }
@@ -170,8 +170,10 @@ impl<Element> RenderSide<Element> {
 ///Erases the RenderSide generics.
 pub(crate) trait SomeRenderSide: Send + Sync + Debug {
     ///Safety: keep the guard alive
+    #[allow(dead_code)] //nop implementation does not use
     unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess>;
     fn dirty_receiver(&self) -> DirtyReceiver;
+    #[allow(dead_code)] //nop implementation does not use
     unsafe fn unsafe_imp(&self) -> &imp::GPUableBuffer;
 }
 
@@ -182,7 +184,7 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
     Must keep the returned guard active for the duration of GPU use.
 */
     unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess> {
-        let underlying_guard = self.shared.multibuffer.access_gpu(copy_info);
+        let underlying_guard = unsafe { self.shared.multibuffer.access_gpu(copy_info) };
         Box::new(GPUAccess {
             imp: underlying_guard,
             _phantom: PhantomData::<Element>,
@@ -192,14 +194,16 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
         self.shared.multibuffer.gpu_dirty_receiver()
     }
     unsafe fn unsafe_imp(&self) -> &imp::GPUableBuffer {
-        self.shared.multibuffer.access_gpu_unsafe()
+        unsafe { self.shared.multibuffer.access_gpu_unsafe() }
     }
 }
 
 #[derive(Debug,Clone)]
 pub struct ErasedRenderSide {
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) element_size: usize,
     pub(crate) imp: Arc<dyn SomeRenderSide>,
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) byte_size: usize,
 }
 
@@ -231,7 +235,7 @@ impl<Element> Buffer<Element> {
 
         let individual_buffer = IndividualBuffer {
             imp: buffer,
-            _marker: PhantomData,
+            _marker: SendPhantom::new(),
             count: size,
         };
         let gpu_buffer = imp::GPUableBuffer::new(bound_device,byte_size, usage,debug_name);
@@ -254,6 +258,7 @@ impl<Element> Buffer<Element> {
         self.shared.multibuffer.access_write().await
     }
 
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
         todo!()
     }

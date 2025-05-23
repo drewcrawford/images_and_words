@@ -1,4 +1,3 @@
-use crate::bindings::forward::dynamic::buffer::CRepr;
 
 /**
 Describes the layout of a vertex buffer.
@@ -12,20 +11,23 @@ pub struct VertexLayout {
 
 #[derive(Debug,Clone)]
 pub(crate) struct VertexField {
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) name: &'static str,
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) r#type: VertexFieldType,
 }
 
 #[derive(Debug,Clone)]
 #[non_exhaustive]
 pub enum VertexFieldType {
-    f32,
+    F32,
 }
 
 impl VertexFieldType {
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn stride(&self) -> usize {
         match self {
-            VertexFieldType::f32 => 4,
+            VertexFieldType::F32 => 4,
         }
     }
 }
@@ -39,6 +41,7 @@ impl VertexLayout {
     pub fn add_field(&mut self, name: &'static str, r#type: VertexFieldType) {
         self.fields.push(VertexField { name, r#type });
     }
+    #[allow(dead_code)] //nop implementation does not use
     pub (crate) fn element_stride(&self) -> usize {
         self.fields.iter().map(|e| e.r#type.stride()).sum()
     }

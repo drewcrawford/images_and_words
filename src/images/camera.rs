@@ -1,7 +1,6 @@
 /*! Camera utilities. */
 
 use std::sync::{Arc, Mutex};
-use vectormatrix::vector::Vector;
 use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
 use crate::images::projection::{Projection, WorldCoord};
 
@@ -40,8 +39,9 @@ impl Camera {
             }))
         }
     }
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn copy_projection_and_clear_dirty_bit(&self) -> Projection {
-        let mut guard = self.shared.lock().unwrap();
+        let guard = self.shared.lock().unwrap();
         let result = guard.projection.clone();
         guard.dirty_sender.mark_dirty(false);
         result

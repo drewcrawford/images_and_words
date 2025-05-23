@@ -9,16 +9,17 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::CRepr;
 use crate::images::BoundDevice;
 use crate::imp;
-use crate::multibuffer::sealed::GPUMultibuffer;
 
 pub struct Buffer<Element> {
     pub(crate) imp: imp::GPUableBuffer,
+    #[allow(dead_code)] //nop implementation does not use
     count: usize,
     element: PhantomData<Element>,
 }
 
 #[derive(Debug,Clone)]
 pub struct RenderSide {
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) imp: imp::GPUableBuffer,
 }
 

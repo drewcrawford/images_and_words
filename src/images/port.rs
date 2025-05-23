@@ -12,7 +12,6 @@ use crate::images::camera::{Camera};
 use std::time::{Instant};
 use slotmap::{DefaultKey, SlotMap};
 use crate::bindings::bind_style::BindTarget;
-use crate::bindings::BindStyle;
 use crate::bindings::dirty_tracking::DirtyAggregateReceiver;
 use crate::bittricks::{u16s_to_u32, u32_to_u16s};
 use crate::images::frame::Frame;
@@ -24,6 +23,7 @@ use crate::imp;
 
 #[derive(Debug)]
 pub struct InstanceTicket<T> {
+    #[allow(dead_code)] //nop implementation does not use
     slot: slotmap::DefaultKey,
     _phantom: std::marker::PhantomData<T>,
 }
@@ -37,12 +37,19 @@ impl<T> Clone for InstanceTicket<T> {
 
 #[derive(Debug,Clone,Copy)]
 pub(crate) enum InternalStaticTextureTicket {
+    #[allow(dead_code)] //nop implementation does not use
     R32Float(InstanceTicket<Texture<R32Float>>),
+    #[allow(dead_code)] //nop implementation does not use
     RGBA16UNorm(InstanceTicket<Texture<RGBA16Unorm>>),
+    #[allow(dead_code)] //nop implementation does not use
     RGFloat(InstanceTicket<Texture<RGFloat>>),
+    #[allow(dead_code)] //nop implementation does not use
     RGBA8Unorm(InstanceTicket<Texture<RGBA8UNorm>>),
+    #[allow(dead_code)] //nop implementation does not use
     R8UNorm(InstanceTicket<Texture<R8UNorm>>),
+    #[allow(dead_code)] //nop implementation does not use
     BGRA8UnormSRGB(InstanceTicket<Texture<BGRA8UNormSRGB>>),
+    #[allow(dead_code)] //nop implementation does not use
     R16Float(InstanceTicket<Texture<R16Float>>),
 }
 
@@ -100,6 +107,7 @@ impl PassClient {
         StaticTextureTicket(InternalStaticTextureTicket::R8UNorm(InstanceTicket{slot: self.texture_r8unorm.insert(texture), _phantom: std::marker::PhantomData} ))
     }
 
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn lookup_static_texture(&self, ticket: StaticTextureTicket) -> crate::bindings::forward::r#static::texture::RenderSide {
         match ticket.0 {
             InternalStaticTextureTicket::R32Float(t) => {
@@ -258,13 +266,19 @@ impl PortReporterImpl {
 
 #[derive(Debug)]
 struct GPUFinishReporterImpl {
+    #[allow(dead_code)] //nop implementation does not use
     fps_sender: Arc<Mutex<i32>>,
+    #[allow(dead_code)] //nop implementation does not use
     gpu_time_sender: Arc<Mutex<i32>>,
+    #[allow(dead_code)] //nop implementation does not use
     cpu_time_sender: Arc<Mutex<i32>>,
     //this is the time between end_frame calls.
+    #[allow(dead_code)] //nop implementation does not use
     recent_elapsed: Mutex<Vec<f32>>,
     //because we need to store our elapsed frame in an atomic, we need to calculate it relative to some epoch.
+    #[allow(dead_code)] //nop implementation does not use
     epoch: Instant,
+    #[allow(dead_code)] //nop implementation does not use
     last_instant: Arc<Mutex<f32>>, //relative to epoch
 }
 
@@ -275,8 +289,11 @@ Special type that is moved into GPU completion blocks, typically wrapped in Arc.
 */
 #[derive(Debug,Clone)]
 pub(crate) struct GPUFinishReporter {
+    #[allow(dead_code)] //nop implementation does not use
     imp: Arc<GPUFinishReporterImpl>,
+    #[allow(dead_code)] //nop implementation does not use
     begin_frame: Instant,
+    #[allow(dead_code)] //nop implementation does not use
     last_commit: Instant,
 }
 impl GPUFinishReporter {
@@ -299,14 +316,17 @@ impl GPUFinishReporter {
             begin_frame: commit,
         }
     }
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn begin_frame(&mut self) {
         self.begin_frame = Instant::now();
     }
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn commit(&mut self) {
         self.last_commit = Instant::now();
         let begin_elapsed = self.last_commit.duration_since(self.begin_frame).as_micros() / (1000 * 10);
         *self.imp.cpu_time_sender.lock().unwrap() = begin_elapsed as i32;
     }
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn end_frame(&self) {
         let now = Instant::now();
         let this_instant = now.duration_since(self.imp.epoch).as_secs_f32();
@@ -340,9 +360,11 @@ impl GPUFinishReporter {
 #[derive(Debug)]
 pub(crate) struct PortReporterSend {
     imp: Arc<PortReporterImpl>,
+    #[allow(dead_code)] //nop implementation does not use
     finish_reporter: GPUFinishReporter,
 }
 impl PortReporterSend {
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn begin_frame(&self, frame: u32) {
         self.imp.frame_begun.store(frame, Ordering::Relaxed);
     }
@@ -352,6 +374,7 @@ impl PortReporterSend {
         self.imp.drawable_size.store(u16s_to_u32(size.0, size.1), Ordering::Relaxed);
     }
 
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn gpu_finisher(&self) -> GPUFinishReporter {
         self.finish_reporter.clone()
     }
@@ -409,7 +432,7 @@ impl Port {
         for descriptor in descriptors {
             self.imp.add_fixed_pass(descriptor.clone()).await;
             self.descriptors.push(descriptor);
-        }
+        };
         result
     }
     ///Start rendering on the port.  Ports are not rendered by default.

@@ -1,6 +1,6 @@
 use std::cell::UnsafeCell;
 use std::fmt::{Debug, Formatter};
-use std::ops::{Deref, DerefMut, Index};
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::sync::atomic::AtomicU8;
 
@@ -103,9 +103,11 @@ impl Debug for NotAvailable {
 
 
 pub(crate) mod sealed {
+    use std::future::Future;
+    
     pub trait Mappable {
-        async fn map_read(&mut self);
-        async fn map_write(&mut self);
+        fn map_read(&mut self) -> impl Future<Output = ()> + Send;
+        fn map_write(&mut self) -> impl Future<Output = ()> + Send;
 
         fn byte_len(&self) -> usize;
 
@@ -117,8 +119,6 @@ pub(crate) mod sealed {
 struct ResourceTrackerInternal<Resource> {
     state: AtomicU8,
     resource: UnsafeCell<Resource>,
-    //function that runs when the resource is available again.
-    when_available: Box<dyn Fn() -> ()>,
 }
 
 impl<Resource> Debug for ResourceTrackerInternal<Resource> {
@@ -145,11 +145,10 @@ unsafe impl<Resource: Sync> Sync for ResourceTrackerInternal<Resource> {}
 
 
 impl<Resource> ResourceTrackerInternal<Resource> {
-    pub fn new<F: Fn() + 'static>(resource: Resource, when_available: F) -> Self {
+    pub fn new(resource: Resource) -> Self {
         Self {
             state: AtomicU8::new(UNUSED),
             resource: UnsafeCell::new(resource),
-            when_available: Box::new(when_available),
         }
     }
     /// Returns the resource if it is not in use by the CPU or GPU.
@@ -195,15 +194,15 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     }
 
     ///safety: ensure lock is held
-    unsafe fn unuse_cpu(&self) where Resource: sealed::Mappable {
+    unsafe fn unuse_cpu(&self) where Resource: sealed::Mappable { unsafe {
         (*self.resource.get()).unmap();
         let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
         assert_ne!(o, UNUSED, "Resource was not in use");
-    }
+    }}
     ///safety: ensure lock is held
-    unsafe fn unmap_only_cpu(&self) where Resource: sealed::Mappable {
+    unsafe fn unmap_only_cpu(&self) where Resource: sealed::Mappable { unsafe {
         (*self.resource.get()).unmap();
-    }
+    }}
     fn unuse_gpu(&self) {
         let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
         assert_ne!(o, UNUSED, "Resource was not in use");
@@ -211,9 +210,9 @@ impl<Resource> ResourceTrackerInternal<Resource> {
 }
 
 impl<Resource> ResourceTracker<Resource> {
-    pub fn new<F: Fn() + 'static>(resource: Resource, when_available: F) -> Self {
+    pub fn new(resource: Resource) -> Self {
         Self {
-            internal: Arc::new(ResourceTrackerInternal::new(resource, when_available)),
+            internal: Arc::new(ResourceTrackerInternal::new(resource)),
         }
     }
     pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
@@ -233,6 +232,7 @@ impl<Resource> ResourceTracker<Resource> {
     
     This is unsafe because it does not check if the resource is in use.
     */
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn access_unsafe(&self) -> &Resource {
         unsafe { &*self.internal.resource.get() }
     }

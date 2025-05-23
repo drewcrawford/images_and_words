@@ -4,18 +4,15 @@
  */
 
 use std::fmt::{Debug, Formatter};
-use std::future::Future;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::{CPUStrategy, TextureUsage};
 use crate::images::device::BoundDevice;
 use crate::pixel_formats::sealed::PixelFormat;
 use crate::{imp, Priority};
 use crate::bindings::dirty_tracking::DirtyReceiver;
-use crate::bindings::resource_tracking::{ResourceTracker};
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::imp::{CopyInfo, MappableTexture};
 use crate::multibuffer::Multibuffer;
@@ -54,11 +51,13 @@ trait DynRenderSide: Send + Debug + Sync {
     ///
     /// # Safety
     /// Must hold the guard for the lifetime of the GPU texture access.
+    #[allow(dead_code)] //nop implementation does not use
     unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard;
     fn gpu_dirty_receiver(&self) -> DirtyReceiver;
 }
 
 trait DynGuard {
+    #[allow(dead_code)] //nop implementation does not use
     fn as_imp(&self) -> imp::TextureRenderSide;
 }
 impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
@@ -75,8 +74,9 @@ pub(crate) struct ErasedTextureRenderSide {
 }
 
 impl ErasedTextureRenderSide {
+    #[allow(dead_code)] //nop implementation does not use
     pub unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
-        let guard = self.imp.acquire_gpu_texture(copy_info);
+        let guard = unsafe { self.imp.acquire_gpu_texture(copy_info) };
         guard
     }
     pub fn gpu_dirty_receiver(&self) -> DirtyReceiver {
@@ -110,7 +110,7 @@ impl<Format: PixelFormat> Debug for TextureRenderSide<Format> {
 }
 impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
     unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
-        let guard =  self.shared.multibuffer.access_gpu(copy_info);
+        let guard = unsafe { self.shared.multibuffer.access_gpu(copy_info) };
         let our_guard = GPUGuard {
             underlying: guard,
         };
@@ -146,10 +146,12 @@ pub struct CPUReadGuard<Format: PixelFormat> {
     format: PhantomData<Format>,
 }
 
+#[allow(dead_code)] //nop implementation does not use
 struct GPUGuard<Format: PixelFormat> {
     underlying: crate::multibuffer::GPUGuard<IndividualTexture<Format>, imp::GPUableTexture<Format>>,
 }
 pub struct ErasedGPUGuard {
+    #[allow(dead_code)] //nop implementation does not use
     erasing: Box<dyn DynGuard>,
     render_side: imp::TextureRenderSide
 }
@@ -191,6 +193,7 @@ impl<Format> IndividualTexture<Format> {
         self.height
     }
 
+    #[allow(dead_code)] //nop implementation does not use
     const fn index_for_texel(texel: Texel, width: u16) -> usize {
         (texel.y as usize * width as usize) + texel.x as usize
     }
@@ -226,7 +229,7 @@ impl<Format: PixelFormat> Mappable for IndividualTexture<Format> {
 
 
 impl<Format: PixelFormat> FrameTexture<Format> {
-    pub async fn new<I: Fn(Texel) -> Format::CPixel>(bound_device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, cpu_strategy: CPUStrategy, debug_name: &str, initialize_with: I, priority: Priority) -> Self  {
+    pub async fn new<I: Fn(Texel) -> Format::CPixel>(bound_device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, _cpu_strategy: CPUStrategy, debug_name: &str, initialize_with: I, priority: Priority) -> Self  {
 
         let gpu = imp::GPUableTexture::new(bound_device, width, height, visible_to, debug_name, priority).await.unwrap();
         let cpu = imp::MappableTexture::new(bound_device, width, height, debug_name, priority, initialize_with);
@@ -276,6 +279,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     pub fn height(&self) -> u16 {
         self.height
     }
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
         todo!()
     }

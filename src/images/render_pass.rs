@@ -33,14 +33,20 @@ impl ResourceSpecialize {
 }
 #[derive(Debug,Clone)]
 pub struct PassDescriptor {
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) name: String,
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) vertex_shader: VertexShader,
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fragment_shader: FragmentShader,
     #[allow(dead_code)] //todo: mt2-495
     pub(crate) resource_specialize: ResourceSpecialize,
     pub(crate) bind_style: BindStyle,
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) draw_command: DrawCommand,
-    pub(crate) depth: bool, //todo: mt2-496
+    #[allow(dead_code)] //todo: mt2-496
+    pub(crate) depth: bool,
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) alpha: bool,
 }
 impl PassDescriptor {
@@ -62,13 +68,16 @@ impl PassDescriptor {
             alpha
         }
     }
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn name(&self) -> &str {
         self.name.as_str()
     }
 
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) const fn draw_command(&self) -> &DrawCommand {
         &self.draw_command
     }
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) const fn bind_style(&self) -> &BindStyle { &self.bind_style }
     #[allow(dead_code)] //mt2-495
     pub(crate) const fn resource_specialize(&self) -> &ResourceSpecialize { &self.resource_specialize }

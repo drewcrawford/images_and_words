@@ -8,12 +8,10 @@ its own signal between clean/dirty, whereas it would be challenging to yank valu
 Another distinction is that the receivers can be 'lately-bound' - that is, they can be bound after the sender is created.
 */
 
-use std::collections::HashSet;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use crate::images::Engine;
 
 // This represents the shared state between different LateBoundSenders
 #[derive(Debug)]
@@ -53,7 +51,7 @@ impl LateBoundSender {
     }
 
     fn r#continue(&self) {
-        if let Ok(mut guard) = self.0.lock() {
+        if let Ok(guard) = self.0.lock() {
             guard.r#continue();
         }
     }
@@ -137,7 +135,7 @@ impl DirtyAggregateReceiver {
         
         portable_async_sleep::async_sleep(Duration::from_millis(100)).await;
         return; //todo!
-        let (sender, receiver) = r#continue::continuation();
+        /*let (sender, receiver) = r#continue::continuation();
         let late_bound_sender = LateBoundSender::with_sender(sender);
 
         //set continuation up first
@@ -154,7 +152,7 @@ impl DirtyAggregateReceiver {
             }
         }
         //wait for next receiver!
-        receiver.await;
+        receiver.await;*/
 
     }
 }

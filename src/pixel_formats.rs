@@ -54,10 +54,12 @@ pub(crate) mod sealed {
     }
 
     pub trait CPixelTrait {
+        #[allow(dead_code)] //nop implementation does not use
         fn avg<const C: usize>(arr: &[Self; C]) -> Self where Self: Sized;
     }
 }
 
+#[allow(dead_code)] //nop implementation does not use
 pub(crate) fn pixel_as_bytes<T: ReprC> (t: &[T]) -> &[u8] {
     //safe because we know that T is repr(C)
     //(we offloaded the safety check to the ReprC trait)

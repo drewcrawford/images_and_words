@@ -82,6 +82,7 @@ fn flip() -> Matrix<f32,4,4> {
                       Vector::new([0.0, 0.0, 0.0, 1.0])])
 }
 
+/*this projection is primarily included for debugging
 fn m_ortho(camera_position: WorldCoord, w: u16, h: u16) -> Matrix<f32,4,4> {
     let aspect_ratio = w as f32 / h as f32;
     let base_scale = 1.0; //higher numbers zoom out
@@ -94,7 +95,7 @@ fn m_ortho(camera_position: WorldCoord, w: u16, h: u16) -> Matrix<f32,4,4> {
                         Vector::new([0.0, 0.0, 1.0 / (far - near), -near / (far - near)]),
                         Vector::new([0.0, 0.0, 0.0, 1.0])])
 }
-
+*/
 fn m_proj(w: u16, h: u16) -> Matrix<f32,4,4> {
     let focal_length = 2.0; //lower numbers zoom out; I believe 2.0 is "natural"
     let near = 1.0;

@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use crate::bindings::forward::dynamic::buffer::{ErasedRenderSide, RenderSide as DynamicRenderSide};
 use crate::bindings::forward::dynamic::frame_texture::{ErasedTextureRenderSide,TextureRenderSide};
 use crate::bindings::sampler::SamplerType;
-use crate::images::port::InstanceTicket;
 use crate::bindings::forward::r#static::buffer::RenderSide as StaticBufferRenderSide;
 /*
 Defines the way resources are bound for a render pass.
@@ -21,20 +20,25 @@ pub struct BindStyle {
 
 
 #[derive(Debug,Clone)]
-pub enum BindTarget {
+pub(crate) enum BindTarget {
     StaticBuffer(StaticBufferRenderSide),
     DynamicBuffer(ErasedRenderSide),
     Camera,
     FrameCounter,
     DynamicTexture(ErasedTextureRenderSide),
+    #[allow(dead_code)] //nop implementation does not use
     StaticTexture(StaticTextureTicket, Option<SamplerType>),
+    #[allow(dead_code)] //nop implementation does not use
     Sampler(SamplerType),
+    #[allow(dead_code)] //nop implementation does not use
     VB(VertexLayout,StaticBufferRenderSide),
+    #[allow(dead_code)] //nop implementation does not use
     DynamicVB(VertexLayout,ErasedRenderSide),
 }
 
 #[derive(Debug,Clone)]
 pub struct BindInfo {
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) stage: Stage,
     pub(crate) target: BindTarget,
 }

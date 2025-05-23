@@ -1,13 +1,12 @@
-use crate::bindings::bind_style::{BindTarget, Stage};
+use crate::bindings::bind_style::BindTarget;
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
-use crate::images::render_pass::{DrawCommand, PassDescriptor, PassTrait};
-use crate::imp::{CopyInfo, Error, GPUableBuffer};
+use crate::images::render_pass::{DrawCommand, PassDescriptor};
+use crate::imp::{CopyInfo, Error};
 use std::num::NonZero;
 use std::sync::Arc;
-use wgpu::util::RenderEncoder;
-use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendComponent, BlendState, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
-use crate::bindings::forward::dynamic::buffer::{CRepr, GPUAccess, SomeGPUAccess};
+use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
+use crate::bindings::forward::dynamic::buffer::{CRepr, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::PassClient;
@@ -46,8 +45,6 @@ fn prepare_pass_descriptor(
     bind_device: &crate::images::BoundDevice,
     descriptor: PassDescriptor,
 ) -> PreparedPass {
-    let limits = bind_device.0.device.limits();
-
     let mut layouts = Vec::new();
 
     for (pass_index, info) in &descriptor.bind_style().binds {
@@ -173,7 +170,7 @@ fn prepare_pass_descriptor(
                 for (f,field) in layout.fields.iter().enumerate() {
                     let attribute = VertexAttribute {
                         format: match field.r#type {
-                            VertexFieldType::f32 => { wgpu::VertexFormat::Float32 },
+                            VertexFieldType::F32 => { wgpu::VertexFormat::Float32 },
                         },
                         offset,
                         shader_location: f as u32,
