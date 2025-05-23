@@ -18,12 +18,20 @@ use std::time::Duration;
 struct SharedSend(Mutex<Option<r#continue::Sender<()>>>);
 
 impl SharedSend {
-    fn new(sender: Option<r#continue::Sender<()>>) -> Self {
-        SharedSend(Mutex::new(sender))
+    fn new() -> Self {
+        SharedSend(Mutex::new(None))
     }
+    
+    fn set_sender(&self, sender: r#continue::Sender<()>) {
+        *self.0.lock().unwrap() = Some(sender);
+    }
+    
     fn r#continue(&self) {
-        self.0.lock().unwrap().take().map(|t| t.send(()));
+        if let Some(sender) = self.0.lock().unwrap().take() {
+            sender.send(());
+        }
     }
+    
     fn is_bound(&self) -> bool {
         self.0.lock().unwrap().is_some()
     }
@@ -31,29 +39,23 @@ impl SharedSend {
 
 
 #[derive(Debug)]
-struct LateBoundSender(Mutex<Arc<SharedSend>>);
+struct LateBoundSender(Arc<SharedSend>);
 
 impl LateBoundSender {
     fn new() -> Self {
-        LateBoundSender(Mutex::new(Arc::new(SharedSend::new(None))))
+        LateBoundSender(Arc::new(SharedSend::new()))
     }
 
-    fn with_sender(sender: r#continue::Sender<()>) -> Self {
-        LateBoundSender(Mutex::new(Arc::new(SharedSend::new(Some(sender)))))
-
+    fn set_sender(&self, sender: r#continue::Sender<()>) {
+        self.0.set_sender(sender);
     }
 
-    fn bind(&self, other: &LateBoundSender) {
-        // First check if the other sender is bound
-        assert!(other.0.lock().unwrap().is_bound());
-        // Replace our Arc with a clone of the other's Arc
-        *self.0.lock().unwrap() = Arc::clone(&other.0.lock().unwrap());
+    fn clone_shared(&self) -> Self {
+        LateBoundSender(Arc::clone(&self.0))
     }
 
     fn r#continue(&self) {
-        if let Ok(guard) = self.0.lock() {
-            guard.r#continue();
-        }
+        self.0.r#continue();
     }
 }
 
@@ -64,7 +66,7 @@ impl LateBoundSender {
 struct SharedSendReceive {
     //each dirty can be independently set and unset
     dirty: AtomicBool,
-    continuation: LateBoundSender,
+    continuation: Mutex<LateBoundSender>,
 }
 
 #[derive(Debug,Clone)]
@@ -78,7 +80,7 @@ impl DirtySender {
         DirtySender {
             shared: Arc::new(SharedSendReceive {
                 dirty: AtomicBool::new(dirty),
-                continuation: s,
+                continuation: Mutex::new(s),
                 }
             )
         }
@@ -86,7 +88,9 @@ impl DirtySender {
     pub fn mark_dirty(&self, dirty: bool) {
         self.shared.dirty.store(dirty, Ordering::Relaxed);
         if dirty {
-            self.shared.continuation.r#continue();
+            if let Ok(continuation) = self.shared.continuation.lock() {
+                continuation.r#continue();
+            }
         }
     }
 }
@@ -102,7 +106,9 @@ impl DirtyReceiver {
         }
     }
     fn attach_continuation(&self, continuation: &LateBoundSender) {
-        self.shared.continuation.bind(continuation);
+        if let Ok(mut cont) = self.shared.continuation.lock() {
+            *cont = continuation.clone_shared();
+        }
     }
 }
 
@@ -131,28 +137,33 @@ impl DirtyAggregateReceiver {
 
     ///Waits for a dirty signal.
     pub async fn wait_for_dirty(&self) {
-        //todo!
+        // it used to work like this (just a test implementation that correctly renders frames every 100ms)
+        // portable_async_sleep::async_sleep(Duration::from_millis(100)).await;
+        // return;
+        //instead let's use real dirty tracking to wait for the next frame
         
-        portable_async_sleep::async_sleep(Duration::from_millis(100)).await;
-        return; //todo!
-        /*let (sender, receiver) = r#continue::continuation();
-        let late_bound_sender = LateBoundSender::with_sender(sender);
+        let (sender, receiver) = r#continue::continuation();
+        let late_bound_sender = LateBoundSender::new();
+        late_bound_sender.set_sender(sender);
 
         //set continuation up first
         for dirty_receiver in &self.receivers {
             dirty_receiver.attach_continuation(&late_bound_sender);
-            // println!("attached continuation {late_bound_sender:?} to receiver {dirty_receiver:?}");
+            println!("attached continuation {late_bound_sender:?} to receiver {dirty_receiver:?}");
         }
-        // println!("Attached all continuations");
+        println!("Attached all continuations");
         //now check dirty value
         for receiver in &self.receivers {
             if receiver.shared.dirty.load(Ordering::Relaxed) {
                 //mark future as ready to go immediately; this ensures we don't miss any messages
                 late_bound_sender.r#continue();
+                break; // Only need one to trigger
             }
         }
+        println!("Waiting for continuation");
         //wait for next receiver!
-        receiver.await;*/
+        receiver.await;
+        println!("Continuation received");
 
     }
 }

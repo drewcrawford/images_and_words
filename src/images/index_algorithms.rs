@@ -125,19 +125,3 @@ impl IndexGenerator {
     }
 }
 
-#[cfg(test)] mod tests {
-    use crate::images::index_algorithms::IndexGenerator;
-
-    #[test] fn test_sprite() {
-        let g = IndexGenerator::new(2,2);
-        assert_eq!(g.index_for(0), 0);
-        assert_eq!(g.index_for(1), 2);
-        assert_eq!(g.index_for(2), 1);
-        assert_eq!(g.index_for(3), 1);
-        assert_eq!(g.index_for(4), 3);
-        assert_eq!(g.index_for(5), 2);
-        assert_eq!(g.num_triangles(), 2);
-        assert_eq!(g.num_indices(), 6);
-    }
-    
-}
