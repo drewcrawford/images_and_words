@@ -16,12 +16,3 @@ unsafe impl PngPixelFormat for RGBA8UnormSRGB {
     }
 }
 
-#[cfg(test)] mod tests {
-    use std::env::current_dir;
-    use std::fs::File;
-    use std::io::Write;
-    use crate::bindings::software::texture::Texture;
-    use crate::pixel_formats::{RGBA8UnormSRGB};
-
-
-}
