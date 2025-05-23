@@ -115,11 +115,11 @@ pub struct Projection {
     matrix: Matrix<f32,4,4>,
     width: u16,
     height: u16,
-    scale: f64,
+    //scale: f64,
 }
 
 impl Projection {
-    pub fn new(camera_position: WorldCoord,w: u16,h:u16, scale: f64) -> Projection {
+    pub fn new(camera_position: WorldCoord,w: u16,h:u16, _scale: f64) -> Projection {
         let m_view = m_view(camera_position);
 
          // let proj = m_ortho(camera_position,w,h);
@@ -129,7 +129,7 @@ impl Projection {
             matrix: r,
             width: w,
             height: h,
-            scale,
+            //scale,
         }
     }
 
