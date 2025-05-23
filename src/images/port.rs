@@ -197,6 +197,7 @@ pub struct PortReporter {
     fps: Arc<Mutex<i32>>,
     ms: Arc<Mutex<i32>>,
     cpu_ms: Arc<Mutex<i32>>,
+    min_elapsed_ms: Arc<Mutex<i32>>,
 }
 impl PortReporter {
 
@@ -248,6 +249,15 @@ impl PortReporter {
     pub fn cpu_ms(&self) -> &Arc<Mutex<i32>> {
         &self.cpu_ms
     }
+    
+    /**
+    Returns the minimum elapsed time between frames from recent samples, in milliseconds.
+    
+    This can be used by clients to predict their processing times for frame pacing.
+    */
+    pub fn min_elapsed_ms(&self) -> &Arc<Mutex<i32>> {
+        &self.min_elapsed_ms
+    }
 
     //awaits the completion of the next frame.
     pub async fn await_frame(&self) {
@@ -272,6 +282,8 @@ struct GPUFinishReporterImpl {
     gpu_time_sender: Arc<Mutex<i32>>,
     #[allow(dead_code)] //nop implementation does not use
     cpu_time_sender: Arc<Mutex<i32>>,
+    #[allow(dead_code)] //nop implementation does not use
+    min_elapsed_sender: Arc<Mutex<i32>>,
     //this is the time between end_frame calls.
     #[allow(dead_code)] //nop implementation does not use
     recent_elapsed: Mutex<Vec<f32>>,
@@ -297,7 +309,7 @@ pub(crate) struct GPUFinishReporter {
     last_commit: Instant,
 }
 impl GPUFinishReporter {
-    fn new(fps_sender: Arc<Mutex<i32>>, ms_sender: Arc<Mutex<i32>>,cpu_time_sender: Arc<Mutex<i32>>) -> Self {
+    fn new(fps_sender: Arc<Mutex<i32>>, ms_sender: Arc<Mutex<i32>>, cpu_time_sender: Arc<Mutex<i32>>, min_elapsed_sender: Arc<Mutex<i32>>) -> Self {
         let recent_elapsed = Mutex::new(Vec::new());
         let epoch = Instant::now();
         let last_instant = Arc::new(Mutex::new(0.0));
@@ -305,7 +317,8 @@ impl GPUFinishReporter {
         let imp = Arc::new(GPUFinishReporterImpl {
             fps_sender,
             gpu_time_sender: ms_sender,
-            cpu_time_sender: cpu_time_sender,
+            cpu_time_sender,
+            min_elapsed_sender,
             recent_elapsed,
             epoch,
             last_instant,
@@ -351,6 +364,12 @@ impl GPUFinishReporter {
             lock.remove(0);
         }
         *self.imp.fps_sender.lock().unwrap() = fps.round() as i32;
+        
+        // Update minimum elapsed time in milliseconds
+        if let Some(min_elapsed) = lock.iter().min_by(|a, b| a.partial_cmp(b).unwrap()) {
+            let min_elapsed_ms = (min_elapsed * 1000.0) as i32;
+            *self.imp.min_elapsed_sender.lock().unwrap() = min_elapsed_ms;
+        }
 
         let commit_elapsed = now.duration_since(self.last_commit).as_micros() / (1000 * 10);
         *self.imp.gpu_time_sender.lock().unwrap() = commit_elapsed as i32;
@@ -384,6 +403,7 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
     let fps = Arc::new(Mutex::new(0));
     let ms = Arc::new(Mutex::new(0));
     let cpu_ms = Arc::new(Mutex::new(0));
+    let min_elapsed_ms = Arc::new(Mutex::new(0));
     let imp = Arc::new(PortReporterImpl {
         frame_begun: AtomicU32::new(initial_frame),
         drawable_size: AtomicU32::new(0),
@@ -391,7 +411,7 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
     (
         PortReporterSend {
             imp: imp.clone(),
-            finish_reporter: GPUFinishReporter::new(fps.clone(), ms.clone(), cpu_ms.clone()),
+            finish_reporter: GPUFinishReporter::new(fps.clone(), ms.clone(), cpu_ms.clone(), min_elapsed_ms.clone()),
         },
         PortReporter {
             imp,
@@ -399,6 +419,7 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
             fps,
             ms,
             cpu_ms,
+            min_elapsed_ms,
         }
     )
 
