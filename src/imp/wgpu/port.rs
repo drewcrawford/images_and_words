@@ -1,6 +1,6 @@
 use crate::bindings::bind_style::BindTarget;
 use crate::images::camera::Camera;
-use crate::images::port::{PortReporter, PortReporterSend};
+use crate::images::port::{PortReporterSend};
 use crate::images::render_pass::{DrawCommand, PassDescriptor};
 use crate::imp::{CopyInfo, Error};
 use std::num::NonZero;
