@@ -110,7 +110,11 @@ fn m_proj(w: u16, h: u16) -> Matrix<f32,4,4> {
 
 
 #[derive(Debug,Clone)]
-pub struct Projection(pub(crate) Matrix<f32,4,4>);
+pub struct Projection {
+    matrix: Matrix<f32,4,4>,
+    width: u16,
+    height: u16,
+}
 
 impl Projection {
     pub fn new(camera_position: WorldCoord,w: u16,h:u16) -> Projection {
@@ -119,15 +123,56 @@ impl Projection {
          // let proj = m_ortho(camera_position,w,h);
         let proj = m_proj(w,h);
         let r =  proj * flip() * m_view;
-        Projection(r)
+        Projection {
+            matrix: r,
+            width: w,
+            height: h,
+        }
     }
 
-    pub fn project(self, _world_coord: WorldCoord) -> ScreenCoord {
-        todo!()
+    pub fn project(self, world_coord: WorldCoord) -> ScreenCoord {
+        // Convert WorldCoord to homogeneous coordinates (add w=1.0)
+        let world_homogeneous = Vector::new([
+            *world_coord.0.x(),
+            *world_coord.0.y(),
+            *world_coord.0.z(),
+            1.0
+        ]);
+        
+        // Apply projection matrix
+        let projected = self.matrix * world_homogeneous;
+        
+        // Perform perspective divide (divide by w component)
+        let w = *projected.columns()[0].w();
+        if w == 0.0 {
+            // Handle degenerate case
+            return ScreenCoord { x: 0.0, y: 0.0 };
+        }
+        
+        let ndc_x = projected.columns()[0].x() / w;
+        let ndc_y = projected.columns()[0].y() / w;
+        
+        // Convert NDC [-1, 1] to screen coordinates [0, width] x [0, height]
+        // Note: NDC y+ is up, screen y+ is down, so we flip y
+        let screen_x = (ndc_x + 1.0) * (self.width as f32) / 2.0;
+        let screen_y = (-ndc_y + 1.0) * (self.height as f32) / 2.0;
+        
+        ScreenCoord {
+            x: screen_x,
+            y: screen_y,
+        }
+    }
+
+    pub fn matrix(&self) -> Matrix<f32,4,4> {
+        self.matrix
     }
 }
 
-pub struct ScreenCoord;
+#[derive(Debug, Clone, Copy)]
+pub struct ScreenCoord {
+    pub x: f32,
+    pub y: f32,
+}
 #[derive(Debug,Clone,Copy)]
 pub struct WorldCoord(pub(crate) Vector<f32,3>);
 impl WorldCoord {
