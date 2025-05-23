@@ -156,7 +156,7 @@ impl Projection {
         // Note: NDC y+ is up, screen y+ is down, so we flip y
         let screen_x = (ndc_x + 1.0) * (self.width as f32) / 2.0;
         let screen_y = (-ndc_y + 1.0) * (self.height as f32) / 2.0;
-        
+        println!("Projected ({},{},{}) to ({},{})", world_coord.0.x(), world_coord.0.y(), world_coord.0.z(), screen_x, screen_y);
         ScreenCoord {
             x: screen_x,
             y: screen_y,
@@ -165,6 +165,13 @@ impl Projection {
 
     pub fn matrix(&self) -> Matrix<f32,4,4> {
         self.matrix
+    }
+    
+    pub fn width(&self) -> u16 {
+        self.width
+    }
+    pub fn height(&self) -> u16 {
+        self.height
     }
 }
 

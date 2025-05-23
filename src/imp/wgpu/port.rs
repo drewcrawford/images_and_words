@@ -129,7 +129,7 @@ fn prepare_pass_descriptor(
         };
         layouts.push(layout);
     }
-    println!("Will create bind group layout {:?}", layouts);
+    // println!("Will create bind group layout {:?}", layouts);
 
     let bind_group_layout =
         bind_device
@@ -679,7 +679,7 @@ impl Port {
             }
             render_pass.pop_debug_group();
         }
-        println!("encoded {passes} passes", passes = prepared.len());
+        // println!("encoded {passes} passes", passes = prepared.len());
 
         std::mem::drop(render_pass); //stop mutably borrowing the encoder
         let encoded = encoder.finish();
@@ -687,9 +687,9 @@ impl Port {
         device.0.queue.on_submitted_work_done(move || {
             //callbacks must be alive for full GPU-side render
             std::mem::drop(frame_bind_groups);
-            println!("frame guards dropped");
+            // println!("frame guards dropped");
         });
         frame.present();
-        println!("frame presented");
+        // println!("frame presented");
     }
 }
