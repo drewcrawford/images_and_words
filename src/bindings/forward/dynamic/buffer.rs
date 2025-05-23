@@ -207,6 +207,12 @@ pub struct ErasedRenderSide {
     pub(crate) byte_size: usize,
 }
 
+impl ErasedRenderSide {
+    pub fn dirty_receiver(&self) -> DirtyReceiver {
+        self.imp.dirty_receiver()
+    }
+}
+
 
 
 
@@ -260,7 +266,7 @@ impl<Element> Buffer<Element> {
 
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
-        todo!()
+        self.shared.multibuffer.gpu_dirty_receiver()
     }
 
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */

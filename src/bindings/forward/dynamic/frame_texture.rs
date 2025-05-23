@@ -282,7 +282,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     }
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
-        todo!()
+        self.shared.multibuffer.gpu_dirty_receiver()
     }
 }
 

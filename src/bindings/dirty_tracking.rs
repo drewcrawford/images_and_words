@@ -11,7 +11,6 @@ Another distinction is that the receivers can be 'lately-bound' - that is, they 
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 // This represents the shared state between different LateBoundSenders
 #[derive(Debug)]
@@ -30,10 +29,6 @@ impl SharedSend {
         if let Some(sender) = self.0.lock().unwrap().take() {
             sender.send(());
         }
-    }
-    
-    fn is_bound(&self) -> bool {
-        self.0.lock().unwrap().is_some()
     }
 }
 
@@ -149,9 +144,9 @@ impl DirtyAggregateReceiver {
         //set continuation up first
         for dirty_receiver in &self.receivers {
             dirty_receiver.attach_continuation(&late_bound_sender);
-            println!("attached continuation {late_bound_sender:?} to receiver {dirty_receiver:?}");
+            // println!("attached continuation {late_bound_sender:?} to receiver {dirty_receiver:?}");
         }
-        println!("Attached all continuations");
+        // println!("Attached all continuations");
         //now check dirty value
         for receiver in &self.receivers {
             if receiver.shared.dirty.load(Ordering::Relaxed) {
@@ -160,10 +155,10 @@ impl DirtyAggregateReceiver {
                 break; // Only need one to trigger
             }
         }
-        println!("Waiting for continuation");
+        // println!("Waiting for continuation");
         //wait for next receiver!
         receiver.await;
-        println!("Continuation received");
+        // println!("Continuation received");
 
     }
 }

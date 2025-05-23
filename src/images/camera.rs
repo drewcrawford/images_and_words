@@ -58,6 +58,7 @@ impl Camera {
         let mut guard = self.shared.lock().unwrap();
         guard.camera_position.0 = guard.camera_position.0 + translation.0;
         guard.rematrix();
+        guard.dirty_sender.mark_dirty(true);
     }
 
     pub fn changed_size(&mut self, new_size: (u16,u16)) {
@@ -65,5 +66,6 @@ impl Camera {
         guard.window_size_scale.0 = new_size.0;
         guard.window_size_scale.1 = new_size.1;
         guard.rematrix();
+        guard.dirty_sender.mark_dirty(true);
     }
 }
