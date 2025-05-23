@@ -541,22 +541,22 @@ impl Port {
             let projection = self.camera.copy_projection_and_clear_dirty_bit();
             CameraProjection {
                 projection: [
-                    *projection.0.columns()[0].x(),
-                    *projection.0.columns()[0].y(),
-                    *projection.0.columns()[0].z(),
-                    *projection.0.columns()[0].w(),
-                    *projection.0.columns()[1].x(),
-                    *projection.0.columns()[1].y(),
-                    *projection.0.columns()[1].z(),
-                    *projection.0.columns()[1].w(),
-                    *projection.0.columns()[2].x(),
-                    *projection.0.columns()[2].y(),
-                    *projection.0.columns()[2].z(),
-                    *projection.0.columns()[2].w(),
-                    *projection.0.columns()[3].x(),
-                    *projection.0.columns()[3].y(),
-                    *projection.0.columns()[3].z(),
-                    *projection.0.columns()[3].w(),
+                    *projection.matrix().columns()[0].x(),
+                    *projection.matrix().columns()[0].y(),
+                    *projection.matrix().columns()[0].z(),
+                    *projection.matrix().columns()[0].w(),
+                    *projection.matrix().columns()[1].x(),
+                    *projection.matrix().columns()[1].y(),
+                    *projection.matrix().columns()[1].z(),
+                    *projection.matrix().columns()[1].w(),
+                    *projection.matrix().columns()[2].x(),
+                    *projection.matrix().columns()[2].y(),
+                    *projection.matrix().columns()[2].z(),
+                    *projection.matrix().columns()[2].w(),
+                    *projection.matrix().columns()[3].x(),
+                    *projection.matrix().columns()[3].y(),
+                    *projection.matrix().columns()[3].z(),
+                    *projection.matrix().columns()[3].w(),
                 ]
             }
         }).expect("Create camera buffer");
