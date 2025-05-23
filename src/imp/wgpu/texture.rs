@@ -99,13 +99,14 @@ impl<Format: PixelFormat> MappableTexture<Format> {
     }
     
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) {
+        assert!(src_width == self.width); //we could support this but it would involve multiple copies
         use crate::pixel_formats::pixel_as_bytes;
         let data_bytes = pixel_as_bytes(data);
         
         // Calculate destination offset based on texel position
         // Assuming the buffer represents a 2D texture laid out row-major
         let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
-        let dst_offset = (dst_texel.y as usize * src_width as usize + dst_texel.x as usize) * bytes_per_pixel;
+        let dst_offset = (dst_texel.y as usize * self.width as usize + dst_texel.x as usize) * bytes_per_pixel;
         
         self.imp.write(data_bytes, dst_offset);
     }
@@ -279,7 +280,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             sample_count: 1, //?
             dimension: TextureDimension::D2,
             format: Format::WGPU_FORMAT,
-            usage:visible_to.wgpu_usage(),
+            usage: visible_to.wgpu_usage() | wgpu::TextureUsages::COPY_DST,
             view_formats: &[], //?
         }
     }
@@ -312,7 +313,7 @@ impl<Format,SourceGuard> AsRef<GPUableTexture<Format>> for CopyGuard<Format,Sour
     }
 }
 
-impl<Format> GPUMultibuffer for GPUableTexture<Format> {
+impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUMultibuffer for GPUableTexture<Format> {
     type CorrespondingMappedType = MappableTexture<Format>;
     type OutGuard<InGuard> = CopyGuard<Format,InGuard>;
 
@@ -323,9 +324,14 @@ impl<Format> GPUMultibuffer for GPUableTexture<Format> {
     {
         let source_base = TexelCopyBufferInfoBase {
             buffer: &guard.as_ref().imp.buffer,
-            layout: Default::default(),
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(guard.as_ref().width as u32 * std::mem::size_of::<Format::CPixel>() as u32),
+                rows_per_image: Some(guard.as_ref().height as u32),
+            },
         };
         let dest_base = TexelCopyTextureInfoBase {
+
             texture: &self.imp,
             mip_level: 0,
             origin: Default::default(),
@@ -334,7 +340,7 @@ impl<Format> GPUMultibuffer for GPUableTexture<Format> {
         info.command_encoder.copy_buffer_to_texture(source_base, dest_base, Extent3d {
             width: guard.as_ref().width as u32,
             height: guard.as_ref().height as u32,
-            depth_or_array_layers: 0,
+            depth_or_array_layers: 1,
         });
         CopyGuard {
             guard,

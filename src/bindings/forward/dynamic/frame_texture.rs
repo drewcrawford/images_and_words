@@ -200,6 +200,7 @@ impl<Format> IndividualTexture<Format> {
 
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) where Format: PixelFormat {
         self.cpu.replace(src_width, dst_texel, data);
+
     }
 }
 
