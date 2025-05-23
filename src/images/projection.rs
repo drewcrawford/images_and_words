@@ -166,7 +166,7 @@ impl Projection {
     pub fn matrix(&self) -> Matrix<f32,4,4> {
         self.matrix
     }
-    
+
     pub fn width(&self) -> u16 {
         self.width
     }
