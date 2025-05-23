@@ -437,6 +437,7 @@ impl Port {
     }
     ///Start rendering on the port.  Ports are not rendered by default.
     pub async fn start(&mut self) -> Result<(),Error> {
+        //render first frame regardless
         self.imp.render_frame().await;
         loop {
             //we need to figure out all the dirty stuff

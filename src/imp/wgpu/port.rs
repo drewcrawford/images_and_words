@@ -1,6 +1,6 @@
 use crate::bindings::bind_style::BindTarget;
 use crate::images::camera::Camera;
-use crate::images::port::PortReporterSend;
+use crate::images::port::{PortReporter, PortReporterSend};
 use crate::images::render_pass::{DrawCommand, PassDescriptor};
 use crate::imp::{CopyInfo, Error};
 use std::num::NonZero;
@@ -28,6 +28,8 @@ pub struct Port {
     view: crate::images::view::View,
     camera: Camera,
     pub(crate) pass_client: PassClient,
+    port_reporter_send: PortReporterSend,
+    frame: u32,
 }
 
 /**
@@ -458,7 +460,7 @@ impl Port {
         _engine: &Arc<crate::images::Engine>,
         view: crate::images::view::View,
         camera: Camera,
-        _port_reporter_send: PortReporterSend,
+        port_reporter_send: PortReporterSend,
     ) -> Result<Self, Error> {
         let pass_client = PassClient::new(_engine.bound_device().clone());
         Ok(Port {
@@ -467,6 +469,8 @@ impl Port {
             view,
             pass_client,
             camera,
+            port_reporter_send: port_reporter_send,
+            frame: 0,
         })
     }
     pub async fn add_fixed_pass(
@@ -477,6 +481,10 @@ impl Port {
         println!("now up to {} passes", self.pass_descriptors.len());
     }
     pub async fn render_frame(&mut self) {
+
+        self.port_reporter_send.begin_frame(self.frame);
+        let mut finisher = self.port_reporter_send.gpu_finisher();
+        finisher.begin_frame();
         //todo: We are currently doing a lot of setup work on each frame, that ought to be moved to initialization?
         let device = self.engine.bound_device().as_ref();
         let mut prepared = Vec::new();
@@ -688,12 +696,15 @@ impl Port {
         std::mem::drop(render_pass); //stop mutably borrowing the encoder
         let encoded = encoder.finish();
         device.0.queue.submit(std::iter::once(encoded));
+        finisher.commit();
+
         device.0.queue.on_submitted_work_done(move || {
             //callbacks must be alive for full GPU-side render
             std::mem::drop(frame_bind_groups);
             // println!("frame guards dropped");
+            finisher.end_frame();
         });
         frame.present();
-        // println!("frame presented");
+        self.frame += 1;
     }
 }

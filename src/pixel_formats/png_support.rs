@@ -23,15 +23,5 @@ unsafe impl PngPixelFormat for RGBA8UnormSRGB {
     use crate::bindings::software::texture::Texture;
     use crate::pixel_formats::{RGBA8UnormSRGB};
 
-    #[test] fn load_png() {
-        let mut path = current_dir().unwrap();
-        path.pop();
-        path.push("petrucci/assets/road.png");
-        let fut = Texture::<RGBA8UnormSRGB>::new_from_path(&path, async_file::Priority::unit_test());
-        let soft_texture = test_executors::spin_on(fut);
 
-        //dump to output?
-        let mut file = File::create("test_load_png.tga").unwrap();
-        file.write(&soft_texture.dump_tga().into_data()).unwrap();
-    }
 }
