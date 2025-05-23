@@ -70,7 +70,7 @@ unsafe impl<Format> Send for MappableTexture<Format> {}
 unsafe impl<Format> Sync for MappableTexture<Format> {}
 
 impl<Format: PixelFormat> MappableTexture<Format> {
-    pub fn new<Initializer: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, debug_name: &str, priority: Priority, initializer: Initializer) -> Self {
+    pub fn new<Initializer: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, debug_name: &str, _priority: Priority, initializer: Initializer) -> Self {
         let buffer = MappableBuffer::new(&bound_device, width as usize * height as usize * std::mem::size_of::<Format::CPixel>(), MapType::Write, debug_name, |byte_array| {
             let elements = width as usize * height as usize;
             assert_eq!(byte_array.len(), elements * std::mem::size_of::<Format::CPixel>());
@@ -154,9 +154,8 @@ unsafe impl<Format> Sync for GPUableTexture<Format> {}
 
 impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
 
-    pub async fn new_initialize<I: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, generate_mipmaps: bool, debug_name: &str, priority: Priority, initializer: I) -> Result<Self, Error> {
+    pub async fn new_initialize<I: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, generate_mipmaps: bool, debug_name: &str, _priority: Priority, initializer: I) -> Result<Self, Error> {
         let descriptor = Self::get_descriptor(debug_name, width, height, visible_to, generate_mipmaps);
-        let data_order = TextureDataOrder::default(); //?
         //todo: could optimize probably?
         let pixels = width as usize * height as usize;
         let mut src_buf = Vec::with_capacity(pixels);
@@ -240,7 +239,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
                 }
                 let last_px = src_buf.last().unwrap().clone();
                 for _pad_y in 0..pad_y {
-                    for x in 0..physical_size.width as u16 {
+                    for _x in 0..physical_size.width as u16 {
                         //pad by extending last pixel
                         src_buf.push(last_px.clone());
                     }
@@ -285,7 +284,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         }
     }
 
-    pub async fn new(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, priority: Priority) -> Result<Self, Error> {
+    pub async fn new(bound_device: &crate::images::BoundDevice, width: u16, height: u16, visible_to: TextureUsage, debug_name: &str, _priority: Priority) -> Result<Self, Error> {
         let descriptor = Self::get_descriptor(debug_name, width, height, visible_to, false);
         let texture = bound_device.0.device.create_texture(&descriptor);
         Ok(Self {
@@ -303,6 +302,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
 }
 
 pub struct CopyGuard<Format,SourceGuard> {
+    #[allow(dead_code)] // guard keeps source alive during copy operation
     guard: SourceGuard,
     gpu: GPUableTexture<Format>,
 }
@@ -316,7 +316,7 @@ impl<Format> GPUMultibuffer for GPUableTexture<Format> {
     type CorrespondingMappedType = MappableTexture<Format>;
     type OutGuard<InGuard> = CopyGuard<Format,InGuard>;
 
-    unsafe fn copy_from_buffer<'a, Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>>
+    unsafe fn copy_from_buffer<'a, Guarded>(&self, _source_offset: usize, _dest_offset: usize, _copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>>
     where
         Guarded: AsRef<Self::CorrespondingMappedType>,
         Guarded: Mappable

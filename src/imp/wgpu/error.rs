@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
 #[derive(Debug,thiserror::Error)]
-pub(crate) enum Error {
+#[non_exhaustive]
+pub enum Error {
     CreateSurfaceError(#[from] wgpu::CreateSurfaceError),
     NoSuchAdapter,
     RequestDeviceError(#[from] wgpu::RequestDeviceError),

@@ -23,18 +23,6 @@ pub struct MappableBuffer{
 unsafe impl Send for MappableBuffer {}
 unsafe impl Sync for MappableBuffer{}
 
-#[derive(Debug)]
-pub struct BindTargetBufferImp {
-    pub(super) element_size: usize,
-    pub(super) buffer: wgpu::Buffer,
-    pub(super) size: usize,
-}
-
-
-
-
-
-
 impl MappableBuffer {
     pub(crate) fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
         let buffer_usage = match map_type {
@@ -194,7 +182,7 @@ impl GPUableBuffer {
         };
         Self::new_imp(bound_device, size, debug_name,  storage_type)
     }
-    pub(crate) fn storage_type(&self) -> StorageType {
+    pub(super) fn storage_type(&self) -> StorageType {
         self.storage_type
     }
     /**Copy from buffer, taking the source buffer to ensure it lives long enough
@@ -238,6 +226,7 @@ pub struct CopyInfo<'a> {
 #[derive(Debug)]
 #[must_use = "Ensure this guard lives for the lifetime of the copy!"]
 pub struct CopyGuard<SourceGuard> {
+    #[allow(dead_code)] //guards work on drop
     source_guard: SourceGuard,
     gpu_buffer: GPUableBuffer,
 }

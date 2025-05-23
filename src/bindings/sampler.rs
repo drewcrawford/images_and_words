@@ -1,8 +1,3 @@
-/*! Cross-platform sampler type. */
-use std::fmt::Debug;
-
-
-
 #[derive(Debug,Clone,Copy)]
 pub enum SamplerType {
     ///The sampler shall use pixel coordinates and do linear interpolation.
@@ -12,5 +7,3 @@ pub enum SamplerType {
     ///The sampler shall use normalized coordinates, and will do interpolation for mipmapping.
     Mipmapped,
 }
-
-

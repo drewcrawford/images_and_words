@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 
 mod entry_point;
 mod unbound_device;
@@ -9,7 +8,6 @@ mod engine;
 mod port;
 mod pixel_format;
 mod texture;
-mod sampler;
 mod buffer;
 
 pub use entry_point::EntryPoint;
@@ -32,12 +30,4 @@ pub use buffer::{MappableBuffer, GPUableBuffer, CopyInfo};
 
 
 
-#[derive(Clone)]
-pub struct SurfaceStrategy;
-#[derive(Debug)]
-pub struct FrameTextureProduct<Format>(PhantomData<Format>);
-#[derive(Debug,Clone)]
-pub struct FrameTextureDelivery;
 
-#[derive(Debug,Clone)]
-pub struct Delivery;

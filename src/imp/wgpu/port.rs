@@ -36,6 +36,7 @@ A pass that is prepared to be rendered (compiled, layout calculated, etc.)
 pub struct PreparedPass {
     pipeline: RenderPipeline,
     pass_descriptor: PassDescriptor,
+    #[allow(dead_code)] //instance counts are not used yet
     instance_count: u32,
     vertex_count: u32,
     depth_pass: bool,
@@ -110,7 +111,7 @@ fn prepare_pass_descriptor(
                     multisampled: false,
                 }
             }
-            BindTarget::Sampler(sampler) => BindingType::Sampler(SamplerBindingType::Filtering),
+            BindTarget::Sampler(_sampler) => BindingType::Sampler(SamplerBindingType::Filtering),
             BindTarget::VB(..) => {
                 continue //not considered as a binding
             }
@@ -161,7 +162,7 @@ fn prepare_pass_descriptor(
     let mut vertex_buffers = Vec::new();
     let all_vertex_attributes = StableAddressVec::with_capactiy(5);
 
-    for (b,buffer) in &descriptor.bind_style.binds {
+    for (_b,buffer) in &descriptor.bind_style.binds {
         match &buffer.target {
             BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_)  => {}
             BindTarget::VB(layout,_)  | BindTarget::DynamicVB(layout,_) => {
@@ -196,7 +197,7 @@ fn prepare_pass_descriptor(
         buffers: &vertex_buffers,
     };
     let topology = match descriptor.draw_command() {
-        DrawCommand::TriangleStrip(count) => PrimitiveTopology::TriangleStrip,
+        DrawCommand::TriangleStrip(_count) => PrimitiveTopology::TriangleStrip,
         DrawCommand::TriangleList(..) => PrimitiveTopology::TriangleList,
     };
     let vertex_count = match descriptor.draw_command {
@@ -313,6 +314,7 @@ and all guards that are needed to keep the resources alive.
 */
 pub struct BindGroupGuard {
     bind_group: BindGroup,
+    #[allow(dead_code)] // guards keep resources alive during GPU execution
     guards: StableAddressVec<Box<dyn SomeGPUAccess>>,
     vertex_buffers: Vec<(u32, wgpu::Buffer)>,
     dynamic_vertex_buffers: Vec<(u32, Box<dyn SomeGPUAccess>)>,
@@ -361,7 +363,7 @@ pub fn prepare_bind_group(
                 })
             }
             BindTarget::FrameCounter => { todo!() }
-            BindTarget::StaticTexture(texture, sampler_type) => {
+            BindTarget::StaticTexture(texture, _sampler_type) => {
                 let lookup = pass_client.lookup_static_texture(*texture);
                 let view = build_resources.push(lookup.imp.texture.create_view(&wgpu::TextureViewDescriptor {
                     label: None,
@@ -422,11 +424,11 @@ pub fn prepare_bind_group(
     for (b,buffer) in &prepared.pass_descriptor.bind_style().binds {
         match &buffer.target {
             BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_) => {}
-            BindTarget::VB(layout,render_side) => {
+            BindTarget::VB(_layout,render_side) => {
                 let buffer = render_side.imp.buffer.clone();
                 vertex_buffers.push((*b, buffer));
             }
-            BindTarget::DynamicVB(layout,render_side) => {
+            BindTarget::DynamicVB(_layout,render_side) => {
                 //safety: guard kept alive
                 let buffer = unsafe{render_side.imp.acquire_gpu_buffer(copy_info)};
                 dynamic_vertex_buffers.push((*b, buffer));
@@ -534,7 +536,7 @@ impl Port {
             border_color: None,
         });
 
-        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device().clone(), 1, GPUBufferUsage::VertexShaderRead, "Camera", |initialize| {
+        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device().clone(), 1, GPUBufferUsage::VertexShaderRead, "Camera", |_initialize| {
             let projection = self.camera.copy_projection_and_clear_dirty_bit();
             CameraProjection {
                 projection: [
@@ -664,7 +666,7 @@ impl Port {
                 render_pass.set_vertex_buffer(*v, buffer.slice(..));
             }
             for (v, buffer) in &bind_group.dynamic_vertex_buffers {
-                let buffer = unsafe { buffer.as_imp().buffer.slice(..) };
+                let buffer = buffer.as_imp().buffer.slice(..);
                 render_pass.set_vertex_buffer(*v, buffer);
             }
             if let Some(buffer) = &bind_group.index_buffer {

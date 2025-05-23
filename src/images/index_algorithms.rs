@@ -140,7 +140,4 @@ impl IndexGenerator {
         assert_eq!(g.num_indices(), 6);
     }
     
-    #[test] fn test_strip() {
-        let g = IndexGenerator::new(2,2);
-    }
 }

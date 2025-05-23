@@ -9,7 +9,7 @@ pub struct BoundDevice {
 }
 
 impl BoundDevice {
-    pub(crate) async fn bind(unbound_device: crate::images::device::UnboundDevice, entry_point: Arc<crate::entry_point::EntryPoint>)-> Result<Self,Error>{
+    pub(crate) async fn bind(unbound_device: crate::images::device::UnboundDevice, _entry_point: Arc<crate::entry_point::EntryPoint>)-> Result<Self,Error>{
         let label = wgpu::Label::from("Bound Device");
         let descriptor = wgpu::DeviceDescriptor {
             label,
