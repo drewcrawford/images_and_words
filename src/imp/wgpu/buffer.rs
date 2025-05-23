@@ -267,7 +267,7 @@ impl GPUMultibuffer for GPUableBuffer {
     {
         //somehow we need to get a MappableBuffer
         let m: &MappableBuffer = &guard.as_ref();
-        self.copy_from_buffer_internal(m, source_offset, dest_offset, copy_len, info.command_encoder);
+        unsafe { self.copy_from_buffer_internal(m, source_offset, dest_offset, copy_len, info.command_encoder); }
         CopyGuard {
             source_guard: guard,
             gpu_buffer: self.clone(),

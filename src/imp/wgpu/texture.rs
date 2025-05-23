@@ -99,6 +99,18 @@ impl<Format: PixelFormat> MappableTexture<Format> {
             height,
         }
     }
+    
+    pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) {
+        use crate::pixel_formats::pixel_as_bytes;
+        let data_bytes = pixel_as_bytes(data);
+        
+        // Calculate destination offset based on texel position
+        // Assuming the buffer represents a 2D texture laid out row-major
+        let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
+        let dst_offset = (dst_texel.y as usize * src_width as usize + dst_texel.x as usize) * bytes_per_pixel;
+        
+        self.imp.write(data_bytes, dst_offset);
+    }
 }
 
 impl<Format> Debug for MappableTexture<Format> {

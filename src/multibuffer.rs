@@ -265,7 +265,7 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
         let take_dirty = self.needs_gpu_copy.lock().unwrap().take();
         self.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
         if let Some(imp_guard) = take_dirty {
-            let copy_guard = self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard);
+            let copy_guard = unsafe { self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard) };
             GPUGuard {
                 imp: Some(Err(copy_guard)),
                 wake_list: self.wake_list.clone(),
