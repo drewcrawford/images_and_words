@@ -48,6 +48,8 @@ impl<Format> AsRef<imp::MappableTexture<Format>> for IndividualTexture<Format> {
 }
 
 
+
+
 trait DynRenderSide: Send + Debug + Sync {
     ///
     /// # Safety
@@ -191,6 +193,10 @@ impl<Format> IndividualTexture<Format> {
 
     const fn index_for_texel(texel: Texel, width: u16) -> usize {
         (texel.y as usize * width as usize) + texel.x as usize
+    }
+
+    pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) where Format: PixelFormat {
+        self.cpu.replace(src_width, dst_texel, data);
     }
 }
 
