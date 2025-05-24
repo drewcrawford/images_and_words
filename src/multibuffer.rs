@@ -237,13 +237,28 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
 
     pub async fn access_write(&self) -> CPUWriteGuard<T, U> where T: Mappable, U: GPUMultibuffer {
         loop {
-            //insert first
-            let (s, f) = r#continue::continuation();
-            self.wake_list.lock().unwrap().push(s);
-            //then check
+            // Try to acquire first WITHOUT registering waker
             match self.mappable.cpu_write().await {
-                Ok(guard) => return CPUWriteGuard{ imp: Some(guard), buffer: &self },
-                Err(_) => f.await
+                Ok(guard) => {
+                    return CPUWriteGuard{ imp: Some(guard), buffer: &self };
+                },
+                Err(_) => {
+                    // ONLY register waker AFTER failed attempt to prevent race condition
+                    let (s, f) = r#continue::continuation();
+                    
+                    self.wake_list.lock().unwrap().push(s);
+                    
+                    // Double-check resource availability after registering waker
+                    // This prevents race where resource becomes available between failed attempt and waker registration
+                    match self.mappable.cpu_write().await {
+                        Ok(guard) => {
+                            return CPUWriteGuard{ imp: Some(guard), buffer: &self };
+                        },
+                        Err(_) => {
+                            f.await;
+                        }
+                    }
+                }
             }
         }
     }

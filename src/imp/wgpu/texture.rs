@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::sync::Arc;
 use wgpu::{Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase, TextureDescriptor, TextureDimension};
 use wgpu::util::{DeviceExt, TextureDataOrder};
 use crate::bindings::buffer_access::MapType;
@@ -70,8 +71,8 @@ unsafe impl<Format> Send for MappableTexture<Format> {}
 unsafe impl<Format> Sync for MappableTexture<Format> {}
 
 impl<Format: PixelFormat> MappableTexture<Format> {
-    pub fn new<Initializer: Fn(Texel) -> Format::CPixel>(bound_device: &crate::images::BoundDevice, width: u16, height: u16, debug_name: &str, _priority: Priority, initializer: Initializer) -> Self {
-        let buffer = MappableBuffer::new(&bound_device, width as usize * height as usize * std::mem::size_of::<Format::CPixel>(), MapType::Write, debug_name, |byte_array| {
+    pub fn new<Initializer: Fn(Texel) -> Format::CPixel>(bound_device: &Arc<crate::images::BoundDevice>, width: u16, height: u16, debug_name: &str, _priority: Priority, initializer: Initializer) -> Self {
+        let buffer = MappableBuffer::new(bound_device.clone(), width as usize * height as usize * std::mem::size_of::<Format::CPixel>(), MapType::Write, debug_name, |byte_array| {
             let elements = width as usize * height as usize;
             assert_eq!(byte_array.len(), elements * std::mem::size_of::<Format::CPixel>());
             //safety: we know the byte array is the right size

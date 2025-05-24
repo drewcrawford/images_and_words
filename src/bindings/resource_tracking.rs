@@ -78,7 +78,9 @@ impl<Resource> DerefMut for GPUGuard<Resource> where Resource: sealed::Mappable 
 
 impl<Resource> Drop for GPUGuard<Resource> where Resource: sealed::Mappable {
     fn drop(&mut self) {
+        println!("DEBUG: GPUGuard::drop releasing GPU resource");
         self.tracker.unuse_gpu();
+        println!("DEBUG: GPUGuard::drop completed");
     }
 }
 
@@ -166,7 +168,9 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     pub async fn cpu_write(&self) -> Result<CPUWriteGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
         match self.state.compare_exchange(UNUSED, CPU_WRITE, std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed) {
             Ok(_) => {},
-            Err(other) => return Err(NotAvailable { read_state: other }),
+            Err(other) => {
+                return Err(NotAvailable { read_state: other });
+            },
         }
         unsafe {
             self.resource.get().as_mut().unwrap().map_write().await;

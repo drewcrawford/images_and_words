@@ -18,13 +18,14 @@ pub struct MappableBuffer{
     mapped_mut: Option<(*mut u8, usize)>,
 
     pub(super) buffer: wgpu::Buffer,
+    bound_device: Arc<BoundDevice>,
 }
 //ignore the mapped raw pointers!
 unsafe impl Send for MappableBuffer {}
 unsafe impl Sync for MappableBuffer{}
 
 impl MappableBuffer {
-    pub(crate) fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: &crate::images::BoundDevice, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
+    pub(crate) fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]> (bound_device: Arc<crate::images::BoundDevice>, requested_size: usize, map_type: crate::bindings::buffer_access::MapType, debug_name: &str, initialize_with: Initializer) -> Result<Self,crate::imp::Error> {
         let buffer_usage = match map_type {
             MapType::Read => { BufferUsages::MAP_READ }
             MapType::Write => {BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC }
@@ -66,6 +67,7 @@ impl MappableBuffer {
                 buffer,
                 mapped: None,
                 mapped_mut: None,
+                bound_device,
             }
         )
     }
@@ -106,6 +108,10 @@ impl MappableBuffer {
             r.unwrap();
             s.send(());
         });
+        
+        // Poll the device to ensure map_async callbacks are processed
+        self.bound_device.0.device.poll(wgpu::Maintain::Poll);
+        
         r.await;
         let mut range = self.buffer.slice(..).get_mapped_range_mut();
         self.mapped_mut = Some((range.as_mut_ptr(), range.len()));

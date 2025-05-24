@@ -47,7 +47,7 @@ pub(crate) fn initialize_byte_array_with<Element,I: Fn(usize) -> Element>(elemen
 impl<Element> Buffer<Element> {
     pub async fn new(device: Arc<BoundDevice>, count: usize, usage: crate::bindings::visible_to::GPUBufferUsage, debug_name: &str, initializer: impl Fn(usize) -> Element) -> Result<Self,Error> where Element: CRepr {
         let byte_size = std::mem::size_of::<Element>() * count;
-        let mappable = imp::MappableBuffer::new(&device, byte_size, MapType::Write, debug_name, |bytes| {
+        let mappable = imp::MappableBuffer::new(device.clone(), byte_size, MapType::Write, debug_name, |bytes| {
             initialize_byte_array_with(count, bytes, initializer)
         })?;
 

@@ -235,7 +235,7 @@ impl<Element> Buffer<Element> {
 
         let map_type = crate::bindings::buffer_access::MapType::Write; //todo: optimize for read vs write, etc.
 
-        let buffer = imp::MappableBuffer::new(&bound_device, byte_size, map_type, debug_name, move |byte_array| {
+        let buffer = imp::MappableBuffer::new(bound_device.clone(), byte_size, map_type, debug_name, move |byte_array| {
           crate::bindings::forward::r#static::buffer::initialize_byte_array_with(size, byte_array, initialize_with)
         })?;
 
