@@ -204,7 +204,7 @@ pub type TextureRenderSide = RenderSide;
 #[derive(Debug)]
 pub struct MappableBuffer;
 impl MappableBuffer {
-    pub fn new<F>(_bound_device: &crate::images::BoundDevice, _byte_size: usize, _map_type: MapType, _debug_name: &str, _callback: F) -> Result<Self, Error> 
+    pub fn new<F>(_bound_device: Arc<crate::images::BoundDevice>, _byte_size: usize, _map_type: MapType, _debug_name: &str, _callback: F) -> Result<Self, Error>
     where F: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]
     {
         todo!()
