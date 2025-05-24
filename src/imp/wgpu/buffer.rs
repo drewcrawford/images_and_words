@@ -108,13 +108,17 @@ impl MappableBuffer {
             r.unwrap();
             s.send(());
         });
-        
-        // Poll the device to ensure map_async callbacks are processed
-        self.bound_device.0.device.poll(wgpu::Maintain::Poll);
-        
+
+        let (s,r) = r#continue::continuation();
+        self.buffer.slice(..).map_async(wgpu::MapMode::Write, |r|{
+            //callback takes a long time to run (90+ms)
+            r.unwrap();
+            s.send(());
+        });
+        // Use blocking poll to wait for map completion, avoiding VSync timing issues
+        let maintain_result = self.bound_device.0.device.poll(wgpu::Maintain::Wait);
+        println!("maintain_result after map_write: {:?}", maintain_result.is_queue_empty());
         r.await;
-        let mut range = self.buffer.slice(..).get_mapped_range_mut();
-        self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
     }
     pub fn unmap(&mut self) {
         self.buffer.unmap();
