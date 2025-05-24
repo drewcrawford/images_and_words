@@ -271,76 +271,36 @@ mod tests {
     // let's test the logic by examining the code differences between map_read and map_write
     
     #[test]
-    fn test_map_write_bug_reproduction() {
-        // This test will FAIL (panic) until the bug in map_write() is fixed
-        // It simulates the exact scenario described in the reproducer
+    fn test_map_write_missing_implementation() {
+        // This test demonstrates that map_write() is missing the crucial implementation
+        // It will FAIL, showing that the bug from the reproducer exists
         
-        // Create a mock buffer that simulates the state after map_write() runs
-        // (mapped_mut = None because map_write doesn't set it)
-        let mut mock_buffer = MockMappableBuffer {
-            mapped_mut: None, // This simulates the bug - map_write() doesn't set this!
-        };
+        let map_write_source = include_str!("buffer.rs");
         
-        // This should panic with "Map first" - exactly reproducing the reported bug
-        let test_data = [1u8, 2, 3, 4];
-        mock_buffer.write(&test_data, 0); // <- This WILL panic, demonstrating the bug
+        // Verify map_read has the correct pattern
+        assert!(map_write_source.contains("let range = slice.get_mapped_range();"), 
+                "map_read should set mapped field");
+        assert!(map_write_source.contains("self.mapped = Some((range.as_ptr(), range.len()));"), 
+                "map_read should set mapped field");
+        
+        // Verify map_write is MISSING the equivalent pattern (this is the bug!)
+        let map_write_body_start = map_write_source.find("pub async fn map_write(&mut self) {").unwrap();
+        let map_write_body_end = map_write_source[map_write_body_start..].find("pub fn unmap(&mut self)").unwrap() + map_write_body_start;
+        let map_write_body = &map_write_source[map_write_body_start..map_write_body_end];
+        
+        // Check that map_write method body is missing the crucial code
+        let executable_lines: Vec<&str> = map_write_body.lines()
+            .filter(|line| !line.trim().starts_with("//"))
+            .collect();
+        let executable_code = executable_lines.join("\n");
+        
+        // These assertions will FAIL because the code is missing (demonstrating the bug)
+        assert!(executable_code.contains("let mut range = slice.get_mapped_range_mut()"), 
+                "map_write is missing get_mapped_range_mut - this is the bug from the reproducer!");
+        assert!(executable_code.contains("self.mapped_mut = Some((range.as_mut_ptr(), range.len()))"), 
+                "map_write is missing mapped_mut assignment - this is the bug from the reproducer!");
     }
     
-    // Mock structure to test the write logic without requiring GPU setup
-    struct MockMappableBuffer {
-        mapped_mut: Option<(*mut u8, usize)>,
-    }
-    
-    impl MockMappableBuffer {
-        // This mimics the exact logic from the real write() method at line 82-92
-        fn write(&mut self, data: &[u8], dst_offset: usize) {
-            unsafe {
-                // This is the exact line that panics in the real code (line 84)
-                let (ptr, len) = self.mapped_mut.as_ref().expect("Map first");
-                assert!(*len >= data.len() + dst_offset, "Buffer too small");
-                // We won't actually do the memory copy since ptr is invalid in mock
-                // but the panic happens before we get here anyway
-            }
-        }
-    }
-    
-    #[test]
-    fn test_map_write_should_set_mapped_mut() {
-        // This test verifies that when map_write() is fixed, it should set mapped_mut
-        // Currently this test documents what SHOULD happen but doesn't yet
-        
-        // After the fix, map_write() should follow the same pattern as map_read():
-        // 1. Get the mapped range: let range = slice.get_mapped_range_mut();
-        // 2. Set the field: self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
-        
-        // This test will help verify the fix works by checking the expected behavior
-        let mut mock_buffer = MockMappableBuffer {
-            mapped_mut: Some((std::ptr::null_mut(), 64)), // Simulate properly set mapped_mut
-        };
-        
-        // With mapped_mut properly set, write() should not panic
-        let test_data = [1u8, 2, 3, 4];
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // We can't actually call write with null ptr, but we can test the mapped_mut check
-            assert!(mock_buffer.mapped_mut.is_some(), "mapped_mut should be set after map_write()");
-        }));
-        
-        assert!(result.is_ok(), "Should not panic when mapped_mut is properly set");
-    }
-    
-    #[test]
-    fn test_as_slice_requires_mapped() {
-        // Test that demonstrates the as_slice() method's dependency on mapped
-        // by checking the expectation message
-        
-        // Similarly, as_slice() at line 77 has:
-        // let (ptr, len) = self.mapped.as_ref().expect("Map first");
-        //
-        // This would panic with "Map first" when mapped is None
-        
-        let panic_message = "Map first";
-        assert_eq!(panic_message, "Map first", "Correct panic message for missing mapping");
-    }
 }
 
 
