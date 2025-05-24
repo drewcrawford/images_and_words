@@ -108,13 +108,7 @@ impl MappableBuffer {
             r.unwrap();
             s.send(());
         });
-
-        let (s,r) = r#continue::continuation();
-        self.buffer.slice(..).map_async(wgpu::MapMode::Write, |r|{
-            //callback takes a long time to run (90+ms)
-            r.unwrap();
-            s.send(());
-        });
+        
         // Use blocking poll to wait for map completion, avoiding VSync timing issues
         let maintain_result = self.bound_device.0.device.poll(wgpu::Maintain::Wait);
         println!("maintain_result after map_write: {:?}", maintain_result.is_queue_empty());
