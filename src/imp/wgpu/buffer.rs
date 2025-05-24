@@ -104,7 +104,8 @@ impl MappableBuffer {
     }
     pub async fn map_write(&mut self) {
         let (s,r) = r#continue::continuation();
-        self.buffer.slice(..).map_async(wgpu::MapMode::Write, |r|{
+        let slice = self.buffer.slice(..);
+        slice.map_async(wgpu::MapMode::Write, |r|{
             r.unwrap();
             s.send(());
         });
@@ -113,6 +114,8 @@ impl MappableBuffer {
         let maintain_result = self.bound_device.0.device.poll(wgpu::Maintain::Wait);
         println!("maintain_result after map_write: {:?}", maintain_result.is_queue_empty());
         r.await;
+        let mut range = slice.get_mapped_range_mut();
+        self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
     }
     pub fn unmap(&mut self) {
         self.buffer.unmap();
