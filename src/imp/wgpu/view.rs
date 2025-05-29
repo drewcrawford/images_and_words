@@ -1,6 +1,6 @@
 #[derive(Debug)]
 pub struct View {
-    pub(super) surface: wgpu::Surface<'static>,
+    pub(super) surface: Option<wgpu::Surface<'static>>,
 }
 
 impl View {
@@ -13,7 +13,13 @@ impl View {
         //not really ok but ignore me!
         let surface = unsafe{entrypoint.0.0.create_surface_unsafe(target)?};
         Ok(View {
-            surface: surface,
+            surface: Some(surface),
         })
+    }
+
+    pub fn for_testing() -> Self {
+        View {
+            surface: None,
+        }
     }
 }

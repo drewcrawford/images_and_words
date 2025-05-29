@@ -493,12 +493,14 @@ impl Port {
             prepared.push(pipeline);
         }
         let unscaled_size = self.view.size_scale().await;
-        let surface = &self
+        let surface = self
             .view
             .imp
             .as_ref()
             .expect("View not initialized")
-            .surface;
+            .surface
+            .as_ref()
+            .expect("Surface not available");
 
         let scaled_size = (
             (unscaled_size.0 as f64 * unscaled_size.2) as u32,

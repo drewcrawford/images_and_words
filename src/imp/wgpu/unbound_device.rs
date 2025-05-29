@@ -10,7 +10,7 @@ impl UnboundDevice {
         let options = wgpu::RequestAdapterOptions {
             power_preference: Default::default(),
             force_fallback_adapter: false,
-            compatible_surface: Some(&view.imp.as_ref().expect("View not initialized").surface),
+            compatible_surface: view.imp.as_ref().expect("View not initialized").surface.as_ref(),
         };
         let adapter = entry_point.0.0.request_adapter(&options).await;
         let adapter = adapter.ok_or(super::Error::NoSuchAdapter)?;
