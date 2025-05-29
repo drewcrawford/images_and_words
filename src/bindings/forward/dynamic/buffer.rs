@@ -37,6 +37,7 @@ impl<Element> Debug for Shared<Element> {
             .finish()
     }
 }
+#[derive(Debug,Clone)]
 pub struct Buffer<Element> {
     shared: Arc<Shared<Element>>,
     count: usize,
@@ -112,7 +113,7 @@ impl<Element> CPUMultibuffer for IndividualBuffer<Element> {
         &self.imp
     }
 }
-pub struct RenderSide<Element> {
+pub(crate) struct RenderSide<Element> {
     shared: Arc<Shared<Element>>,
     count: usize,
     #[allow(dead_code)] //nop implementation does not use
@@ -199,7 +200,7 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
 }
 
 #[derive(Debug,Clone)]
-pub struct ErasedRenderSide {
+pub(crate) struct ErasedRenderSide {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) element_size: usize,
     pub(crate) imp: Arc<dyn SomeRenderSide>,
@@ -270,7 +271,7 @@ impl<Element> Buffer<Element> {
     }
 
     /**An opaque type that can be bound into a [crate::bindings::bind_style::BindStyle]. */
-    pub fn render_side(&self) -> RenderSide<Element> {
+    pub(crate) fn render_side(&self) -> RenderSide<Element> {
         RenderSide {
             shared: self.shared.clone(),
             count: self.count,

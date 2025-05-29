@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use crate::bindings::forward::dynamic::buffer::{ErasedRenderSide, RenderSide as DynamicRenderSide};
+use crate::bindings::forward::dynamic::buffer::ErasedRenderSide;
 use crate::bindings::forward::dynamic::frame_texture::{ErasedTextureRenderSide,TextureRenderSide};
 use crate::bindings::sampler::SamplerType;
 /*
@@ -90,8 +90,8 @@ impl BindStyle {
         self.bind(slot, stage, BindTarget::StaticBuffer(buffer.imp.clone()));
     }
 
-    pub fn bind_dynamic_buffer<Element>(&mut self, slot: BindSlot, stage: Stage, render_side: DynamicRenderSide<Element>) where Element: Send + Sync + 'static {
-        self.bind(slot, stage, BindTarget::DynamicBuffer(render_side.erased_render_side()));
+    pub fn bind_dynamic_buffer<Element>(&mut self, slot: BindSlot, stage: Stage, buffer: &crate::bindings::forward::dynamic::buffer::Buffer<Element>) where Element: Send + Sync + 'static {
+        self.bind(slot, stage, BindTarget::DynamicBuffer(buffer.render_side().erased_render_side()));
     }
 
     pub fn bind_static_texture<Format: crate::pixel_formats::sealed::PixelFormat>(&mut self, slot: BindSlot, stage: Stage, texture: &crate::bindings::forward::r#static::texture::Texture<Format>, sampler_type: Option<SamplerInfo>) {
@@ -117,8 +117,8 @@ impl BindStyle {
 
     Vertex buffers are separate from other buffers because they are bound differently.
     */
-    pub fn bind_dynamic_vertex_buffer<Element>(&mut self, slot: BindSlot, buffer: DynamicRenderSide<Element>, layout: VertexLayout) where Element: Send + Sync + 'static {
-        self.bind(slot, Stage::Vertex, BindTarget::DynamicVB(layout, buffer.erased_render_side()));
+    pub fn bind_dynamic_vertex_buffer<Element>(&mut self, slot: BindSlot, buffer: &crate::bindings::forward::dynamic::buffer::Buffer<Element>, layout: VertexLayout) where Element: Send + Sync + 'static {
+        self.bind(slot, Stage::Vertex, BindTarget::DynamicVB(layout, buffer.render_side().erased_render_side()));
     }
 
     /**
