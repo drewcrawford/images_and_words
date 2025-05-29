@@ -349,19 +349,20 @@ impl Port {
                 for (_, bind) in &pass.bind_style.binds {
                     match &bind.target {
                         BindTarget::DynamicBuffer(a) => {
-                            dirty_receivers.push(a.imp.dirty_receiver());
+                            dirty_receivers.push(a.dirty_receiver());
                         }
                         BindTarget::DynamicVB(_,a) => {
-                            dirty_receivers.push(a.imp.dirty_receiver());
+                            dirty_receivers.push(a.dirty_receiver());
                         }
                         BindTarget::Camera => {
                             dirty_receivers.push(self.camera.dirty_receiver());
                         }
-                        BindTarget::StaticBuffer(_) => { /* nothing to do, not considered dirty */}
-                        BindTarget::FrameCounter => {/* nothing to do - not considered dirty */}
                         BindTarget::DynamicTexture(texture) => {
                             dirty_receivers.push(texture.gpu_dirty_receiver())
                         }
+                        BindTarget::StaticBuffer(_) => { /* nothing to do, not considered dirty */}
+                        BindTarget::FrameCounter => {/* nothing to do - not considered dirty */}
+
                         BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
                         BindTarget::Sampler(_) => { /* also not considered dirty */}
                         BindTarget::VB(..)  => { /* also not considered dirty */}
