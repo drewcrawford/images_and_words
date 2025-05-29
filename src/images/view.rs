@@ -51,12 +51,13 @@ impl View {
         }
         #[cfg(not(feature = "app_window"))]
         {
-            match &self.os_impl {
+            match self.os_impl {
                 #[cfg(test)]
                 OSImpl::Testing => {
                     // For testing, imp is already set in for_testing()
                     Ok(())
                 }
+
             }
         }
     }
@@ -80,7 +81,7 @@ impl View {
         }
         #[cfg(not(feature = "app_window"))]
         {
-            match &self.os_impl {
+            match self.os_impl {
                 #[cfg(test)]
                 OSImpl::Testing => {
                     // Return a dummy size for testing
