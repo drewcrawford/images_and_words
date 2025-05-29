@@ -10,7 +10,6 @@ pub(crate) mod engine;
 
 pub mod port;
 
-pub use port::PassClient;
 
 pub(crate) mod camera;
 pub mod shader;

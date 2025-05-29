@@ -10,7 +10,7 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::{CPUStrategy, TextureUsage, GPUBufferUsage};
 use crate::images::camera::Camera;
-use crate::images::port::{PortReporterSend, PassClient};
+use crate::images::port::{PortReporterSend};
 use crate::images::render_pass::PassDescriptor;
 use crate::pixel_formats::sealed::PixelFormat as CratePixelFormat;
 use crate::Priority;
@@ -52,14 +52,11 @@ impl View {
 }
 #[derive(Debug)]
 pub struct Port {
-    pub(crate) pass_client: PassClient,
 }
 
 impl Port {
     pub(crate) fn new(_engine: &Arc<crate::images::Engine>, _view: crate::images::view::View, _camera: Camera, _port_reporter_send:PortReporterSend) -> Result<Self,Error> {
-        let pass_client = PassClient::new(_engine.bound_device().clone());
         Ok(Port {
-            pass_client,
         })
     }
     

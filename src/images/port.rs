@@ -2,7 +2,6 @@
 
 use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
-use crate::images::device::BoundDevice;
 use crate::images::render_pass::PassDescriptor;
 use crate::images::Engine;
 use std::sync::atomic::{Ordering,AtomicU32};
@@ -23,35 +22,6 @@ use crate::imp;
 
 
 
-/**
-This type is provided to render passes to perform their internal operations.
-
-We want to separate it out from the main port for a few reasons:
-1.  Just basic API hygiene
-2.  The render passes need an object-safe API because from Port's perspective, they are a heterogeneous collection.
-    So we can't pass in Port<View> anywhere, without knowing the view.
- */
-#[derive(Debug)]
-pub struct PassClient {
-    bound_device: Arc<BoundDevice>,
-}
-impl PassClient {
-
-
-
-    pub(crate) fn new(bound_device: Arc<BoundDevice>) -> Self {
-        PassClient {
-            bound_device,
-        }
-    }
-
-    pub fn bound_device(&self) -> &BoundDevice {
-        &self.bound_device
-    }
-    pub fn bound_device_arc(&self) -> &Arc<BoundDevice> {
-        &self.bound_device
-    }
-}
 
 #[derive(Debug)]
 pub struct Port {
@@ -59,6 +29,7 @@ pub struct Port {
     port_reporter: PortReporter,
     descriptors: Vec<PassDescriptor>,
     camera: Camera,
+    engine: Arc<Engine>,
 }
 
 #[derive(Debug)]
@@ -326,6 +297,7 @@ impl Port {
             port_reporter,
             descriptors: Default::default(),
             camera,
+            engine: engine.clone(),
         })
     }
     /**
@@ -361,10 +333,10 @@ impl Port {
     }
 
     /**
-    Provides access to the PassClient for building pass descriptors.
+    Provides access to the BoundDevice for building pass descriptors.
     */
-    pub fn pass_client(&mut self) -> &mut PassClient {
-        &mut self.imp.pass_client
+    pub fn bound_device(&self) -> &Arc<crate::images::BoundDevice> {
+        self.engine.bound_device()
     }
     ///Start rendering on the port.  Ports are not rendered by default.
     pub async fn start(&mut self) -> Result<(),Error> {

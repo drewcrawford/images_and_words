@@ -9,7 +9,6 @@ use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, Bin
 use crate::bindings::forward::dynamic::buffer::{CRepr, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::GPUBufferUsage;
-use crate::images::PassClient;
 use crate::images::vertex_layout::VertexFieldType;
 use crate::imp::wgpu::buffer::StorageType;
 use crate::stable_address_vec::StableAddressVec;
@@ -27,7 +26,6 @@ pub struct Port {
     pass_descriptors: Vec<PassDescriptor>,
     view: crate::images::view::View,
     camera: Camera,
-    pub(crate) pass_client: PassClient,
     port_reporter_send: PortReporterSend,
     frame: u32,
 }
@@ -326,7 +324,6 @@ pub struct BindGroupGuard {
 pub fn prepare_bind_group(
     bind_device: &crate::images::BoundDevice,
     prepared: &PreparedPass,
-    _pass_client: &PassClient,
     camera_buffer: &dyn SomeGPUAccess,
     pixel_linear_sampler: &wgpu::Sampler,
     mipmapped_sampler: &wgpu::Sampler,
@@ -461,12 +458,10 @@ impl Port {
         camera: Camera,
         port_reporter_send: PortReporterSend,
     ) -> Result<Self, Error> {
-        let pass_client = PassClient::new(_engine.bound_device().clone());
         Ok(Port {
             engine: _engine.clone(),
             pass_descriptors: Vec::new(),
             view,
-            pass_client,
             camera,
             port_reporter_send: port_reporter_send,
             frame: 0,
@@ -655,7 +650,7 @@ impl Port {
         let mut frame_bind_groups = Vec::new();
         for prepared in &prepared {
             let camera_gpu_deref: &dyn SomeGPUAccess = &**camera_gpu_access;
-            let bind_group = prepare_bind_group(device, prepared, &self.pass_client, camera_gpu_deref, &pixel_linear_sampler, &mipmapped_sampler, &mut copy_info);
+            let bind_group = prepare_bind_group(device, prepared, camera_gpu_deref, &pixel_linear_sampler, &mipmapped_sampler, &mut copy_info);
             frame_bind_groups.push(bind_group);
         }
         //in the second pass, we encode our render pass
