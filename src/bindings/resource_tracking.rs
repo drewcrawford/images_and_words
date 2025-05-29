@@ -197,17 +197,6 @@ impl<Resource> ResourceTrackerInternal<Resource> {
         }
     }
 
-    /**
-    Converts atomically to a GPU resource without dropping the lock.
-    */
-    pub fn convert_to_gpu(self: &Arc<Self>, cpu_guard: CPUWriteGuard<Resource>) -> GPUGuard<Resource> where Resource: sealed::Mappable {
-        self.state.compare_exchange(CPU_WRITE, GPU, std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed).expect("Resource was not in CPU_WRITE state");
-        //unmap the CPU resource
-        //safety: we have the lock
-        unsafe{cpu_guard.tracker.unmap_only_cpu()};
-        std::mem::forget(cpu_guard); //don't run drop
-        GPUGuard { tracker: self.clone() }
-    }
 
     ///safety: ensure lock is held
     unsafe fn unuse_cpu(&self) where Resource: sealed::Mappable { unsafe {
@@ -220,10 +209,6 @@ impl<Resource> ResourceTrackerInternal<Resource> {
             }
         }).expect("unuse_cpu state transition failed");
         assert!(old_state == CPU_READ || old_state == CPU_WRITE, "Resource was not in CPU use");
-    }}
-    ///safety: ensure lock is held
-    unsafe fn unmap_only_cpu(&self) where Resource: sealed::Mappable { unsafe {
-        (*self.resource.get()).unmap();
     }}
     fn unuse_gpu(&self) {
         let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
@@ -251,9 +236,6 @@ impl<Resource> ResourceTracker<Resource> {
     }
     pub(crate) fn gpu(&self) -> Result<GPUGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
         self.internal.gpu()
-    }
-    pub(crate) fn convert_to_gpu(&self, cpu_guard: CPUWriteGuard<Resource>) -> GPUGuard<Resource> where Resource: sealed::Mappable {
-        self.internal.convert_to_gpu(cpu_guard)
     }
     /**
     Unsafely accesses the underlying resource.
