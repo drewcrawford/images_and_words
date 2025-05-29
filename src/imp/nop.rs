@@ -44,6 +44,11 @@ impl View {
     pub async fn from_surface(_entrypoint: &crate::entry_point::EntryPoint, _raw_window_handle: raw_window_handle::RawWindowHandle, _raw_display_handle: RawDisplayHandle) -> Result<Self, Error> {
         todo!()
     }
+
+    #[cfg(test)]
+    pub fn for_testing() -> Self {
+        View {}
+    }
 }
 #[derive(Debug)]
 pub struct Port {

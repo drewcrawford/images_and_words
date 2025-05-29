@@ -6,6 +6,8 @@ use crate::entry_point::EntryPoint;
 enum OSImpl {
     #[cfg(feature = "app_window")]
     AppWindow(app_window::surface::Surface, RawWindowHandle, RawDisplayHandle),
+    #[cfg(test)]
+    Testing,
 }
 #[derive(thiserror::Error,Debug)]
 pub struct Error(#[from] crate::imp::Error);
@@ -36,6 +38,11 @@ impl View {
         {
             let (_window_handle, _display_handle): (RawWindowHandle, RawDisplayHandle) = match &self.os_impl {
                 OSImpl::AppWindow(_, window_handle, display_handle) => (*window_handle, *display_handle),
+                #[cfg(test)]
+                OSImpl::Testing => {
+                    // For testing, imp is already set in for_testing()
+                    return Ok(());
+                }
             };
             self.imp = Some(
                 crate::imp::View::from_surface(_entry_point, _window_handle, _display_handle).await?
@@ -44,7 +51,13 @@ impl View {
         }
         #[cfg(not(feature = "app_window"))]
         {
-            todo!("app_window feature not enabled")
+            match &self.os_impl {
+                #[cfg(test)]
+                OSImpl::Testing => {
+                    // For testing, imp is already set in for_testing()
+                    Ok(())
+                }
+            }
         }
     }
 }
@@ -58,11 +71,22 @@ impl View {
                     let (size,scale) = surface.size_scale().await;
                     (size.width() as u16,size.height() as u16, scale)
                 }
+                #[cfg(test)]
+                OSImpl::Testing => {
+                    // Return a dummy size for testing
+                    (800, 600, 1.0)
+                }
             };
         }
         #[cfg(not(feature = "app_window"))]
         {
-            todo!("app_window feature not enabled")
+            match &self.os_impl {
+                #[cfg(test)]
+                OSImpl::Testing => {
+                    // Return a dummy size for testing
+                    (800, 600, 1.0)
+                }
+            }
         }
     }
 
@@ -77,5 +101,17 @@ impl View {
             os_impl: OSImpl::AppWindow(surface, handle, display_handle),
             imp: None,
         })
+    }
+
+    /**
+    Creates a view for testing that bypasses the surface requirement.
+    This creates a view with the testing implementation.
+    */
+    #[cfg(test)]
+    pub fn for_testing() -> Self {
+        View {
+            os_impl: OSImpl::Testing,
+            imp: Some(crate::imp::View::for_testing()),
+        }
     }
 }
