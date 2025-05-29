@@ -33,3 +33,6 @@ app_window = ["dep:app_window"]
 backend_wgpu = ["dep:wgpu"]
 # Enable testing APIs for integration tests
 testing = []
+
+[patch.crates-io]
+continue = {path = "../continuation"}

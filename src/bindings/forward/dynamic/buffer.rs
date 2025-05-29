@@ -248,7 +248,7 @@ impl<Element> Buffer<Element> {
 
         Ok(Self {
             shared: Arc::new(Shared {
-                multibuffer: Multibuffer::new(individual_buffer, gpu_buffer),
+                multibuffer: Multibuffer::new(individual_buffer, gpu_buffer, true),
             }),
             count: size,
             debug_name: debug_name.to_string(),

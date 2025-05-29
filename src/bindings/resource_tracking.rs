@@ -8,6 +8,7 @@ const UNUSED: u8 = 0;
 const CPU_READ: u8 = 1;
 const CPU_WRITE: u8 = 2;
 const GPU: u8 = 3;
+const PENDING_WRITE_TO_GPU: u8 = 4;
 #[derive(Debug)]
 pub struct CPUReadGuard<'a, Resource> where Resource: sealed::Mappable {
     tracker: &'a ResourceTrackerInternal<Resource>,
@@ -95,6 +96,7 @@ impl Debug for NotAvailable {
             CPU_READ => "CPU_READ",
             CPU_WRITE => "CPU_WRITE",
             GPU => "GPU",
+            PENDING_WRITE_TO_GPU => "PENDING_WRITE_TO_GPU",
             _ => "UNKNOWN",
         };
         write!(f, "NotAvailable {{ read_state: {} }}", state)
@@ -147,15 +149,20 @@ unsafe impl<Resource: Sync> Sync for ResourceTrackerInternal<Resource> {}
 
 
 impl<Resource> ResourceTrackerInternal<Resource> {
-    pub fn new(resource: Resource) -> Self {
+    pub fn new(resource: Resource, initial_state: u8) -> Self {
         Self {
-            state: AtomicU8::new(UNUSED),
+            state: AtomicU8::new(initial_state),
             resource: UnsafeCell::new(resource),
         }
     }
     /// Returns the resource if it is not in use by the CPU or GPU.
     pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
-        match self.state.compare_exchange(UNUSED, CPU_READ, std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed) {
+        match self.state.fetch_update(std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed, |current| {
+            match current {
+                UNUSED | PENDING_WRITE_TO_GPU => Some(CPU_READ),
+                _ => None,
+            }
+        }) {
             Ok(_) => {},
             Err(other) => return Err(NotAvailable { read_state: other }),
         }
@@ -166,7 +173,12 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     }
     /// Returns the resource if it is not in use by the CPU or GPU.
     pub async fn cpu_write(&self) -> Result<CPUWriteGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
-        match self.state.compare_exchange(UNUSED, CPU_WRITE, std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed) {
+        match self.state.fetch_update(std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed, |current| {
+            match current {
+                UNUSED | PENDING_WRITE_TO_GPU => Some(CPU_WRITE),
+                _ => None,
+            }
+        }) {
             Ok(_) => {},
             Err(other) => {
                 return Err(NotAvailable { read_state: other });
@@ -179,7 +191,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     }
     /// Returns the resource if it is not in use by the CPU or GPU.
     pub fn gpu(self: &Arc<Self>) -> Result<GPUGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
-        match self.state.compare_exchange(UNUSED, GPU, std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed) {
+        match self.state.compare_exchange(PENDING_WRITE_TO_GPU, GPU, std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed) {
             Ok(_) => Ok(GPUGuard { tracker: self.clone() }),
             Err(other) => Err(NotAvailable { read_state: other }),
         }
@@ -200,8 +212,14 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     ///safety: ensure lock is held
     unsafe fn unuse_cpu(&self) where Resource: sealed::Mappable { unsafe {
         (*self.resource.get()).unmap();
-        let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
-        assert_ne!(o, UNUSED, "Resource was not in use");
+        let old_state = self.state.fetch_update(std::sync::atomic::Ordering::Release, std::sync::atomic::Ordering::Relaxed, |current| {
+            match current {
+                CPU_READ => Some(UNUSED),
+                CPU_WRITE => Some(PENDING_WRITE_TO_GPU),
+                _ => panic!("unuse_cpu called from invalid state: {}", current),
+            }
+        }).expect("unuse_cpu state transition failed");
+        assert!(old_state == CPU_READ || old_state == CPU_WRITE, "Resource was not in CPU use");
     }}
     ///safety: ensure lock is held
     unsafe fn unmap_only_cpu(&self) where Resource: sealed::Mappable { unsafe {
@@ -214,9 +232,15 @@ impl<Resource> ResourceTrackerInternal<Resource> {
 }
 
 impl<Resource> ResourceTracker<Resource> {
-    pub fn new(resource: Resource) -> Self {
+    pub fn new(resource: Resource, initial_pending_gpu: bool) -> Self {
+        //initially the CPU-side is populated but GPU side is not.
+        let state = if initial_pending_gpu {
+            PENDING_WRITE_TO_GPU
+        } else {
+            UNUSED
+        };
         Self {
-            internal: Arc::new(ResourceTrackerInternal::new(resource)),
+            internal: Arc::new(ResourceTrackerInternal::new(resource, state)),
         }
     }
     pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {

@@ -238,7 +238,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
             cpu,
             width, height,
         };
-        let multibuffer = Multibuffer::new(individual_texture, gpu);
+        
+        let multibuffer = Multibuffer::new(individual_texture, gpu, true);
         let shared = Arc::new(Shared {
             multibuffer
         });

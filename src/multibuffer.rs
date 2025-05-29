@@ -61,10 +61,12 @@ pub struct CPUWriteGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuf
 
 impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
     fn drop(&mut self) {
-        let take = self.imp.take().expect("Dropped CPUWriteGuard already");
-        let gpu = self.buffer.mappable.convert_to_gpu(take);
-        *self.buffer.needs_gpu_copy.lock().unwrap() = Some(gpu);
+        // Just drop the CPU guard - this will transition to PENDING_WRITE_TO_GPU automatically
+        _ = self.imp.take().expect("Dropped CPUWriteGuard already");
+        
+        // Mark that GPU side needs updating
         self.buffer.gpu_side_is_dirty.mark_dirty(true);
+        
         //wake up the waiting threads
         // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
         let wakers_to_send: Vec<r#continue::Sender<()>> = {
@@ -193,22 +195,20 @@ pub struct Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     mappable: ResourceTracker<T>,
     wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
     gpu: U,
-    needs_gpu_copy: Mutex<Option<resource_tracking::GPUGuard<T>>>,
     gpu_side_is_dirty: DirtySender,
 }
 
 impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
-    pub fn new(element: T, gpu: U) -> Self {
-        let tracker = ResourceTracker::new(element);
-        let dirty_copy_to_gpu = tracker.gpu().expect("multibuffer new");
-
+    pub fn new(element: T, gpu: U, initial_write_to_gpu: bool) -> Self {
+        let tracker = ResourceTracker::new(element, initial_write_to_gpu);
+        // Don't immediately lock for GPU - start in UNUSED state
+        // The resource will transition to PENDING_WRITE_TO_GPU when first written
+        
         Multibuffer {
             mappable: tracker,
             gpu,
             wake_list: Arc::new(Mutex::new(Vec::new())),
-            //initially, GPU buffer type is probably dirty
-            needs_gpu_copy: Mutex::new(Some(dirty_copy_to_gpu)),
-            gpu_side_is_dirty: DirtySender::new(true) //agrees with needs_gpu_copy property
+            gpu_side_is_dirty: DirtySender::new(false)
         }
     }
 
@@ -260,24 +260,25 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     Caller must guarantee that the guard is live for the duration of the GPU access.
     */
     pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<T,U> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::CorrespondingMappedType> {
-        let take_dirty = self.needs_gpu_copy.lock().unwrap().take();
-        self.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
-        if let Some(imp_guard) = take_dirty {
-            let copy_guard = unsafe { self.gpu.copy_from_buffer(0, 0, imp_guard.byte_len(), copy_info, imp_guard) };
-            GPUGuard {
-                imp: Some(Err(copy_guard)),
-                wake_list: self.wake_list.clone(),
-                // shared: self.shared.clone(),
+        // Try to acquire GPU resource if it's in PENDING_WRITE_TO_GPU state
+        match self.mappable.gpu() {
+            Ok(gpu_guard) => {
+                // Resource was in PENDING_WRITE_TO_GPU state, need to copy
+                self.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
+                let copy_guard = unsafe { self.gpu.copy_from_buffer(0, 0, gpu_guard.byte_len(), copy_info, gpu_guard) };
+                GPUGuard {
+                    imp: Some(Err(copy_guard)),
+                    wake_list: self.wake_list.clone(),
+                }
+            },
+            Err(_) => {
+                // Resource is not in PENDING_WRITE_TO_GPU state, no copy needed
+                GPUGuard {
+                    imp: Some(Ok(self.gpu.clone())),
+                    wake_list: self.wake_list.clone(),
+                }
             }
         }
-        else {
-            //GPU isn't necessary so no copy is needed
-            GPUGuard {
-                imp: Some(Ok(self.gpu.clone())),
-                wake_list: self.wake_list.clone(),
-            }
-        }
-
     }
     ///Returns a [DirtyReceiver] that activates when the GPU side is dirty.
     pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
