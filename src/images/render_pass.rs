@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::pin::Pin;
 use crate::bindings::BindStyle;
-use crate::images::port::{PassClient};
 use crate::images::shader::{FragmentShader, VertexShader};
 
 /**
@@ -88,15 +86,4 @@ pub enum DrawCommand {
     TriangleStrip(u32),
     ///payload is the number of primitives (e.g., triangles)
     TriangleList(u32),
-}
-pub trait PassTrait<const DESCRIPTORS: usize> {
-    ///A type returned by the process of making a descriptor.
-    ///
-    /// You can use this to hold onto e.g. static texture tickets and provide them to future passes.
-    /// If you do not need to expose any details of your render pass, you can use the type `()`.
-    type DescriptorResult;
-    ///A type that contains information about your rendering pass.
-    /// The type may be cached by the implementation.
-    ///todo: async fn is not permitted in traits
-    fn into_descriptor<'a>(self, port: &'a mut PassClient) -> Pin<Box<dyn std::future::Future<Output=([PassDescriptor; DESCRIPTORS],Self::DescriptorResult)> + 'a>>;
 }

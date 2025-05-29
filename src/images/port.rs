@@ -3,7 +3,7 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
 use crate::images::device::BoundDevice;
-use crate::images::render_pass::{PassDescriptor, PassTrait};
+use crate::images::render_pass::PassDescriptor;
 use crate::images::Engine;
 use std::sync::atomic::{Ordering,AtomicU32};
 use crate::images::camera::{Camera};
@@ -338,13 +338,33 @@ impl Port {
 
     */
 
-    pub async fn add_fixed_pass<'s, const DESCRIPTORS: usize, P: PassTrait<DESCRIPTORS> + 'static>(&'s mut self, pass: P) -> P::DescriptorResult  {
-        let (descriptors, result) = pass.into_descriptor(&mut self.imp.pass_client).await;
+    pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
+        self.imp.add_fixed_pass(descriptor.clone()).await;
+        self.descriptors.push(descriptor);
+    }
+
+    /**
+    Adds multiple fixed passes to the port.
+
+    # Limitations
+    Currently, this doesn't work when the new port is running. mt2-242
+
+    There is currently no way to remove a pass.  mt2-243
+
+    */
+
+    pub async fn add_fixed_passes(&mut self, descriptors: Vec<PassDescriptor>) {
         for descriptor in descriptors {
             self.imp.add_fixed_pass(descriptor.clone()).await;
             self.descriptors.push(descriptor);
-        };
-        result
+        }
+    }
+
+    /**
+    Provides access to the PassClient for building pass descriptors.
+    */
+    pub fn pass_client(&mut self) -> &mut PassClient {
+        &mut self.imp.pass_client
     }
     ///Start rendering on the port.  Ports are not rendered by default.
     pub async fn start(&mut self) -> Result<(),Error> {
