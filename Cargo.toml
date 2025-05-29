@@ -31,3 +31,5 @@ log = "0.4.25"
 # Create a view based on app_window Surface
 app_window = ["dep:app_window"]
 backend_wgpu = ["dep:wgpu"]
+# Enable testing APIs for integration tests
+testing = []

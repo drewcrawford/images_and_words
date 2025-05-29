@@ -45,7 +45,7 @@ impl View {
         todo!()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub fn for_testing() -> Self {
         View {}
     }

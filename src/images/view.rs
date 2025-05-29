@@ -6,7 +6,7 @@ use crate::entry_point::EntryPoint;
 enum OSImpl {
     #[cfg(feature = "app_window")]
     AppWindow(app_window::surface::Surface, RawWindowHandle, RawDisplayHandle),
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     Testing,
 }
 #[derive(thiserror::Error,Debug)]
@@ -38,7 +38,7 @@ impl View {
         {
             let (_window_handle, _display_handle): (RawWindowHandle, RawDisplayHandle) = match &self.os_impl {
                 OSImpl::AppWindow(_, window_handle, display_handle) => (*window_handle, *display_handle),
-                #[cfg(test)]
+                #[cfg(any(test, feature = "testing"))]
                 OSImpl::Testing => {
                     // For testing, imp is already set in for_testing()
                     return Ok(());
@@ -52,7 +52,7 @@ impl View {
         #[cfg(not(feature = "app_window"))]
         {
             match self.os_impl {
-                #[cfg(test)]
+                #[cfg(any(test, feature = "testing"))]
                 OSImpl::Testing => {
                     // For testing, imp is already set in for_testing()
                     Ok(())
@@ -72,7 +72,7 @@ impl View {
                     let (size,scale) = surface.size_scale().await;
                     (size.width() as u16,size.height() as u16, scale)
                 }
-                #[cfg(test)]
+                #[cfg(any(test, feature = "testing"))]
                 OSImpl::Testing => {
                     // Return a dummy size for testing
                     (800, 600, 1.0)
@@ -82,7 +82,7 @@ impl View {
         #[cfg(not(feature = "app_window"))]
         {
             match self.os_impl {
-                #[cfg(test)]
+                #[cfg(any(test, feature = "testing"))]
                 OSImpl::Testing => {
                     // Return a dummy size for testing
                     (800, 600, 1.0)
@@ -108,7 +108,7 @@ impl View {
     Creates a view for testing that bypasses the surface requirement.
     This creates a view with the testing implementation.
     */
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub fn for_testing() -> Self {
         View {
             os_impl: OSImpl::Testing,
