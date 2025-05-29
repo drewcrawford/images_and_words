@@ -8,7 +8,7 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = "~2"
+thiserror = "~1"
 png = "~0"
 tgar = "~1"
 some_executor = "0.4.1"
@@ -19,12 +19,13 @@ async_file = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/async_fil
 test_executors = "0.3.2"
 raw-window-handle = "0.6.2"
 continue = {version = "0.1.0"}
-half = "~2"
+half = "2.4.1"
 portable-async-sleep = {path = "../portable-async-sleep"}
 # optional
 app_window = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/app_window.git", optional=true}
 # used for wgpu backend
-wgpu = {version = "~25", optional = true}
+wgpu = {version = "24.0.1", optional = true}
+log = "0.4.25"
 
 [features]
 # Create a view based on app_window Surface
