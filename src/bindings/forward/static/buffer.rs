@@ -17,11 +17,6 @@ pub struct Buffer<Element> {
     element: PhantomData<Element>,
 }
 
-#[derive(Debug,Clone)]
-pub struct RenderSide {
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) imp: imp::GPUableBuffer,
-}
 
 #[derive(Debug,thiserror::Error)]
 #[error("Texture error")]
@@ -63,10 +58,5 @@ impl<Element> Buffer<Element> {
         })
     }
 
-    pub fn render_side(&self) -> RenderSide {
-        RenderSide {
-            imp: self.imp.clone()
-        }
-    }
 }
 

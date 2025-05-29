@@ -71,7 +71,7 @@ fn prepare_pass_descriptor(
                 }
             },
             BindTarget::StaticBuffer(imp) => {
-                let buffer_binding_type = match imp.imp.storage_type() {
+                let buffer_binding_type = match imp.storage_type() {
                     StorageType::Uniform => BufferBindingType::Uniform,
                     StorageType::Storage => BufferBindingType::Storage { read_only: true },
                     StorageType::Vertex | StorageType::Index => unreachable!(),
@@ -80,7 +80,7 @@ fn prepare_pass_descriptor(
                 BindingType::Buffer {
                     ty: buffer_binding_type,
                     has_dynamic_offset: false,
-                    min_binding_size: NonZero::new(imp.imp.buffer.size()),
+                    min_binding_size: NonZero::new(imp.buffer.size()),
                 }
             },
             BindTarget::Camera => {
@@ -352,9 +352,9 @@ pub fn prepare_bind_group(
             }
             BindTarget::StaticBuffer(buf) => {
                 BindingResource::Buffer(BufferBinding {
-                    buffer: &buf.imp.buffer,
+                    buffer: &buf.buffer,
                     offset: 0,
-                    size: Some(NonZero::new(buf.imp.buffer.size() as u64).unwrap()),
+                    size: Some(NonZero::new(buf.buffer.size() as u64).unwrap()),
                 })
             }
             BindTarget::Camera => {
@@ -427,7 +427,7 @@ pub fn prepare_bind_group(
         match &buffer.target {
             BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_) => {}
             BindTarget::VB(_layout,render_side) => {
-                let buffer = render_side.imp.buffer.clone();
+                let buffer = render_side.buffer.clone();
                 vertex_buffers.push((*b, buffer));
             }
             BindTarget::DynamicVB(_layout,render_side) => {
@@ -439,7 +439,7 @@ pub fn prepare_bind_group(
     }
 
     let index_buffer = if let Some(buffer) = &prepared.pass_descriptor.bind_style().index_buffer {
-        let buffer = buffer.imp.buffer.clone();
+        let buffer = buffer.buffer.clone();
         Some(buffer)
     } else {
         None

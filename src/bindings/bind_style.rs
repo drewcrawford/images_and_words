@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use crate::bindings::forward::dynamic::buffer::{ErasedRenderSide, RenderSide as DynamicRenderSide};
 use crate::bindings::forward::dynamic::frame_texture::{ErasedTextureRenderSide,TextureRenderSide};
 use crate::bindings::sampler::SamplerType;
-use crate::bindings::forward::r#static::buffer::RenderSide as StaticBufferRenderSide;
 /*
 Defines the way resources are bound for a render pass.
 
@@ -13,7 +12,7 @@ For example, the camera matrix is just a placeholder that is resolved later.
 #[derive(Debug,Clone)]
 pub struct BindStyle {
     pub(crate) binds: HashMap<u32,BindInfo>,
-    pub(crate) index_buffer: Option<StaticBufferRenderSide>,
+    pub(crate) index_buffer: Option<crate::imp::GPUableBuffer>,
 }
 
 
@@ -21,7 +20,7 @@ pub struct BindStyle {
 
 #[derive(Debug,Clone)]
 pub(crate) enum BindTarget {
-    StaticBuffer(StaticBufferRenderSide),
+    StaticBuffer(crate::imp::GPUableBuffer),
     DynamicBuffer(ErasedRenderSide),
     Camera,
     FrameCounter,
@@ -31,7 +30,7 @@ pub(crate) enum BindTarget {
     #[allow(dead_code)] //nop implementation does not use
     Sampler(SamplerType),
     #[allow(dead_code)] //nop implementation does not use
-    VB(VertexLayout,StaticBufferRenderSide),
+    VB(VertexLayout,crate::imp::GPUableBuffer),
     #[allow(dead_code)] //nop implementation does not use
     DynamicVB(VertexLayout,ErasedRenderSide),
 }
@@ -87,8 +86,8 @@ impl BindStyle {
         self.bind(slot, stage, BindTarget::FrameCounter);
     }
 
-    pub fn bind_static_buffer(&mut self, slot: BindSlot, stage: Stage, render_side: StaticBufferRenderSide) {
-        self.bind(slot, stage, BindTarget::StaticBuffer(render_side));
+    pub fn bind_static_buffer<Element>(&mut self, slot: BindSlot, stage: Stage, buffer: &crate::bindings::forward::r#static::buffer::Buffer<Element>) {
+        self.bind(slot, stage, BindTarget::StaticBuffer(buffer.imp.clone()));
     }
 
     pub fn bind_dynamic_buffer<Element>(&mut self, slot: BindSlot, stage: Stage, render_side: DynamicRenderSide<Element>) where Element: Send + Sync + 'static {
@@ -109,8 +108,8 @@ impl BindStyle {
 
     Vertex buffers are separate from other buffers because they are bound differently.
     */
-    pub fn bind_static_vertex_buffer(&mut self, slot: BindSlot, buffer: StaticBufferRenderSide, layout: VertexLayout) {
-        self.bind(slot, Stage::Vertex, BindTarget::VB(layout, buffer));
+    pub fn bind_static_vertex_buffer<Element>(&mut self, slot: BindSlot, buffer: &crate::bindings::forward::r#static::buffer::Buffer<Element>, layout: VertexLayout) {
+        self.bind(slot, Stage::Vertex, BindTarget::VB(layout, buffer.imp.clone()));
     }
 
     /**
@@ -129,7 +128,7 @@ impl BindStyle {
     */
 
     pub fn bind_static_index_buffer(&mut self, buffer: &crate::bindings::forward::r#static::buffer::Buffer<u16>) {
-        self.index_buffer = Some(buffer.render_side())
+        self.index_buffer = Some(buffer.imp.clone())
     }
 }
 
