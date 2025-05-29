@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use crate::bindings::forward::dynamic::buffer::ErasedRenderSide;
-use crate::bindings::forward::dynamic::frame_texture::{ErasedTextureRenderSide,TextureRenderSide};
+use crate::bindings::forward::dynamic::frame_texture::ErasedTextureRenderSide;
 use crate::bindings::sampler::SamplerType;
 /*
 Defines the way resources are bound for a render pass.
@@ -100,8 +100,8 @@ impl BindStyle {
             self.bind(BindSlot::new(sampler.pass_index), stage, BindTarget::Sampler(sampler.sampler_type));
         }
     }
-    pub fn bind_dynamic_texture<Format>(&mut self, slot: BindSlot, stage: Stage, texture: TextureRenderSide<Format>) where Format: crate::pixel_formats::sealed::PixelFormat {
-        self.bind(slot, stage, BindTarget::DynamicTexture(texture.erased()));
+    pub fn bind_dynamic_texture<Format>(&mut self, slot: BindSlot, stage: Stage, texture: &crate::bindings::forward::dynamic::frame_texture::FrameTexture<Format>) where Format: crate::pixel_formats::sealed::PixelFormat + 'static {
+        self.bind(slot, stage, BindTarget::DynamicTexture(texture.render_side().erased()));
     }
     /**
     Binds a static buffer to the specified slot.

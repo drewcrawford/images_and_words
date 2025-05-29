@@ -88,7 +88,7 @@ impl ErasedTextureRenderSide {
 An opaque type that references the multibuffered texture for GPU binding.
 */
 
-pub struct TextureRenderSide<Format: PixelFormat> {
+pub(crate) struct TextureRenderSide<Format: PixelFormat> {
     shared: Arc<Shared<Format>>
 }
 
@@ -178,7 +178,7 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct FrameTexture<Format: PixelFormat>{
     shared: Arc<Shared<Format>>,
     width: u16,
@@ -270,7 +270,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /**
     Gets an associated [TextureRenderSide] for this texture.
 */
-    pub fn render_side(&mut self) -> TextureRenderSide<Format> {
+    pub(crate) fn render_side(&self) -> TextureRenderSide<Format> {
         TextureRenderSide {
            shared: self.shared.clone(),
         }
