@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use wgpu::Limits;
+use wgpu::{Limits, Trace};
 use crate::imp::Error;
 
 #[derive(Debug)]
@@ -17,8 +17,9 @@ impl BoundDevice {
             //todo: choose better limits?
             required_limits: Limits::downlevel_webgl2_defaults(),
             memory_hints: Default::default(),
+            trace: Trace::Off,
         };
-        let (device,q) = unbound_device.0.adapter.request_device(&descriptor, None).await?;
+        let (device,q) = unbound_device.0.adapter.request_device(&descriptor).await?;
 
         Ok(
             BoundDevice {
