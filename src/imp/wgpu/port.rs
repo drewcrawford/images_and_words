@@ -325,7 +325,6 @@ pub fn prepare_bind_group(
     bind_device: &crate::images::BoundDevice,
     prepared: &PreparedPass,
     camera_buffer: &dyn SomeGPUAccess,
-    pixel_linear_sampler: &wgpu::Sampler,
     mipmapped_sampler: &wgpu::Sampler,
     copy_info: &mut CopyInfo,
 ) -> BindGroupGuard {
@@ -394,7 +393,6 @@ pub fn prepare_bind_group(
             }
             BindTarget::Sampler(sampler) => {
                 match sampler {
-                    SamplerType::PixelLinear => { BindingResource::Sampler(pixel_linear_sampler) }
                     SamplerType::Mipmapped => { BindingResource::Sampler(mipmapped_sampler) }
                 }
             }
@@ -514,21 +512,6 @@ impl Port {
                 view_formats: Vec::new(),
             },
         );
-
-        let pixel_linear_sampler = device.0.device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("pixel linear sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 1.0,
-            compare: None,
-            anisotropy_clamp: 1,
-            border_color: None,
-        });
 
         let mipmapped_sampler = device.0.device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("mipmapped sampler"),
@@ -650,7 +633,7 @@ impl Port {
         let mut frame_bind_groups = Vec::new();
         for prepared in &prepared {
             let camera_gpu_deref: &dyn SomeGPUAccess = &**camera_gpu_access;
-            let bind_group = prepare_bind_group(device, prepared, camera_gpu_deref, &pixel_linear_sampler, &mipmapped_sampler, &mut copy_info);
+            let bind_group = prepare_bind_group(device, prepared, camera_gpu_deref, &mipmapped_sampler, &mut copy_info);
             frame_bind_groups.push(bind_group);
         }
         //in the second pass, we encode our render pass
