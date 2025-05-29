@@ -11,7 +11,7 @@ use crate::pixel_formats::sealed::PixelFormat;
 
 /**
 Cross-platform, forward, static texture.*/
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Texture<Format> {
     pub(crate) imp: imp::GPUableTexture<Format>,
     width: u16,
@@ -55,11 +55,6 @@ impl<Format: PixelFormat> Texture<Format> {
             slice[texel.y as usize * width as usize + texel.x as usize].clone()
         }).await
     }
-    pub fn render_side(&self) -> RenderSide {
-        RenderSide {
-            imp: self.imp.render_side()
-        }
-    }
 
     pub fn width(&self) -> u16 {
         self.width
@@ -70,9 +65,5 @@ impl<Format: PixelFormat> Texture<Format> {
     }
 }
 
-pub struct RenderSide {
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) imp: imp::TextureRenderSide,
-}
 
 

@@ -26,7 +26,7 @@ pub(crate) enum BindTarget {
     FrameCounter,
     DynamicTexture(ErasedTextureRenderSide),
     #[allow(dead_code)] //nop implementation does not use
-    StaticTexture(StaticTextureTicket, Option<SamplerType>),
+    StaticTexture(crate::imp::TextureRenderSide, Option<SamplerType>),
     #[allow(dead_code)] //nop implementation does not use
     Sampler(SamplerType),
     #[allow(dead_code)] //nop implementation does not use
@@ -94,8 +94,8 @@ impl BindStyle {
         self.bind(slot, stage, BindTarget::DynamicBuffer(render_side.erased_render_side()));
     }
 
-    pub fn bind_static_texture(&mut self, slot: BindSlot, stage: Stage, texture: StaticTextureTicket, sampler_type: Option<SamplerInfo>) {
-        self.bind(slot, stage.clone(), BindTarget::StaticTexture(texture, sampler_type.as_ref().map(|x| x.sampler_type)));
+    pub fn bind_static_texture<Format: crate::pixel_formats::sealed::PixelFormat>(&mut self, slot: BindSlot, stage: Stage, texture: &crate::bindings::forward::r#static::texture::Texture<Format>, sampler_type: Option<SamplerInfo>) {
+        self.bind(slot, stage.clone(), BindTarget::StaticTexture(texture.imp.render_side(), sampler_type.as_ref().map(|x| x.sampler_type)));
         if let Some(sampler) = sampler_type {
             self.bind(BindSlot::new(sampler.pass_index), stage, BindTarget::Sampler(sampler.sampler_type));
         }
@@ -153,7 +153,6 @@ impl BindSlot {
         }
     }
 }
-use crate::images::StaticTextureTicket;
 use crate::images::vertex_layout::VertexLayout;
 
 

@@ -5,12 +5,9 @@ use std::sync::{Arc, Mutex};
 use crate::images::device::BoundDevice;
 use crate::images::render_pass::{PassDescriptor, PassTrait};
 use crate::images::Engine;
-use crate::bindings::forward::r#static::texture::Texture;
-use crate::pixel_formats::{R32Float, R8UNorm, RGBA16Unorm, RGBA8UNorm, RGFloat, BGRA8UNormSRGB, R16Float};
 use std::sync::atomic::{Ordering,AtomicU32};
 use crate::images::camera::{Camera};
 use std::time::{Instant};
-use slotmap::{DefaultKey, SlotMap};
 use crate::bindings::bind_style::BindTarget;
 use crate::bindings::dirty_tracking::DirtyAggregateReceiver;
 use crate::bittricks::{u16s_to_u32, u32_to_u16s};
@@ -21,44 +18,9 @@ use crate::imp;
 
 
 
-#[derive(Debug)]
-pub struct InstanceTicket<T> {
-    #[allow(dead_code)] //nop implementation does not use
-    slot: slotmap::DefaultKey,
-    _phantom: std::marker::PhantomData<T>,
-}
-impl<T> Copy for InstanceTicket<T> {}
-
-impl<T> Clone for InstanceTicket<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-#[derive(Debug,Clone,Copy)]
-pub(crate) enum InternalStaticTextureTicket {
-    #[allow(dead_code)] //nop implementation does not use
-    R32Float(InstanceTicket<Texture<R32Float>>),
-    #[allow(dead_code)] //nop implementation does not use
-    RGBA16UNorm(InstanceTicket<Texture<RGBA16Unorm>>),
-    #[allow(dead_code)] //nop implementation does not use
-    RGFloat(InstanceTicket<Texture<RGFloat>>),
-    #[allow(dead_code)] //nop implementation does not use
-    RGBA8Unorm(InstanceTicket<Texture<RGBA8UNorm>>),
-    #[allow(dead_code)] //nop implementation does not use
-    R8UNorm(InstanceTicket<Texture<R8UNorm>>),
-    #[allow(dead_code)] //nop implementation does not use
-    BGRA8UnormSRGB(InstanceTicket<Texture<BGRA8UNormSRGB>>),
-    #[allow(dead_code)] //nop implementation does not use
-    R16Float(InstanceTicket<Texture<R16Float>>),
-}
 
 
-//design note: static texture tickets have a distinct type because
-//dynamic textures have a guard type when they're popped, and we want to resolve that to some
-//specific type inside the port.
 
-#[derive(Debug,Clone,Copy)] pub  struct StaticTextureTicket(pub(crate) InternalStaticTextureTicket);
 
 
 /**
@@ -71,86 +33,14 @@ We want to separate it out from the main port for a few reasons:
  */
 #[derive(Debug)]
 pub struct PassClient {
-    //static textures
-    pub(crate) texture_r32float: SlotMap<DefaultKey,Texture<R32Float>>,
-    pub(crate) texture_r16float: SlotMap<DefaultKey, Texture<R16Float>>,
-    pub(crate) texture_rgba16unorm: SlotMap<DefaultKey, Texture<RGBA16Unorm>>,
-    pub(crate) texture_rgfloat: SlotMap<DefaultKey, Texture<RGFloat>>,
-    pub(crate) texture_rgba8unorm: SlotMap<DefaultKey,Texture<RGBA8UNorm>>,
-    pub(crate) texture_r8unorm: SlotMap<DefaultKey, Texture<R8UNorm>>,
-    pub(crate) texture_bgra8unorm_srgb: SlotMap<DefaultKey, Texture<BGRA8UNormSRGB>>,
-    //frame textures
-
     bound_device: Arc<BoundDevice>,
 }
 impl PassClient {
-    pub fn add_texture_r32float(&mut self, texture: Texture<R32Float>) -> StaticTextureTicket {
-        StaticTextureTicket(InternalStaticTextureTicket::R32Float(InstanceTicket{slot: self.texture_r32float.insert(texture), _phantom: std::marker::PhantomData} ))
-    }
 
-    pub fn add_texture_r16float(&mut self, texture: Texture<R16Float>) -> StaticTextureTicket {
-        StaticTextureTicket(InternalStaticTextureTicket::R16Float(InstanceTicket{slot: self.texture_r16float.insert(texture), _phantom: std::marker::PhantomData} ))
-    }
-    pub fn add_texture_rgba16unorm(&mut self, texture: Texture<RGBA16Unorm>) -> StaticTextureTicket {
-        StaticTextureTicket(InternalStaticTextureTicket::RGBA16UNorm(InstanceTicket{slot: self.texture_rgba16unorm.insert(texture), _phantom: std::marker::PhantomData}))
-    }
-    pub fn add_texture_rgfloat(&mut self, texture: Texture<RGFloat>) -> StaticTextureTicket {
-        StaticTextureTicket(InternalStaticTextureTicket::RGFloat(InstanceTicket{slot: self.texture_rgfloat.insert(texture), _phantom: std::marker::PhantomData} ))
-    }
-    pub fn add_texture_rgba8unorm(&mut self, texture: Texture<RGBA8UNorm>) -> StaticTextureTicket {
-        StaticTextureTicket(InternalStaticTextureTicket::RGBA8Unorm(InstanceTicket{slot: self.texture_rgba8unorm.insert(texture), _phantom: std::marker::PhantomData} ))
-    }
-    pub fn add_texture_bgra8_unorm_srgb(&mut self, texture: Texture<BGRA8UNormSRGB>) -> StaticTextureTicket {
-        StaticTextureTicket(InternalStaticTextureTicket::BGRA8UnormSRGB(InstanceTicket{slot: self.texture_bgra8unorm_srgb.insert(texture), _phantom: std::marker::PhantomData} ))
-    }
-    pub fn add_texture_r8unorm(&mut self, texture: Texture<R8UNorm>) -> StaticTextureTicket {
-        StaticTextureTicket(InternalStaticTextureTicket::R8UNorm(InstanceTicket{slot: self.texture_r8unorm.insert(texture), _phantom: std::marker::PhantomData} ))
-    }
-
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) fn lookup_static_texture(&self, ticket: StaticTextureTicket) -> crate::bindings::forward::r#static::texture::RenderSide {
-        match ticket.0 {
-            InternalStaticTextureTicket::R32Float(t) => {
-                let m = self.texture_r32float.get(t.slot).expect("Texture not found");
-                m.render_side()
-            }
-            InternalStaticTextureTicket::R16Float(t) => {
-                let m = self.texture_r16float.get(t.slot).expect("Texture not found");
-                m.render_side()
-            }
-            InternalStaticTextureTicket::RGBA16UNorm(t) => {
-                let m = self.texture_rgba16unorm.get(t.slot).expect("Texture not found");
-                m.render_side()
-            }
-            InternalStaticTextureTicket::RGFloat(t) => {
-                let m = self.texture_rgfloat.get(t.slot).expect("Texture not found");
-                m.render_side()
-            }
-            InternalStaticTextureTicket::RGBA8Unorm(t) => {
-                let m = self.texture_rgba8unorm.get(t.slot).expect("Texture not found");
-                m.render_side()
-            }
-            InternalStaticTextureTicket::R8UNorm(t) => {
-                let m = self.texture_r8unorm.get(t.slot).expect("Texture not found");
-                m.render_side()
-            }
-            InternalStaticTextureTicket::BGRA8UnormSRGB(t) => {
-                let m = self.texture_bgra8unorm_srgb.get(t.slot).expect("Texture not found");
-                m.render_side()
-            }
-        }
-    }
 
 
     pub(crate) fn new(bound_device: Arc<BoundDevice>) -> Self {
         PassClient {
-            texture_r32float: SlotMap::new(),
-            texture_r16float: SlotMap::new(),
-            texture_rgba16unorm: SlotMap::new(),
-            texture_rgfloat: SlotMap::new(),
-            texture_rgba8unorm: SlotMap::new(),
-            texture_r8unorm: SlotMap::new(),
-            texture_bgra8unorm_srgb: SlotMap::new(),
             bound_device,
         }
     }

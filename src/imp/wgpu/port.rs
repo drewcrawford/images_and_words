@@ -326,7 +326,7 @@ pub struct BindGroupGuard {
 pub fn prepare_bind_group(
     bind_device: &crate::images::BoundDevice,
     prepared: &PreparedPass,
-    pass_client: &PassClient,
+    _pass_client: &PassClient,
     camera_buffer: &dyn SomeGPUAccess,
     pixel_linear_sampler: &wgpu::Sampler,
     mipmapped_sampler: &wgpu::Sampler,
@@ -365,9 +365,8 @@ pub fn prepare_bind_group(
                 })
             }
             BindTarget::FrameCounter => { todo!() }
-            BindTarget::StaticTexture(texture, _sampler_type) => {
-                let lookup = pass_client.lookup_static_texture(*texture);
-                let view = build_resources.push(lookup.imp.texture.create_view(&wgpu::TextureViewDescriptor {
+            BindTarget::StaticTexture(texture_render_side, _sampler_type) => {
+                let view = build_resources.push(texture_render_side.texture.create_view(&wgpu::TextureViewDescriptor {
                     label: None,
                     format: None,
                     dimension: None,

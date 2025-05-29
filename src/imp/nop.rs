@@ -201,7 +201,7 @@ impl<Format> crate::bindings::resource_tracking::sealed::Mappable for MappableTe
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RenderSide;
 
 pub type TextureRenderSide = RenderSide;

@@ -350,6 +350,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUMultibuffer for GPUab
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RenderSide {
     pub(super) texture: wgpu::Texture,
 }
