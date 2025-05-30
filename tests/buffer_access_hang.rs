@@ -77,12 +77,10 @@ async fn test_buffer_access_hang_reproducer() {
     
     println!("Beginning buffer access test...");
 
-    let (sbegin, rbegin) = std::sync::mpsc::channel();
     let (send, rend) = std::sync::mpsc::channel();
 
     test_executors::spawn_on("buffer thread", async move {
         // Reproduce the pattern from the reproducer
-        sbegin.send(()).unwrap(); //indicate port should start
         loop {
             iteration += 1;
             println!("=== Iteration {} ===", iteration);

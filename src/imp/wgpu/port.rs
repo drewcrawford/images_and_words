@@ -716,18 +716,21 @@ impl Port {
 
         std::mem::drop(render_pass); //stop mutably borrowing the encoder
         let encoded = encoder.finish();
-        device.0.queue.submit(std::iter::once(encoded));
-        finisher.commit();
 
+        let move_finisher = finisher.clone();
+        //note that on_submitted_work_done must be called BEFORE submit!
         device.0.queue.on_submitted_work_done(move || {
             //callbacks must be alive for full GPU-side render
             std::mem::drop(frame_bind_groups);
             // println!("frame guards dropped");
-            finisher.end_frame();
+            move_finisher.end_frame();
         });
+        device.0.queue.submit(std::iter::once(encoded));
         frame.map(|f| {
             f.present();
         });
         self.frame += 1;
+        finisher.commit();
+
     }
 }
