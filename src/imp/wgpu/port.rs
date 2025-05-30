@@ -475,8 +475,7 @@ impl Port {
     pub async fn render_frame(&mut self) {
 
         self.port_reporter_send.begin_frame(self.frame);
-        let mut finisher = self.port_reporter_send.gpu_finisher();
-        finisher.begin_frame();
+        let frame_guard = self.port_reporter_send.create_frame_guard();
         //todo: We are currently doing a lot of setup work on each frame, that ought to be moved to initialization?
         let device = self.engine.bound_device().as_ref();
         let mut prepared = Vec::new();
@@ -717,20 +716,22 @@ impl Port {
         std::mem::drop(render_pass); //stop mutably borrowing the encoder
         let encoded = encoder.finish();
 
-        let move_finisher = finisher.clone();
+        let frame_guard_for_callback = std::sync::Arc::new(frame_guard);
+        let callback_guard = frame_guard_for_callback.clone();
         //note that on_submitted_work_done must be called BEFORE submit!
         device.0.queue.on_submitted_work_done(move || {
             //callbacks must be alive for full GPU-side render
             std::mem::drop(frame_bind_groups);
             // println!("frame guards dropped");
-            move_finisher.end_frame();
+            callback_guard.mark_gpu_complete();
         });
         device.0.queue.submit(std::iter::once(encoded));
         frame.map(|f| {
             f.present();
         });
         self.frame += 1;
-        finisher.commit();
+        frame_guard_for_callback.mark_cpu_complete();
+        // FrameGuard will be dropped here, triggering statistics update
 
     }
 }

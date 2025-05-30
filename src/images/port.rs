@@ -16,6 +16,76 @@ use crate::images::view::View;
 use crate::imp;
 use await_values::{Value, Observer};
 
+/**
+Guard type for tracking frame timing information.
+Created when a frame begins and dropped when frame is complete.
+*/
+#[derive(Debug)]
+pub(crate) struct FrameGuard {
+    frame_start: Instant,
+    cpu_end: Mutex<Option<Instant>>,
+    gpu_end: Mutex<Option<Instant>>,
+    port_reporter: Arc<PortReporterImpl>,
+}
+
+impl FrameGuard {
+    pub(crate) fn new(port_reporter: Arc<PortReporterImpl>) -> Self {
+        Self {
+            frame_start: Instant::now(),
+            cpu_end: Mutex::new(None),
+            gpu_end: Mutex::new(None),
+            port_reporter,
+        }
+    }
+    
+    pub(crate) fn mark_cpu_complete(&self) {
+        *self.cpu_end.lock().unwrap() = Some(Instant::now());
+    }
+    
+    pub(crate) fn mark_gpu_complete(&self) {
+        *self.gpu_end.lock().unwrap() = Some(Instant::now());
+    }
+}
+
+impl Drop for FrameGuard {
+    fn drop(&mut self) {
+        let cpu_end = self.cpu_end.lock().unwrap().expect("CPU end time not set");
+        let gpu_end = self.gpu_end.lock().unwrap().expect("GPU end time not set");
+        
+        let frame_info = FrameInfo {
+            frame_start: self.frame_start,
+            cpu_end,
+            gpu_end,
+        };
+        
+        self.port_reporter.add_frame_info(frame_info);
+    }
+}
+
+/**
+Complete timing information for a finished frame.
+*/
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FrameInfo {
+    frame_start: Instant,
+    cpu_end: Instant,
+    gpu_end: Instant,
+}
+
+impl FrameInfo {
+    pub(crate) fn cpu_duration_ms(&self) -> i32 {
+        self.cpu_end.duration_since(self.frame_start).as_millis() as i32
+    }
+    
+    pub(crate) fn gpu_duration_ms(&self) -> i32 {
+        self.gpu_end.duration_since(self.cpu_end).as_millis() as i32
+    }
+    
+    pub(crate) fn total_duration_ms(&self) -> i32 {
+        self.gpu_end.duration_since(self.frame_start).as_millis() as i32
+    }
+}
+
 
 
 
@@ -131,122 +201,70 @@ impl PortReporter {
 pub(crate) struct PortReporterImpl {
     frame_begun: AtomicU32,
     drawable_size: AtomicU32,
+    fps: Value<i32>,
+    ms: Value<i32>,
+    cpu_ms: Value<i32>,
+    min_elapsed_ms: Value<i32>,
+    frame_history: Mutex<Vec<FrameInfo>>,
 }
 impl PortReporterImpl {
-
-}
-
-#[derive(Debug)]
-struct GPUFinishReporterImpl {
-    #[allow(dead_code)] //nop implementation does not use
-    fps_sender: Value<i32>,
-    #[allow(dead_code)] //nop implementation does not use
-    gpu_time_sender: Value<i32>,
-    #[allow(dead_code)] //nop implementation does not use
-    cpu_time_sender: Value<i32>,
-    #[allow(dead_code)] //nop implementation does not use
-    min_elapsed_sender: Value<i32>,
-    //this is the time between end_frame calls.
-    #[allow(dead_code)] //nop implementation does not use
-    recent_elapsed: Mutex<Vec<f32>>,
-    //because we need to store our elapsed frame in an atomic, we need to calculate it relative to some epoch.
-    #[allow(dead_code)] //nop implementation does not use
-    epoch: Instant,
-    #[allow(dead_code)] //nop implementation does not use
-    last_instant: Arc<Mutex<f32>>, //relative to epoch
-}
-
-
-
-/**
-Special type that is moved into GPU completion blocks, typically wrapped in Arc.
-*/
-#[derive(Debug,Clone)]
-pub(crate) struct GPUFinishReporter {
-    #[allow(dead_code)] //nop implementation does not use
-    imp: Arc<GPUFinishReporterImpl>,
-    #[allow(dead_code)] //nop implementation does not use
-    begin_frame: Instant,
-    #[allow(dead_code)] //nop implementation does not use
-    last_commit: Instant,
-}
-impl GPUFinishReporter {
-    fn new(fps_sender: Value<i32>, ms_sender: Value<i32>, cpu_time_sender: Value<i32>, min_elapsed_sender: Value<i32>) -> Self {
-        let recent_elapsed = Mutex::new(Vec::new());
-        let epoch = Instant::now();
-        let last_instant = Arc::new(Mutex::new(0.0));
-        let commit = Instant::now();
-        let imp = Arc::new(GPUFinishReporterImpl {
-            fps_sender,
-            gpu_time_sender: ms_sender,
-            cpu_time_sender,
-            min_elapsed_sender,
-            recent_elapsed,
-            epoch,
-            last_instant,
-        });
-        Self {
-            imp,
-            last_commit: commit,
-            begin_frame: commit,
-        }
+    pub(crate) fn create_frame_guard(self: &Arc<Self>) -> FrameGuard {
+        FrameGuard::new(self.clone())
     }
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) fn begin_frame(&mut self) {
-        self.begin_frame = Instant::now();
-    }
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) fn commit(&mut self) {
-        self.last_commit = Instant::now();
-        let begin_elapsed = self.last_commit.duration_since(self.begin_frame).as_micros() / (1000 * 10);
-        let mut cpu_sender = self.imp.cpu_time_sender.set(begin_elapsed as i32);
-    }
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) fn end_frame(&self) {
-        let now = Instant::now();
-        let this_instant = now.duration_since(self.imp.epoch).as_secs_f32();
-        let last_instant = {
-            let mut lock = self.imp.last_instant.lock().unwrap();
-            let last_instant = *lock;
-            *lock = this_instant;
-            last_instant
-        };
-        let elapsed = this_instant - last_instant;
-        let mut lock = self.imp.recent_elapsed.lock().unwrap();
-
-        let mut avg = 0.0;
-        for i in &*lock {
-            avg += i;
-        }
-        avg += elapsed;
-        avg /= (lock.len() + 1) as f32;
-        let fps = 1.0 / avg;
-        lock.push(elapsed);
-        while lock.len() > 60 {
-            lock.remove(0);
-        }
-        self.imp.fps_sender.set(fps.round() as i32);
+    
+    pub(crate) fn add_frame_info(&self, frame_info: FrameInfo) {
+        const MAX_HISTORY: usize = 60; // Keep last 60 frames
         
-        // Update minimum elapsed time in milliseconds
-        if let Some(min_elapsed) = lock.iter().min_by(|a, b| a.partial_cmp(b).unwrap()) {
-            let min_elapsed_ms = (min_elapsed * 1000.0) as i32;
-            self.imp.min_elapsed_sender.set(min_elapsed_ms);
+        let mut history = self.frame_history.lock().unwrap();
+        history.push(frame_info);
+        
+        // Keep only the most recent frames
+        while history.len() > MAX_HISTORY {
+            history.remove(0);
         }
-
-        let commit_elapsed = now.duration_since(self.last_commit).as_micros() / (1000 * 10);
-        self.imp.gpu_time_sender.set(commit_elapsed as i32);
+        
+        // Recalculate statistics
+        if !history.is_empty() {
+            // Calculate FPS from frame intervals
+            let mut total_interval = 0.0;
+            let mut min_interval = f64::MAX;
+            
+            for i in 1..history.len() {
+                let interval = history[i].frame_start.duration_since(history[i-1].frame_start).as_secs_f64();
+                total_interval += interval;
+                min_interval = min_interval.min(interval);
+            }
+            
+            if history.len() > 1 {
+                let avg_interval = total_interval / (history.len() - 1) as f64;
+                let fps = (1.0 / avg_interval).round() as i32;
+                self.fps.set(fps);
+                
+                let min_elapsed_ms = (min_interval * 1000.0) as i32;
+                self.min_elapsed_ms.set(min_elapsed_ms);
+            }
+            
+            // Calculate average GPU and CPU times
+            let total_gpu_ms: i32 = history.iter().map(|f| f.gpu_duration_ms()).sum();
+            let total_cpu_ms: i32 = history.iter().map(|f| f.cpu_duration_ms()).sum();
+            
+            let avg_gpu_ms = total_gpu_ms / history.len() as i32;
+            let avg_cpu_ms = total_cpu_ms / history.len() as i32;
+            
+            self.ms.set(avg_gpu_ms);
+            self.cpu_ms.set(avg_cpu_ms);
+        }
     }
 }
+
 
 #[derive(Debug)]
 pub(crate) struct PortReporterSend {
     imp: Arc<PortReporterImpl>,
-    #[allow(dead_code)] //nop implementation does not use
-    finish_reporter: GPUFinishReporter,
 }
 impl PortReporterSend {
     #[allow(dead_code)] //nop implementation does not use
-    pub(crate) fn begin_frame(&self, frame: u32) {
+    pub(crate) fn begin_frame(&mut self, frame: u32) {
         self.imp.frame_begun.store(frame, Ordering::Relaxed);
     }
     //todo: read this, mt2-491
@@ -256,8 +274,8 @@ impl PortReporterSend {
     }
 
     #[allow(dead_code)] //nop implementation does not use
-    pub(crate) fn gpu_finisher(&self) -> GPUFinishReporter {
-        self.finish_reporter.clone()
+    pub(crate) fn create_frame_guard(&self) -> FrameGuard {
+        self.imp.create_frame_guard()
     }
 }
 
@@ -266,20 +284,25 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
     let ms = Value::new(0);
     let cpu_ms = Value::new(0);
     let min_elapsed_ms = Value::new(0);
-    let imp = Arc::new(PortReporterImpl {
-        frame_begun: AtomicU32::new(initial_frame),
-        drawable_size: AtomicU32::new(0),
-    });
-
+    
     let fps_observer = fps.observe();
     let ms_observer = ms.observe();
     let cpu_ms_observer = cpu_ms.observe();
     let min_elapsed_ms_observer = min_elapsed_ms.observe();
+    
+    let imp = Arc::new(PortReporterImpl {
+        frame_begun: AtomicU32::new(initial_frame),
+        drawable_size: AtomicU32::new(0),
+        fps,
+        ms,
+        cpu_ms,
+        min_elapsed_ms,
+        frame_history: Mutex::new(Vec::new()),
+    });
 
     (
         PortReporterSend {
             imp: imp.clone(),
-            finish_reporter: GPUFinishReporter::new(fps, ms, cpu_ms, min_elapsed_ms),
         },
         PortReporter {
             imp,
