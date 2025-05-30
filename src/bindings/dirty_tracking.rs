@@ -129,6 +129,11 @@ impl DirtyAggregateReceiver {
             receivers,
         }
     }
+    
+    pub fn is_dirty(&self) -> bool {
+        // Check if any of the receivers are dirty
+        self.receivers.iter().any(|receiver| receiver.shared.dirty.load(Ordering::Relaxed))
+    }
 
     ///Waits for a dirty signal.
     pub async fn wait_for_dirty(&self) {

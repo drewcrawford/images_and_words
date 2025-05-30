@@ -8,7 +8,7 @@ use std::sync::atomic::{Ordering,AtomicU32};
 use crate::images::camera::{Camera};
 use std::time::{Instant};
 use crate::bindings::bind_style::BindTarget;
-use crate::bindings::dirty_tracking::DirtyAggregateReceiver;
+use crate::bindings::dirty_tracking::{DirtyAggregateReceiver, DirtyReceiver};
 use crate::bittricks::{u16s_to_u32, u32_to_u16s};
 use crate::images::frame::Frame;
 use crate::images::projection::{Projection, WorldCoord};
@@ -345,42 +345,66 @@ impl Port {
     pub fn bound_device(&self) -> &Arc<crate::images::BoundDevice> {
         self.engine.bound_device()
     }
+
+    /**
+    Forces a render of the next frame, even if nothing is dirty.
+    This is useful for debugging or when you want to ensure the port is rendered immediately.
+    */
+    pub async fn force_render(&mut self) {
+        //force render the next frame, even if nothing is dirty
+        self.imp.render_frame().await;
+    }
+
+
+
+    fn collect_dirty_receivers(&self) -> Vec<DirtyReceiver> {
+        //we need to figure out all the dirty stuff
+        let mut dirty_receivers = Vec::new();
+        for pass in &self.descriptors {
+            for (_, bind) in &pass.bind_style.binds {
+                match &bind.target {
+                    BindTarget::DynamicBuffer(a) => {
+                        dirty_receivers.push(a.dirty_receiver());
+                    }
+                    BindTarget::DynamicVB(_,a) => {
+                        dirty_receivers.push(a.dirty_receiver());
+                    }
+                    BindTarget::Camera => {
+                        dirty_receivers.push(self.camera.dirty_receiver());
+                    }
+                    BindTarget::DynamicTexture(texture) => {
+                        dirty_receivers.push(texture.gpu_dirty_receiver())
+                    }
+                    BindTarget::StaticBuffer(_) => { /* nothing to do, not considered dirty */}
+                    BindTarget::FrameCounter => {/* nothing to do - not considered dirty */}
+
+                    BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
+                    BindTarget::Sampler(_) => { /* also not considered dirty */}
+                    BindTarget::VB(..)  => { /* also not considered dirty */}
+
+                }
+            }
+        }
+        dirty_receivers
+    }
+
     ///Start rendering on the port.  Ports are not rendered by default.
     pub async fn start(&mut self) -> Result<(),Error> {
         //render first frame regardless
-        self.imp.render_frame().await;
+        self.force_render().await;
         loop {
-            //we need to figure out all the dirty stuff
-            let mut dirty_receivers = Vec::new();
-            for pass in &self.descriptors {
-                for (_, bind) in &pass.bind_style.binds {
-                    match &bind.target {
-                        BindTarget::DynamicBuffer(a) => {
-                            dirty_receivers.push(a.dirty_receiver());
-                        }
-                        BindTarget::DynamicVB(_,a) => {
-                            dirty_receivers.push(a.dirty_receiver());
-                        }
-                        BindTarget::Camera => {
-                            dirty_receivers.push(self.camera.dirty_receiver());
-                        }
-                        BindTarget::DynamicTexture(texture) => {
-                            dirty_receivers.push(texture.gpu_dirty_receiver())
-                        }
-                        BindTarget::StaticBuffer(_) => { /* nothing to do, not considered dirty */}
-                        BindTarget::FrameCounter => {/* nothing to do - not considered dirty */}
-
-                        BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
-                        BindTarget::Sampler(_) => { /* also not considered dirty */}
-                        BindTarget::VB(..)  => { /* also not considered dirty */}
-
-                    }
-                }
-            }
-            let receiver = DirtyAggregateReceiver::new(dirty_receivers);
+            let receiver = DirtyAggregateReceiver::new(self.collect_dirty_receivers());
             receiver.wait_for_dirty().await;
-            self.imp.render_frame().await;
+            self.force_render().await;
         }
+    }
+
+    #[cfg(feature="testing")]
+    pub fn needs_render(&self) -> bool {
+        //this is a test-only function that returns true if the port needs to render.
+        //it is used in tests to check if the port is rendering correctly.
+        let receiver = DirtyAggregateReceiver::new(self.collect_dirty_receivers());
+        receiver.is_dirty()
     }
 
     pub fn port_reporter(&self) -> &PortReporter {
