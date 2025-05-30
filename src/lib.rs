@@ -71,6 +71,7 @@ mod stable_address_vec;
 mod send_phantom;
 
 pub use vectormatrix;
+pub use await_values::Observer;
 
 pub type Priority = some_executor::Priority;
 
