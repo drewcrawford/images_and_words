@@ -491,27 +491,33 @@ impl Port {
             .as_ref()
             .expect("View not initialized")
             .surface
-            .as_ref()
-            .expect("Surface not available");
+            .as_ref();
 
         let scaled_size = (
             (unscaled_size.0 as f64 * unscaled_size.2) as u32,
             (unscaled_size.1 as f64 * unscaled_size.2) as u32,
         );
+        match surface {
+            None => {
+                println!("Port surface not initialized");
+            }
+            Some(surface) => {
+                surface.configure(
+                    &device.0.device,
+                    &wgpu::SurfaceConfiguration {
+                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                        format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                        width: scaled_size.0,
+                        height: scaled_size.1,
+                        present_mode: wgpu::PresentMode::Fifo,
+                        desired_maximum_frame_latency: 1,
+                        alpha_mode: CompositeAlphaMode::Opaque,
+                        view_formats: Vec::new(),
+                    },
+                );
+            }
+        }
 
-        surface.configure(
-            &device.0.device,
-            &wgpu::SurfaceConfiguration {
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                width: scaled_size.0,
-                height: scaled_size.1,
-                present_mode: wgpu::PresentMode::Fifo,
-                desired_maximum_frame_latency: 1,
-                alpha_mode: CompositeAlphaMode::Opaque,
-                view_formats: Vec::new(),
-            },
-        );
 
         let mipmapped_sampler = device.0.device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("mipmapped sampler"),
@@ -555,23 +561,59 @@ impl Port {
 
         //create per-frame resources
         let frame_guards = StableAddressVec::with_capactiy(10);
-        let frame = surface
-            .get_current_texture()
-            .expect("Acquire swapchain texture");
-        let wgpu_view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let wgpu_view;
+        let frame;
+        let color_attachment;
+        match surface {
+            None => {
+                let texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("dummy texture"),
+                    size: wgpu::Extent3d {
+                        width: scaled_size.0,
+                        height: scaled_size.1,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                });
+                wgpu_view = texture.create_view(&wgpu::TextureViewDescriptor {
+                    label: Some("dummy view"),
+                    format: None,
+                    dimension: None,
+                    usage: None,
+                    aspect: Default::default(),
+                    base_mip_level: 0,
+                    mip_level_count: None,
+                    base_array_layer: 0,
+                    array_layer_count: None,
+                });
+                frame = None;
+                color_attachment = wgpu::RenderPassColorAttachment {
+                    view: &wgpu_view,
+                    resolve_target: None,
+                    ops: Default::default(),
+                };
+            }
+            Some(surface) => {
+                frame = Some(surface.get_current_texture().expect("Acquire swapchain texture"));
+                wgpu_view = frame.as_ref().unwrap().texture.create_view(&wgpu::TextureViewDescriptor::default());
+                color_attachment = wgpu::RenderPassColorAttachment {
+                    view: &wgpu_view,
+                    resolve_target: None,
+                    ops: Default::default(),
+                };
+            }
+        };
         let mut encoder = device
             .0
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("wgpu port"),
             });
-        let color_attachment = wgpu::RenderPassColorAttachment {
-            view: &wgpu_view,
-            resolve_target: None,
-            ops: Default::default(),
-        };
 
         let depth_texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
@@ -639,7 +681,7 @@ impl Port {
         //in the second pass, we encode our render pass
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Port render"),
-            color_attachments: &[Some(color_attachment.clone())],
+            color_attachments: &[Some(color_attachment)],
             depth_stencil_attachment,
             timestamp_writes: None,
             occlusion_query_set: None,
@@ -683,7 +725,9 @@ impl Port {
             // println!("frame guards dropped");
             finisher.end_frame();
         });
-        frame.present();
+        frame.map(|f| {
+            f.present();
+        });
         self.frame += 1;
     }
 }
