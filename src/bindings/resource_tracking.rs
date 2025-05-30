@@ -79,9 +79,9 @@ impl<Resource> DerefMut for GPUGuard<Resource> where Resource: sealed::Mappable 
 
 impl<Resource> Drop for GPUGuard<Resource> where Resource: sealed::Mappable {
     fn drop(&mut self) {
-        println!("DEBUG: GPUGuard::drop releasing GPU resource");
+        //println!("DEBUG: GPUGuard::drop releasing GPU resource");
         self.tracker.unuse_gpu();
-        println!("DEBUG: GPUGuard::drop completed");
+        //println!("DEBUG: GPUGuard::drop completed");
     }
 }
 
