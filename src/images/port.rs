@@ -37,11 +37,11 @@ impl FrameGuard {
             port_reporter,
         }
     }
-    
+    #[allow(dead_code)]
     pub(crate) fn mark_cpu_complete(&self) {
         *self.cpu_end.lock().unwrap() = Some(Instant::now());
     }
-    
+    #[allow(dead_code)]
     pub(crate) fn mark_gpu_complete(&self) {
         *self.gpu_end.lock().unwrap() = Some(Instant::now());
     }
@@ -73,14 +73,17 @@ pub(crate) struct FrameInfo {
 }
 
 impl FrameInfo {
+    #[allow(dead_code)]
     pub(crate) fn cpu_duration_ms(&self) -> i32 {
         self.cpu_end.duration_since(self.frame_start).as_millis() as i32
     }
-    
+
+    #[allow(dead_code)]
     pub(crate) fn gpu_duration_ms(&self) -> i32 {
         self.gpu_end.duration_since(self.cpu_end).as_millis() as i32
     }
     
+    #[allow(dead_code)]
     pub(crate) fn total_duration_ms(&self) -> i32 {
         self.gpu_end.duration_since(self.frame_start).as_millis() as i32
     }

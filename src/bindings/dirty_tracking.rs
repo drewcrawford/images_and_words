@@ -129,7 +129,8 @@ impl DirtyAggregateReceiver {
             receivers,
         }
     }
-    
+
+    #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {
         // Check if any of the receivers are dirty
         self.receivers.iter().any(|receiver| receiver.shared.dirty.load(Ordering::Relaxed))
