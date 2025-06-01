@@ -74,6 +74,7 @@ pub use vectormatrix;
 pub use await_values::Observer;
 
 pub type Priority = some_executor::Priority;
+pub type Strategy = vec_parallel::Strategy;
 
 
 
