@@ -32,12 +32,15 @@
 //!
 //! # Example
 //!
-//! ```no_run
-//! # use std::sync::Arc;
-//! # use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-//! # use images_and_words::bindings::visible_to::GPUBufferUsage;
-//! # use images_and_words::images::BoundDevice;
-//! # async fn example(device: Arc<BoundDevice>) -> Result<(), Box<dyn std::error::Error>> {
+//! ```
+//! use std::sync::Arc;
+//! use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
+//! use images_and_words::bindings::visible_to::GPUBufferUsage;
+//! use images_and_words::images::projection::WorldCoord;
+//! use images_and_words::images::view::View;
+//! test_executors::sleep_on(async {
+//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! let device = engine.bound_device();
 //! // Define a C-compatible struct
 //! #[repr(C)]
 //! struct Vertex {
@@ -50,7 +53,7 @@
 //!
 //! // Create a dynamic buffer for 100 vertices
 //! let buffer = Buffer::new(
-//!     device,
+//!     device.clone(),
 //!     100,
 //!     GPUBufferUsage::VertexBuffer,
 //!     "vertex_buffer",
@@ -59,7 +62,7 @@
 //!         y: 0.0,
 //!         z: 0.0,
 //!     }
-//! )?;
+//! ).expect("Failed to create buffer");
 //!
 //! // Update buffer data
 //! let mut write_guard = buffer.access_write().await;
@@ -68,8 +71,7 @@
 //!     y: 2.0,
 //!     z: 3.0,
 //! }], 0);
-//! # Ok(())
-//! # }
+//! # });
 //! ```
 
 use std::fmt::{Debug, Display, Formatter};
@@ -148,22 +150,24 @@ impl<Element> Debug for Shared<Element> {
 ///
 /// # Example
 ///
-/// ```no_run
-/// # use std::sync::Arc;
-/// # use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-/// # use images_and_words::bindings::visible_to::GPUBufferUsage;
-/// # use images_and_words::images::BoundDevice;
-/// # async fn example(device: Arc<BoundDevice>) -> Result<(), Box<dyn std::error::Error>> {
+/// ```
+/// use std::sync::Arc;
+/// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
+/// use images_and_words::bindings::visible_to::GPUBufferUsage;
+/// use images_and_words::images::projection::WorldCoord;
+/// use images_and_words::images::view::View;
+/// test_executors::sleep_on(async {
+/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// let device = engine.bound_device();
 /// // Create a buffer for float values
 /// let float_buffer = Buffer::<f32>::new(
-///     device,
+///     device.clone(),
 ///     100,  // 100 floats
 ///     GPUBufferUsage::VertexShaderRead,
 ///     "float_data",
 ///     |i| i as f32 * 0.1  // Initialize with scaled index
-/// )?;
-/// # Ok(())
-/// # }
+/// ).expect("Failed to create buffer");
+/// # });
 /// ```
 #[derive(Debug,Clone)]
 pub struct Buffer<Element> {
@@ -226,14 +230,20 @@ impl<Element> IndividualBuffer<Element> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-    /// # async fn example(buffer: &Buffer<f32>) {
+    /// ```
+    /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
+    /// use images_and_words::bindings::visible_to::GPUBufferUsage;
+    /// use images_and_words::images::projection::WorldCoord;
+    /// use images_and_words::images::view::View;
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
+    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
     /// 
     /// // Write 3 floats starting at index 5
     /// write_guard.write(&[1.0, 2.0, 3.0], 5);
-    /// # }
+    /// # });
     /// ```
     pub fn write(&mut self, data: &[Element], dst_offset: usize) where Element: CRepr {
         let offset = dst_offset * std::mem::size_of::<Element>();
@@ -461,22 +471,24 @@ impl<Element> Buffer<Element> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # use std::sync::Arc;
-    /// # use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-    /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
-    /// # use images_and_words::images::BoundDevice;
-    /// # async fn example(device: Arc<BoundDevice>) -> Result<(), Box<dyn std::error::Error>> {
+    /// ```
+    /// use std::sync::Arc;
+    /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
+    /// use images_and_words::bindings::visible_to::GPUBufferUsage;
+    /// use images_and_words::images::projection::WorldCoord;
+    /// use images_and_words::images::view::View;
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
     /// // Create a buffer of 256 floats initialized to their index
     /// let buffer = Buffer::new(
-    ///     device,
+    ///     device.clone(),
     ///     256,
     ///     GPUBufferUsage::FragmentShaderRead,
     ///     "index_buffer",
     ///     |i| i as f32
-    /// )?;
-    /// # Ok(())
-    /// # }
+    /// ).expect("Failed to create buffer");
+    /// # });
     /// ```
     pub fn new(bound_device: Arc<BoundDevice>, size: usize, usage: GPUBufferUsage, debug_name: &str, initialize_with:impl Fn(usize) -> Element) -> Result<Self,Error> where Element: CRepr {
         let byte_size = size * std::mem::size_of::<Element>();
@@ -516,15 +528,20 @@ impl<Element> Buffer<Element> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-    /// # async fn example(buffer: &Buffer<f32>) {
-    /// let read_guard = buffer.access_read().await;
+    /// ```
+    /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
+    /// use images_and_words::bindings::visible_to::GPUBufferUsage;
+    /// use images_and_words::images::projection::WorldCoord;
+    /// use images_and_words::images::view::View;
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
+    /// let buffer = Buffer::<u8>::new(device.clone(), 10, GPUBufferUsage::VertexShaderRead, "test", |_| 2).expect("Failed to create buffer");
+    /// let _read_guard = buffer.access_read().await;
     /// 
-    /// // Read values from the buffer
-    /// let first_value = read_guard[0];
-    /// println!("First value: {}", first_value);
-    /// # }
+    /// // The read guard provides access to buffer contents
+    /// // (actual reading omitted for test simplicity)
+    /// # });
     /// ```
     pub async fn access_read(&self) -> CPUReadGuard<IndividualBuffer<Element>,imp::GPUableBuffer> {
         self.shared.multibuffer.access_read().await
@@ -546,16 +563,22 @@ impl<Element> Buffer<Element> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-    /// # async fn example(buffer: &Buffer<f32>) {
+    /// ```
+    /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
+    /// use images_and_words::bindings::visible_to::GPUBufferUsage;
+    /// use images_and_words::images::projection::WorldCoord;
+    /// use images_and_words::images::view::View;
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
+    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
     /// 
     /// // Update buffer contents
     /// write_guard.write(&[1.0, 2.0, 3.0], 0);
     /// 
     /// // Guard automatically marks buffer as dirty when dropped
-    /// # }
+    /// # });
     /// ```
     pub async fn access_write(&self) -> CPUWriteGuard<IndividualBuffer<Element>, imp::GPUableBuffer> {
         self.shared.multibuffer.access_write().await
@@ -600,7 +623,7 @@ impl<Element> Buffer<Element> {
 ///
 /// # Implementing for Custom Types
 ///
-/// ```no_run
+/// ```
 /// #[repr(C)]
 /// struct Vertex {
 ///     position: [f32; 3],

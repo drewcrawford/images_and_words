@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 use std::sync::Arc;
-use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label};
+use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label, Maintain};
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::resource_tracking::GPUGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
@@ -94,10 +94,12 @@ impl MappableBuffer {
     pub async fn map_read(&mut self) {
         let (s,r) = r#continue::continuation();
         let slice = self.buffer.slice(..);
+        
         slice.map_async(wgpu::MapMode::Read, |r|{
             r.unwrap();
             s.send(());
         });
+        self.bound_device.0.device.poll(Maintain::Wait);
         r.await;
         let range = slice.get_mapped_range();
         self.mapped = Some((range.as_ptr(), range.len()));
