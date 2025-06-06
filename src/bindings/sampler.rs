@@ -12,14 +12,30 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```
 //! use images_and_words::bindings::sampler::SamplerType;
 //! use images_and_words::bindings::bind_style::{BindStyle, BindSlot, Stage, SamplerInfo};
+//! # test_executors::sleep_on(async {
+//! # use images_and_words::images::view::View;
+//! # use images_and_words::images::projection::WorldCoord;
+//! # use images_and_words::bindings::forward::r#static::texture::Texture;
+//! # use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
+//! # use images_and_words::bindings::visible_to::TextureUsage;
+//! # use images_and_words::Priority;
+//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! # let device = engine.bound_device();
+//! # let texture: Texture<BGRA8UNormSRGB> = Texture::new(
+//! #     &device,
+//! #     256,
+//! #     256,
+//! #     TextureUsage::FragmentShaderSample,
+//! #     true,
+//! #     "sample_texture",
+//! #     Priority::UserInitiated,
+//! #     |_texel| BGRA8UnormPixelSRGB { b: 128, g: 128, r: 128, a: 255 }
+//! # ).await.expect("Failed to create texture");
 //!
 //! let mut bind_style = BindStyle::new();
-//! let texture: images_and_words::bindings::forward::r#static::texture::Texture<
-//!     images_and_words::pixel_formats::BGRA8UNormSRGB
-//! > = todo!();
 //!
 //! // Bind a texture with mipmapped sampling
 //! let sampler = SamplerInfo {
@@ -32,6 +48,7 @@
 //!     &texture,
 //!     Some(sampler)
 //! );
+//! # });
 //! ```
 
 /// Specifies the type of texture sampling to use.
