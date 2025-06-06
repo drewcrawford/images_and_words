@@ -20,7 +20,7 @@ impl GridGenerator {
     width and height are specified in terms of the width and height of the grid.
     */
     pub fn new_grid(grid_width: usize, grid_height: usize) -> Self {
-        assert!(grid_width > 0 && grid_width > 0, "Invalid geometry");
+        assert!(grid_width > 0 && grid_height > 0, "Invalid geometry");
         Self {
             grid_width,
             grid_height,
