@@ -90,3 +90,44 @@ impl RasterCoord2D {
         Self { x: 0, y: 0 }
     }
 }
+
+// ============================================================================
+// Boilerplate implementations for RasterCoord2D
+// ============================================================================
+
+impl Default for RasterCoord2D {
+    /// Returns the origin coordinate (0, 0) as the default value.
+    fn default() -> Self {
+        Self::origin()
+    }
+}
+
+impl std::fmt::Display for RasterCoord2D {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
+impl From<(u16, u16)> for RasterCoord2D {
+    fn from(tuple: (u16, u16)) -> Self {
+        Self::new(tuple.0, tuple.1)
+    }
+}
+
+impl From<[u16; 2]> for RasterCoord2D {
+    fn from(array: [u16; 2]) -> Self {
+        Self::new(array[0], array[1])
+    }
+}
+
+impl From<RasterCoord2D> for (u16, u16) {
+    fn from(coord: RasterCoord2D) -> Self {
+        (coord.x, coord.y)
+    }
+}
+
+impl From<RasterCoord2D> for [u16; 2] {
+    fn from(coord: RasterCoord2D) -> Self {
+        [coord.x, coord.y]
+    }
+}
