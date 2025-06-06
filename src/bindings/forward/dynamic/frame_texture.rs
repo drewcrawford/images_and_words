@@ -22,14 +22,18 @@ updated from the CPU side during runtime.
 
 # Usage Pattern
 
-```no_run
+```
 # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 # use images_and_words::bindings::software::texture::Texel;
 # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+# use images_and_words::images::projection::WorldCoord;
+# use images_and_words::images::view::View;
 # use images_and_words::Priority;
-# use std::sync::Arc;
-# async fn example(device: Arc<images_and_words::images::BoundDevice>) {
+test_executors::sleep_on(async {
+# let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+let device = engine.bound_device();
+
 // Create a 256x256 RGBA texture
 let mut texture = FrameTexture::<RGBA8UNorm>::new(
     &device,
@@ -53,7 +57,7 @@ write_guard.replace(
 
 // Buffer is automatically enqueued when guard is dropped
 drop(write_guard);
-# }
+# });
 ```
 
 # Architecture
@@ -179,14 +183,24 @@ impl ErasedTextureRenderSide {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// # use images_and_words::bindings::BindStyle;
 /// # use images_and_words::bindings::bind_style::{BindSlot, Stage};
-/// # let frame_texture: images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture<images_and_words::pixel_formats::RGBA8UNorm> = todo!();
+/// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
+/// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
+/// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+/// # use images_and_words::images::projection::WorldCoord;
+/// # use images_and_words::images::view::View;
+/// # use images_and_words::Priority;
+/// test_executors::sleep_on(async {
+/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// let device = engine.bound_device();
+/// # let frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, 256, 256, TextureUsage::FragmentShaderSample, CPUStrategy::WontRead, "test", |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }, Priority::UserInitiated).await;
 /// let mut bind_style = BindStyle::new();
 /// 
 /// // Bind the texture to slot 0 for the fragment shader
 /// bind_style.bind_dynamic_texture(BindSlot::new(0), Stage::Fragment, &frame_texture);
+/// # });
 /// ```
 pub(crate) struct TextureRenderSide<Format: PixelFormat> {
     shared: Arc<Shared<Format>>
@@ -241,11 +255,18 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 /// # use images_and_words::bindings::software::texture::Texel;
-/// # async fn example(texture: &mut FrameTexture<RGBA8UNorm>) {
+/// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+/// # use images_and_words::images::projection::WorldCoord;
+/// # use images_and_words::images::view::View;
+/// # use images_and_words::Priority;
+/// test_executors::sleep_on(async {
+/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// let device = engine.bound_device();
+/// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, 256, 256, TextureUsage::FragmentShaderSample, CPUStrategy::WontRead, "test", |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }, Priority::UserInitiated).await;
 /// // Dequeue a buffer for writing
 /// let mut guard = texture.dequeue().await;
 ///
@@ -258,7 +279,7 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// );
 ///
 /// // Texture is automatically enqueued when guard goes out of scope
-/// # }
+/// # });
 /// ```
 #[derive(Debug)]
 pub struct CPUWriteGuard<'a, Format: PixelFormat> {
@@ -342,14 +363,18 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 /// # use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
 /// # use images_and_words::bindings::software::texture::Texel;
 /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+/// # use images_and_words::images::projection::WorldCoord;
+/// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// # use std::sync::Arc;
-/// # async fn example(device: Arc<images_and_words::images::BoundDevice>) {
+/// test_executors::sleep_on(async {
+/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// let device = engine.bound_device();
+///
 /// // Create a texture for video playback
 /// let mut video_texture = FrameTexture::<BGRA8UNormSRGB>::new(
 ///     &device,
@@ -361,19 +386,14 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 ///     Priority::UserInitiated
 /// ).await;
 ///
-/// // Game loop
-/// loop {
-///     // Get next video frame data
-///     let frame_data: Vec<BGRA8UnormPixelSRGB> = todo!("decode video frame");
-///     
-///     // Write frame to texture
-///     let mut guard = video_texture.dequeue().await;
-///     guard.replace(1920, Texel::ZERO, &frame_data);
-///     drop(guard); // Enqueue for GPU
-///     
-///     // Render using the texture...
-/// }
-/// # }
+/// // Simplified example - just write one frame instead of a loop
+/// let frame_data: Vec<BGRA8UnormPixelSRGB> = vec![BGRA8UnormPixelSRGB::ZERO; 1920 * 1080];
+///
+/// // Write frame to texture
+/// let mut guard = video_texture.dequeue().await;
+/// guard.replace(1920, Texel::ZERO, &frame_data);
+/// drop(guard); // Enqueue for GPU
+/// # });
 /// ```
 #[derive(Debug,Clone)]
 pub struct FrameTexture<Format: PixelFormat>{
@@ -411,18 +431,30 @@ impl<Format> IndividualTexture<Format> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # use images_and_words::bindings::forward::dynamic::frame_texture::IndividualTexture;
+    /// ```
+    /// # use images_and_words::bindings::forward::dynamic::frame_texture::{IndividualTexture, FrameTexture};
     /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
     /// # use images_and_words::bindings::software::texture::Texel;
-    /// # let mut texture: IndividualTexture<RGBA8UNorm> = todo!();
-    /// // Write a 2x2 red square at position (10, 10)
+    /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+    /// # use images_and_words::images::projection::WorldCoord;
+    /// # use images_and_words::images::view::View;
+    /// # use images_and_words::Priority;
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
+    /// # let mut frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, 256, 256, TextureUsage::FragmentShaderSample, CPUStrategy::WontRead, "test", |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }, Priority::UserInitiated).await;
+    /// # let mut guard = frame_texture.dequeue().await;
+    /// # let texture = &mut *guard; // Get a mutable reference to IndividualTexture
+    /// // Write a full row of red pixels at row 10
     /// let red = Unorm4 { r: 255, g: 0, b: 0, a: 255 };
+    /// let width = texture.width();
+    /// let pixels = vec![red; width as usize]; 
     /// texture.replace(
-    ///     2, // source width
-    ///     Texel { x: 10, y: 10 },
-    ///     &[red, red, red, red] // 2x2 pixels
+    ///     width, // source width must match texture width
+    ///     Texel { x: 0, y: 10 },
+    ///     &pixels // full row of pixels
     /// );
+    /// # });
     /// ```
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) where Format: PixelFormat {
         self.cpu.replace(src_width, dst_texel, data);
@@ -473,14 +505,18 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
     /// # use images_and_words::pixel_formats::{R32Float};
     /// # use images_and_words::bindings::software::texture::Texel;
     /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+    /// # use images_and_words::images::projection::WorldCoord;
+    /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// # use std::sync::Arc;
-    /// # async fn example(device: Arc<images_and_words::images::BoundDevice>) {
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
+    ///
     /// // Create a texture for height map data
     /// let height_map = FrameTexture::<R32Float>::new(
     ///     &device,
@@ -494,7 +530,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///     },
     ///     Priority::UserInitiated
     /// ).await;
-    /// # }
+    /// # });
     /// ```
     pub async fn new<I: Fn(Texel) -> Format::CPixel>(
         bound_device: &Arc<BoundDevice>, 
@@ -536,16 +572,23 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
-    /// # use images_and_words::pixel_formats::RGBA8UNorm;
-    /// # async fn example(texture: &mut FrameTexture<RGBA8UNorm>) {
+    /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
+    /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+    /// # use images_and_words::images::projection::WorldCoord;
+    /// # use images_and_words::images::view::View;
+    /// # use images_and_words::Priority;
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
+    /// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, 256, 256, TextureUsage::FragmentShaderSample, CPUStrategy::WontRead, "test", |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }, Priority::UserInitiated).await;
     /// // Wait for an available buffer
     /// let mut guard = texture.dequeue().await;
     /// 
     /// // Modify the texture through the guard...
     /// // Buffer is automatically enqueued when guard is dropped
-    /// # }
+    /// # });
     /// ```
     pub async fn dequeue(&mut self) -> CPUWriteGuard<Format>{
         let write_guard = self.shared.multibuffer.access_write().await;
