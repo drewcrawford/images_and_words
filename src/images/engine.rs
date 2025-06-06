@@ -81,6 +81,7 @@ fn compile_check() {
 }
 
 #[derive(Debug,thiserror::Error)]
+#[non_exhaustive]
 pub enum CreateError {
     #[error("Can't create engine {0}")]
     EntryPointError(#[from] EntryPointError),

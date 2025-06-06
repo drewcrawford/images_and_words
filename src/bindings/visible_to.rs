@@ -52,6 +52,7 @@
 /// // A normal map that needs to be sampled in both vertex and fragment shaders
 /// let normal_map_usage = TextureUsage::VertexAndFragmentShaderSample;
 /// ```
+#[non_exhaustive]
 pub enum TextureUsage {
     /// The texture will be read directly (without sampling) in the fragment shader.
     ///
@@ -106,6 +107,7 @@ pub enum TextureUsage {
 /// // A uniform buffer accessed by the fragment shader
 /// let uniform_usage = GPUBufferUsage::FragmentShaderRead;
 /// ```
+#[non_exhaustive]
 pub enum GPUBufferUsage {
     /// The buffer will be read as data in the vertex shader.
     ///
@@ -154,6 +156,7 @@ pub enum GPUBufferUsage {
 /// // A texture that stays on the GPU
 /// let texture_strategy = CPUStrategy::WontRead;
 /// ```
+#[non_exhaustive]
 pub enum CPUStrategy {
     /// The CPU will frequently read from this resource.
     ///

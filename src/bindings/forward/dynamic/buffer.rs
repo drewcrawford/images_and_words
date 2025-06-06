@@ -107,6 +107,7 @@ use crate::multibuffer::sealed::CPUMultibuffer;
 /// - Different synchronization mechanisms
 /// - Different multibuffering depths
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum WriteFrequency {
     /// Buffer updates significantly less than once per frame.
     ///

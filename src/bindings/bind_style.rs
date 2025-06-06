@@ -308,6 +308,7 @@ impl BindStyle {
 /// This enum allows you to specify whether a resource should be accessible from
 /// the vertex shader, fragment shader, or both.
 #[derive(Clone,Debug)]
+#[non_exhaustive]
 pub enum Stage {
     /// Resource will be bound to fragment (pixel) shaders.
     Fragment,

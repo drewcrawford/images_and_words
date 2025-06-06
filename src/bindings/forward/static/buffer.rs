@@ -111,6 +111,7 @@ use crate::imp;
 /// ).await.expect("Failed to create buffer");
 /// # });
 /// ```
+#[derive(Debug)]
 pub struct Buffer<Element> {
     pub(crate) imp: imp::GPUableBuffer,
     #[allow(dead_code)] //nop implementation does not use

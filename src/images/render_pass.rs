@@ -132,6 +132,7 @@ impl PassDescriptor {
 /// let draw_quad = DrawCommand::TriangleList(6);
 /// ```
 #[derive(Debug,Clone)]
+#[non_exhaustive]
 pub enum DrawCommand {
     /// Draws connected triangles where each vertex after the first two forms a 
     /// triangle with the previous two vertices.

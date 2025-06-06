@@ -57,6 +57,7 @@
 /// sampled in shaders. Different types provide different quality/performance
 /// tradeoffs.
 #[derive(Debug,Clone,Copy,PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SamplerType {
     /// Enables mipmapped texture sampling with linear filtering.
     ///
