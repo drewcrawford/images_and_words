@@ -7,7 +7,7 @@ use crate::images::index_algorithms::IndexGenerator;
 /**
 Generates a rectangular 2D grid of points.
 */
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub struct GridGenerator {
     grid_width: usize,
     grid_height: usize,
