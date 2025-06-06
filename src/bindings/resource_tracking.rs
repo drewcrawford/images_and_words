@@ -151,6 +151,7 @@ impl<Resource> Drop for GPUGuard<Resource> where Resource: sealed::Mappable {
 ///
 /// Contains the current state of the resource to help with debugging
 /// and potentially implementing retry logic.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NotAvailable {
     read_state: u8,
 }
@@ -437,3 +438,20 @@ impl<Resource> ResourceTracker<Resource> {
         unsafe { &*self.internal.resource.get() }
     }
 }
+
+// Boilerplate implementations
+impl std::fmt::Display for NotAvailable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let state = match self.read_state {
+            UNUSED => "UNUSED",
+            CPU_READ => "CPU_READ",
+            CPU_WRITE => "CPU_WRITE",
+            GPU => "GPU",
+            PENDING_WRITE_TO_GPU => "PENDING_WRITE_TO_GPU",
+            _ => "UNKNOWN",
+        };
+        write!(f, "resource not available; current state: {}", state)
+    }
+}
+
+impl std::error::Error for NotAvailable {}
