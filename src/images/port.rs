@@ -1,4 +1,36 @@
-//! Implements 'image ports', which control how we render to a single surface.
+//! Ports control rendering to a single surface with render passes and frame pacing.
+//! 
+//! A [`Port`] represents a rendering target (like a window or offscreen surface) that manages:
+//! - Multiple render passes that execute in sequence
+//! - Frame pacing and synchronization
+//! - Performance metrics through [`PortReporter`]
+//! - Camera management for the viewport
+//!
+//! ## Basic Usage
+//! 
+//! Ports are typically created through an [`Engine`] rather than directly:
+//!
+//! ```
+//! # use images_and_words::images::{Engine, view::View};
+//! # use images_and_words::images::projection::WorldCoord;
+//! # test_executors::sleep_on(async {
+//! let view = View::for_testing();
+//! let camera_position = WorldCoord::new(0.0, 0.0, 10.0);
+//! let engine = Engine::rendering_to(view, camera_position)
+//!     .await
+//!     .expect("Failed to create engine");
+//! 
+//! // Access the main port
+//! let port = engine.main_port_mut();
+//! // Port is ready to accept render passes
+//! # });
+//! ```
+//!
+//! ## Frame Synchronization
+//!
+//! The port automatically handles frame synchronization through dirty tracking.
+//! When any bound resource (buffer, texture, camera) is modified, the port
+//! schedules a new frame to be rendered.
 
 use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
@@ -97,6 +129,28 @@ impl FrameInfo {
 
 
 
+/// A rendering port that manages render passes for a single surface.
+///
+/// A `Port` represents a complete rendering pipeline for a single output surface
+/// (like a window or offscreen render target). It manages multiple render passes,
+/// handles frame synchronization, and provides performance monitoring.
+///
+/// # Creation
+///
+/// Ports are typically created through an [`Engine`] using [`Engine::main_port_mut()`]
+/// rather than directly via [`Port::new()`].
+///
+/// # Render Passes
+///
+/// A port executes render passes in the order they were added. Each pass can:
+/// - Bind different resources (buffers, textures, samplers)
+/// - Use different shaders
+/// - Draw different geometry
+///
+/// # Frame Synchronization
+///
+/// The port uses dirty tracking to automatically render new frames when bound
+/// resources change. This ensures efficient rendering without unnecessary frames.
 #[derive(Debug)]
 pub struct Port {
     imp: crate::imp::Port,
@@ -106,6 +160,7 @@ pub struct Port {
     engine: Arc<Engine>,
 }
 
+/// Error type for port operations.
 #[derive(Debug)]
 pub struct Error (
     imp::Error,
@@ -122,9 +177,39 @@ impl From<imp::Error> for Error {
     }
 }
 
-/**
-A type that clients can use to find out about port activity and perform frame pacing.
- */
+/// Provides performance metrics and frame synchronization for a port.
+///
+/// `PortReporter` allows applications to monitor rendering performance and
+/// implement custom frame pacing strategies. It provides real-time metrics
+/// including:
+/// - Frames per second (FPS)
+/// - GPU rendering time
+/// - CPU preparation time
+/// - Minimum elapsed time between frames
+///
+/// # Example
+///
+/// ```
+/// # use images_and_words::images::{Engine, view::View};
+/// # use images_and_words::images::projection::WorldCoord;
+/// # test_executors::sleep_on(async {
+/// # let engine = Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 10.0))
+/// #     .await.expect("Failed to create engine");
+/// # let port = engine.main_port_mut();
+/// let reporter = port.port_reporter();
+/// 
+/// // Access performance observers
+/// let fps_observer = reporter.fps();
+/// let gpu_ms_observer = reporter.ms();
+/// 
+/// // Check current camera projection
+/// let projection = reporter.camera_projection();
+/// 
+/// // Get the drawable size
+/// let (width, height) = reporter.drawable_size();
+/// println!("Drawable size: {}x{}", width, height);
+/// # });
+/// ```
 #[derive(Clone,Debug)]
 pub struct PortReporter {
     imp: Arc<PortReporterImpl>,
@@ -136,60 +221,57 @@ pub struct PortReporter {
 }
 impl PortReporter {
 
-    /**
-    Returns the frame most recently begun.
-
-     Figuring out "which" frame you are "on" is kind of a nonsense question for two reasons:
-     1.  Multiple frames are in flight at any one time, so the answer is often something like "several"
-     2.  IW is pretty fast so we spend a lot of time NOT running frames actually.  So the answer is often like "none".
-
-     Sometimes the behavior you want is to run code every frame.  For that purpose the right approach might be [crate::bindings::forward::dynamic::frame_texture::FrameTexture].
-
-     Alternatively though maybe you are handling *requests* from clients who are doing their own frame pacing, maybe using that.  Then the problem is, you're going to return some data,
-     should it be cached data or new data?
-
-     This function is one way to answer that question, it reflects the most recent frame IW started.  Of course this value can change at any time, including immediately after
-     you called it.  There is no guarantee your caller is encoding the same frame and it will not provide any transactional isolation.  However it provides a basic way to throw
-     out data that is stale.
-     */
+    /// Returns the frame number of the most recently started frame.
+    ///
+    /// This method helps with cache invalidation and synchronization decisions.
+    /// Since multiple frames may be in flight concurrently, this represents the
+    /// newest frame that has started processing.
+    ///
+    /// # Synchronization Notes
+    ///
+    /// - Multiple frames may be processing simultaneously
+    /// - This value can change at any time after calling
+    /// - No transactional isolation is provided
+    /// - Useful for determining if cached data is stale
+    ///
     pub fn latest_begun(&self) -> Frame {
         Frame::new(self.imp.frame_begun.load(Ordering::Relaxed))
     }
-    /**
-    Returns the camera projection.
-
-    Note that there is no particular synchronization guarantee around this type; it is something resembling the same frame as `latest_begin`, but
-    it is not guaranteed to be exactly any particular projection.
-    */
+    /// Returns the current camera projection.
+    ///
+    /// The returned projection approximates the state at the latest frame,
+    /// but exact synchronization is not guaranteed.
     pub fn camera_projection(&self) -> Projection {
         self.camera.projection()
     }
 
-    /**
-    Returns a recent drawable size.
-
-    Note that there is no particular synchronization guarantee around this type; it is something resembling the same frame as `latest_begin`, but
-    it is not guaranteed to be exactly any particular projection.
-    */
+    /// Returns the current drawable size as (width, height).
+    ///
+    /// The returned size approximates the state at the latest frame,
+    /// but exact synchronization is not guaranteed.
     pub fn drawable_size(&self) -> (u16,u16) {
         let u = self.imp.drawable_size.load(Ordering::Relaxed);
         u32_to_u16s(u)
     }
+    /// Returns an observer for the current frames per second.
     pub fn fps(&self) -> &Observer<i32> {
         &self.fps
     }
+    
+    /// Returns an observer for the average GPU time per frame in milliseconds.
     pub fn ms(&self) -> &Observer<i32> {
         &self.ms
     }
+    
+    /// Returns an observer for the average CPU time per frame in milliseconds.
     pub fn cpu_ms(&self) -> &Observer<i32> {
         &self.cpu_ms
     }
     
-    /**
-    Returns the minimum elapsed time between frames from recent samples, in milliseconds.
-    
-    This can be used by clients to predict their processing times for frame pacing.
-    */
+    /// Returns an observer for the minimum elapsed time between frames in milliseconds.
+    ///
+    /// This metric is useful for frame pacing, as it indicates the fastest
+    /// frame rate achieved in recent samples.
     pub fn min_elapsed_ms(&self) -> &Observer<i32> {
         &self.min_elapsed_ms
     }
@@ -321,6 +403,36 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
 
 
 impl Port {
+    /// Creates a new port for rendering to the specified view.
+    ///
+    /// # Parameters
+    ///
+    /// - `engine`: The rendering engine to use
+    /// - `view`: The view/surface to render to
+    /// - `initial_camera_position`: Starting position for the camera
+    /// - `window_size`: Initial window dimensions as (width, height, dpi_scale)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use images_and_words::images::{Engine, view::View, port::Port};
+    /// # use images_and_words::images::projection::WorldCoord;
+    /// # test_executors::sleep_on(async {
+    /// # let view = View::for_testing();
+    /// # let engine = Arc::new(Engine::rendering_to(view, WorldCoord::new(0.0, 0.0, 10.0))
+    /// #     .await
+    /// #     .expect("Failed to create engine"));
+    /// # 
+    /// # let another_view = View::for_testing();
+    /// let port = Port::new(
+    ///     &engine,
+    ///     another_view,
+    ///     WorldCoord::new(0.0, 0.0, 5.0),
+    ///     (800, 600, 1.0)
+    /// ).expect("Failed to create port");
+    /// # });
+    /// ```
     pub fn new(engine: &Arc<Engine>, view: View, initial_camera_position: WorldCoord,window_size: (u16,u16,f64)) -> Result<Self,Error> {
         let camera = Camera::new(window_size, initial_camera_position);
         let (port_sender,port_reporter) = port_reporter(0, &camera);
@@ -333,31 +445,61 @@ impl Port {
             engine: engine.clone(),
         })
     }
-    /**
-    Adds a fixed pass to the port.
-
-    # Limitations
-    Currently, this doesn't work when the new port is running. mt2-242
-
-    There is currently no way to remove a pass.  mt2-243
-
-    */
-
+    /// Adds a fixed render pass to the port.
+    ///
+    /// Render passes are executed in the order they were added. Each pass
+    /// defines its own shaders, bindings, and draw commands.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use images_and_words::images::{Engine, view::View};
+    /// # use images_and_words::images::projection::WorldCoord;
+    /// # use images_and_words::images::render_pass::{PassDescriptor, DrawCommand};
+    /// # use images_and_words::images::shader::{VertexShader, FragmentShader};
+    /// # use images_and_words::bindings::BindStyle;
+    /// # test_executors::sleep_on(async {
+    /// # let engine = Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 10.0))
+    /// #     .await.expect("Failed to create engine");
+    /// # let mut port = engine.main_port_mut();
+    /// let vertex_shader = VertexShader::new("test", 
+    ///     "@vertex fn vs_main() -> @builtin(position) vec4<f32> { 
+    ///         return vec4<f32>(0.0, 0.0, 0.0, 1.0); 
+    ///     }".to_string());
+    /// let fragment_shader = FragmentShader::new("test",
+    ///     "@fragment fn fs_main() -> @location(0) vec4<f32> { 
+    ///         return vec4<f32>(1.0, 0.0, 0.0, 1.0); 
+    ///     }".to_string());
+    /// 
+    /// let pass = PassDescriptor::new(
+    ///     "test_pass".to_string(),
+    ///     vertex_shader,
+    ///     fragment_shader,
+    ///     BindStyle::new(),
+    ///     DrawCommand::TriangleStrip(3),
+    ///     false,  // depth test
+    ///     false   // depth write
+    /// );
+    /// 
+    /// port.add_fixed_pass(pass).await;
+    /// # });
+    /// ```
+    ///
+    /// # Limitations
+    /// 
+    /// - Currently cannot add passes while the port is running (mt2-242)
+    /// - There is no way to remove passes once added (mt2-243)
     pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
         self.imp.add_fixed_pass(descriptor.clone()).await;
         self.descriptors.push(descriptor);
     }
 
-    /**
-    Adds multiple fixed passes to the port.
-
-    # Limitations
-    Currently, this doesn't work when the new port is running. mt2-242
-
-    There is currently no way to remove a pass.  mt2-243
-
-    */
-
+    /// Adds multiple fixed render passes to the port.
+    ///
+    /// This is a convenience method for adding multiple passes at once.
+    /// Passes are executed in the order they appear in the vector.
+    ///
+    /// See [`add_fixed_pass`](Self::add_fixed_pass) for details and limitations.
     pub async fn add_fixed_passes(&mut self, descriptors: Vec<PassDescriptor>) {
         for descriptor in descriptors {
             self.imp.add_fixed_pass(descriptor.clone()).await;
@@ -365,17 +507,18 @@ impl Port {
         }
     }
 
-    /**
-    Provides access to the BoundDevice for building pass descriptors.
-    */
+    /// Returns the bound device associated with this port's engine.
+    ///
+    /// The bound device is used to create GPU resources like buffers and textures.
     pub fn bound_device(&self) -> &Arc<crate::images::BoundDevice> {
         self.engine.bound_device()
     }
 
-    /**
-    Forces a render of the next frame, even if nothing is dirty.
-    This is useful for debugging or when you want to ensure the port is rendered immediately.
-    */
+    /// Forces immediate rendering of the next frame.
+    ///
+    /// This bypasses the dirty tracking system and renders a frame even if
+    /// no resources have changed. Useful for debugging or ensuring immediate
+    /// visual updates.
     pub async fn force_render(&mut self) {
         //force render the next frame, even if nothing is dirty
         self.imp.render_frame().await;
@@ -414,7 +557,33 @@ impl Port {
         dirty_receivers
     }
 
-    ///Start rendering on the port.  Ports are not rendered by default.
+    /// Starts the port's rendering loop.
+    ///
+    /// Once started, the port will automatically render frames whenever bound
+    /// resources are marked dirty. The method runs indefinitely, monitoring
+    /// for changes and rendering as needed.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use images_and_words::images::{Engine, view::View};
+    /// # use images_and_words::images::projection::WorldCoord;
+    /// # test_executors::sleep_on(async {
+    /// # let engine = Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 10.0))
+    /// #     .await.expect("Failed to create engine");
+    /// # let mut port = engine.main_port_mut();
+    /// // Add render passes first
+    /// // port.add_fixed_pass(pass).await;
+    /// 
+    /// // Start rendering - this runs forever
+    /// // port.start().await?;
+    /// # });
+    /// ```
+    ///
+    /// # Note
+    ///
+    /// Ports do not render by default - you must call this method to begin
+    /// the render loop.
     pub async fn start(&mut self) -> Result<(),Error> {
         //render first frame regardless
         self.force_render().await;
@@ -433,12 +602,14 @@ impl Port {
         receiver.is_dirty()
     }
 
+    /// Returns the port reporter for monitoring performance metrics.
     pub fn port_reporter(&self) -> &PortReporter {
         &self.port_reporter
     }
-    /**
-    Accesses the camera for the port.
-    */
+    
+    /// Returns the camera associated with this port.
+    ///
+    /// The camera controls the view transformation and projection for rendering.
     pub fn camera(&self) -> &Camera {
         &self.camera
     }
