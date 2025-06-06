@@ -302,7 +302,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
     }
 
 }
-
+#[derive(Debug)]
 pub struct CopyGuard<Format,SourceGuard> {
     #[allow(dead_code)] // guard keeps source alive during copy operation
     guard: SourceGuard,

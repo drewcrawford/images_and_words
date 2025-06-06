@@ -149,7 +149,7 @@ trait DynRenderSide: Send + Debug + Sync {
     fn gpu_dirty_receiver(&self) -> DirtyReceiver;
 }
 
-trait DynGuard {
+trait DynGuard: Debug {
     #[allow(dead_code)] //nop implementation does not use
     fn as_imp(&self) -> imp::TextureRenderSide;
 }
@@ -319,9 +319,11 @@ pub struct CPUReadGuard<Format: PixelFormat> {
 }
 
 #[allow(dead_code)] //nop implementation does not use
+#[derive(Debug)]
 struct GPUGuard<Format: PixelFormat> {
     underlying: crate::multibuffer::GPUGuard<IndividualTexture<Format>, imp::GPUableTexture<Format>>,
 }
+#[derive(Debug)]
 pub struct ErasedGPUGuard {
     #[allow(dead_code)] //nop implementation does not use
     erasing: Box<dyn DynGuard>,
