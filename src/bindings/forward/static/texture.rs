@@ -13,16 +13,16 @@
 //!
 //! # Examples
 //!
-//! ```no_run
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! use std::sync::Arc;
-//! use images_and_words::bindings::forward::r#static::texture::Texture;
+//! ```
+//! # use images_and_words::bindings::forward::r#static::texture::Texture;
 //! use images_and_words::bindings::visible_to::TextureUsage;
+//! use images_and_words::images::projection::WorldCoord;
+//! use images_and_words::images::view::View;
 //! use images_and_words::pixel_formats::RGBA8UNorm;
 //! use images_and_words::Priority;
-//!
-//! // Get a bound device instance
-//! let device: Arc<images_and_words::images::BoundDevice> = todo!();
+//! test_executors::sleep_on(async {
+//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! let device = engine.bound_device();
 //!
 //! // Create a 256x256 red texture
 //! let texture = Texture::<RGBA8UNorm>::new(
@@ -34,9 +34,8 @@
 //!     "red_texture",
 //!     Priority::UserInitiated,
 //!     |_texel| images_and_words::pixel_formats::Unorm4 { r: 255, g: 0, b: 0, a: 255 }  // RGBA red
-//! ).await?;
-//! # Ok(())
-//! # }
+//! ).await.expect("Failed to create texture");
+//! # });
 //! ```
 
 use std::fmt::{Debug, Display};
@@ -106,34 +105,32 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::sync::Arc;
-    /// use images_and_words::bindings::forward::r#static::texture::Texture;
+    /// ```
+    /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::visible_to::TextureUsage;
+    /// use images_and_words::images::projection::WorldCoord;
+    /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
-    ///
-    /// // Get a bound device instance
-    /// let device: Arc<images_and_words::images::BoundDevice> = todo!();
-    ///
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
     /// // Create a gradient texture
-    /// let texture = Texture::<RGBA8UNorm>::new(
-    ///     &device,
-    ///     256,
+    ///  let texture = Texture::<RGBA8UNorm>::new(
+    ///    &device,
+    ///      256,
     ///     256,
     ///     TextureUsage::FragmentShaderSample,
-    ///     false,
-    ///     "gradient",
-    ///     Priority::UserInitiated,
-    ///     |texel| {
-    ///         let r = (texel.x * 255 / 256) as u8;
-    ///         let g = (texel.y * 255 / 256) as u8;
-    ///         images_and_words::pixel_formats::Unorm4 { r, g, b: 0, a: 255 }
-    ///     }
-    /// ).await?;
-    /// # Ok(())
-    /// # }
+    ///       false,
+    ///        "gradient",
+    ///        Priority::UserInitiated,
+    ///        |texel| {
+    ///            let r = (texel.x * 255 / 256) as u8;
+    ///          let g = (texel.y * 255 / 256) as u8;
+    ///          images_and_words::pixel_formats::Unorm4 { r, g, b: 0, a: 255 }
+    ///        }
+    ///      ).await.expect("Failed to create texture");
+    /// # });
     /// ```
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, mipmaps: bool, debug_name: &str, priority: Priority, initialize_to: Initializer) -> Result<Self,Error>  {
         let imp = imp::GPUableTexture::new_initialize(device, width, height, visible_to, mipmaps, debug_name, priority, initialize_to).await?;
@@ -164,20 +161,22 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::sync::Arc;
-    /// use images_and_words::bindings::forward::r#static::texture::Texture;
+    /// ```
+    /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::software::texture::Texture as SoftwareTexture;
     /// use images_and_words::bindings::visible_to::TextureUsage;
+    /// use images_and_words::images::projection::WorldCoord;
+    /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
     ///
-    /// // Get a bound device instance
-    /// let device: Arc<images_and_words::images::BoundDevice> = todo!();
-    ///
-    /// // Assume we have a software texture
-    /// let soft_texture: SoftwareTexture<RGBA8UNorm> = todo!();
+    /// // Create a software texture first
+    /// let soft_texture = SoftwareTexture::<RGBA8UNorm>::new_with(64, 64, |_texel| {
+    ///     images_and_words::pixel_formats::Unorm4 { r: 0, g: 255, b: 0, a: 255 } // Green
+    /// });
     ///
     /// // Upload it to the GPU
     /// let gpu_texture = Texture::from_software(
@@ -186,9 +185,8 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     TextureUsage::FragmentShaderSample,
     ///     "sprite",
     ///     Priority::UserInitiated
-    /// ).await?;
-    /// # Ok(())
-    /// # }
+    /// ).await.expect("Failed to create GPU texture");
+    /// # });
     /// ```
     pub async fn from_software(device: &Arc<BoundDevice>, texture: &crate::bindings::software::texture::Texture<Format>, visible_to: TextureUsage, debug_name: &str, priority: Priority) -> Result<Self,Error> {
         Self::new(device, texture.width(), texture.height(), visible_to, false, debug_name, priority, |texel| {
@@ -240,16 +238,16 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use std::sync::Arc;
-    /// use images_and_words::bindings::forward::r#static::texture::Texture;
+    /// ```
+    /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::visible_to::TextureUsage;
+    /// use images_and_words::images::projection::WorldCoord;
+    /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
-    ///
-    /// // Get a bound device instance
-    /// let device: Arc<images_and_words::images::BoundDevice> = todo!();
+    /// test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// let device = engine.bound_device();
     ///
     /// // Create a 2x2 texture with red, green, blue, and white pixels
     /// let pixels = [
@@ -267,9 +265,8 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     false,
     ///     "color_grid",
     ///     Priority::UserInitiated
-    /// ).await?;
-    /// # Ok(())
-    /// # }
+    /// ).await.expect("Failed to create texture");
+    /// # });
     /// ```
     pub async fn new_slice(slice: &[Format::CPixel], width: u16, bound_device: &Arc<BoundDevice>, visible_to: TextureUsage, mipmaps: bool, debug_name: &str, priority: Priority) -> Result<Self,Error> {
         let height = slice.len() / width as usize;

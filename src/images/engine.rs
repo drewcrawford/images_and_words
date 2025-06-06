@@ -23,6 +23,10 @@ pub struct Engine {
 }
 
 impl Engine {
+    #[cfg(feature="testing")]
+    pub async fn for_testing() -> Result<Arc<Self>, CreateError> {
+        Self::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await
+    }
     pub async fn rendering_to<'this>(mut view: View, initial_camera_position: WorldCoord) -> Result<Arc<Self>,CreateError> {
         let entry_point =   Arc::new(EntryPoint::new().await?);
         view.provide_entry_point(&entry_point).await.expect("Can't provide entry point");
