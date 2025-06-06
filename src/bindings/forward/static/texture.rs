@@ -37,6 +37,12 @@
 //! ).await.expect("Failed to create texture");
 //! # });
 //! ```
+//!
+//! # See Also
+//!
+//! - [`forward::dynamic::FrameTexture`](crate::bindings::forward::dynamic::frame_texture::FrameTexture) - For textures that need frequent updates
+//! - [`forward::static::Buffer`](crate::bindings::forward::static::buffer::Buffer) - For immutable structured data
+//! - [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 
 use std::fmt::{Debug, Display};
 use std::path::Path;

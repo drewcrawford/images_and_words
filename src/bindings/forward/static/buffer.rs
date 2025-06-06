@@ -56,6 +56,12 @@
 //! ).await.expect("Failed to create buffer");
 //! # });
 //! ```
+//!
+//! # See Also
+//!
+//! - [`forward::dynamic::Buffer`](crate::bindings::forward::dynamic::buffer::Buffer) - For buffers that need frequent updates
+//! - [`forward::static::Texture`](crate::bindings::forward::static::texture::Texture) - For immutable image data
+//! - [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;

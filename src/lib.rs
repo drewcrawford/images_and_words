@@ -19,6 +19,79 @@ These types are layered atop traditional GPU buffers/textures, but are customize
 for specific usecases, such as multibuffering or synchronization.  Because each type encodes
 its usecase information, the behavior can be optimized in a usecase-specific way.
 
+## The Three-Axis Type System
+
+IW organizes GPU resources along three orthogonal axes, allowing you to select the precise
+abstraction for your use case:
+
+### 1. Resource Type Axis: Buffer vs Texture
+
+**Buffers** provide:
+- Arbitrary memory layouts with full programmer control
+- Support for any type implementing `CRepr` trait
+- Direct indexed access patterns
+- Flexible size constraints
+- Examples: vertex data, uniform blocks, compute storage
+
+**Textures** provide:
+- GPU-optimized storage for image data
+- Hardware-accelerated sampling and filtering
+- Fixed pixel formats (RGBA8, etc.)
+- Spatial access patterns optimized for 2D/3D locality
+- Examples: images, render targets, lookup tables
+
+### 2. Mutability Axis: Static vs Dynamic
+
+**Static** resources:
+- Immutable after creation
+- Optimized for many GPU reads per CPU upload
+- Placed in GPU-only memory when possible
+- Zero synchronization overhead
+- Examples: mesh geometry, texture atlases
+
+**Dynamic** resources:
+- Mutable throughout lifetime
+- Optimized for frequent CPU updates
+- Automatic multibuffering to prevent stalls
+- Transparent synchronization
+- Examples: per-frame uniforms, streaming data
+
+### 3. Direction Axis: Data Flow Patterns
+
+| Direction | Flow | Use Cases | Status |
+|-----------|------|-----------|---------|
+| **Forward** | CPU→GPU | Rendering data, textures, uniforms | ✅ Implemented |
+| **Reverse** | GPU→CPU | Screenshots, compute results, queries | ⏳ Planned |
+| **Sideways** | GPU→GPU | Render-to-texture, compute chains | ⏳ Planned |
+| **Omnidirectional** | CPU↔GPU | Interactive simulations, feedback | ⏳ Planned |
+
+## Choosing the Right Type
+
+To select the appropriate binding type:
+
+1. **Identify data flow**: Where does data originate and where is it consumed?
+2. **Determine update frequency**: Does it change every frame or remain constant?
+3. **Consider access patterns**: Do you need shader sampling or structured access?
+
+### Quick Decision Guide
+
+| Your Use Case | Recommended Type |
+|---------------|------------------|
+| Mesh geometry that never changes | `bindings::forward::static::Buffer` |
+| Textures loaded from disk | `bindings::forward::static::Texture` |
+| Camera matrices updated per frame | `bindings::forward::dynamic::Buffer` |
+| Render-to-texture targets | `bindings::forward::dynamic::FrameTexture` |
+| Particle positions (CPU generated) | `bindings::forward::dynamic::Buffer` |
+| Lookup tables for shaders | `bindings::forward::static::Buffer` or `Texture` |
+
+## Implementation Status
+
+Currently implemented:
+- Forward Static Buffer ✅
+- Forward Static Texture ✅
+- Forward Dynamic Buffer ✅
+- Forward Dynamic FrameTexture ✅
+
 Examples include:
 
 | Class    | Use case       | Potential optimizations                 | Multibuffering | Synchronization      |

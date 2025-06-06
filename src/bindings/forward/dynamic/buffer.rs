@@ -73,6 +73,12 @@
 //! }], 0);
 //! # });
 //! ```
+//!
+//! # See Also
+//!
+//! - [`forward::static::Buffer`](crate::bindings::forward::static::buffer::Buffer) - For buffers that don't need updates after creation
+//! - [`forward::dynamic::FrameTexture`](crate::bindings::forward::dynamic::frame_texture::FrameTexture) - For dynamic image data
+//! - [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;

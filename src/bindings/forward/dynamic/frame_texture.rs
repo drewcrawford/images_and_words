@@ -82,6 +82,12 @@ the pixel data type and GPU texture format. Common formats include:
 - [`RGBA8UNorm`](crate::pixel_formats::RGBA8UNorm): 8-bit RGBA
 - [`BGRA8UNormSRGB`](crate::pixel_formats::BGRA8UNormSRGB): 8-bit BGRA with sRGB encoding
 - [`RGBA32Float`](crate::pixel_formats::RGBA32Float): 32-bit floating point RGBA
+
+# See Also
+
+- [`forward::static::Texture`](crate::bindings::forward::static::texture::Texture) - For textures that don't need updates after creation
+- [`forward::dynamic::Buffer`](crate::bindings::forward::dynamic::buffer::Buffer) - For dynamic structured data
+- [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 */
 
 use std::fmt::{Debug, Formatter};
