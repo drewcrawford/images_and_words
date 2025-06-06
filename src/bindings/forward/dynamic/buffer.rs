@@ -106,6 +106,7 @@ use crate::multibuffer::sealed::CPUMultibuffer;
 /// - Different memory placement strategies (system RAM vs GPU memory)
 /// - Different synchronization mechanisms
 /// - Different multibuffering depths
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum WriteFrequency {
     /// Buffer updates significantly less than once per frame.
     ///
