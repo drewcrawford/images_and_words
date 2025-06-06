@@ -23,13 +23,15 @@
 //!
 //! # Example
 //!
-//! ```no_run
-//! # use std::sync::Arc;
+//! ```
 //! # use images_and_words::bindings::forward::r#static::buffer::Buffer;
 //! # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 //! # use images_and_words::bindings::visible_to::GPUBufferUsage;
-//! # use images_and_words::images::BoundDevice;
-//! # async fn example(device: Arc<BoundDevice>) -> Result<(), Box<dyn std::error::Error>> {
+//! # use images_and_words::images::projection::WorldCoord;
+//! # use images_and_words::images::view::View;
+//! # test_executors::sleep_on(async {
+//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! # let device = engine.bound_device();
 //! // Define a vertex type
 //! #[repr(C)]
 //! struct Vertex {
@@ -41,7 +43,7 @@
 //!
 //! // Create a static buffer with triangle vertices
 //! let vertex_buffer = Buffer::new(
-//!     device,
+//!     device.clone(),
 //!     3,  // 3 vertices for a triangle
 //!     GPUBufferUsage::VertexBuffer,
 //!     "triangle_vertices",
@@ -51,9 +53,8 @@
 //!         2 => Vertex { position: [ 0.0,  0.5, 0.0], color: [0.0, 0.0, 1.0, 1.0] },
 //!         _ => unreachable!()
 //!     }
-//! ).await?;
-//! # Ok(())
-//! # }
+//! ).await.expect("Failed to create buffer");
+//! # });
 //! ```
 
 use std::marker::PhantomData;
@@ -85,23 +86,24 @@ use crate::imp;
 ///
 /// # Example
 ///
-/// ```no_run
-/// # use std::sync::Arc;
+/// ```
 /// # use images_and_words::bindings::forward::r#static::buffer::Buffer;
 /// # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
-/// # use images_and_words::images::BoundDevice;
-/// # async fn example(device: Arc<BoundDevice>) -> Result<(), Box<dyn std::error::Error>> {
+/// # use images_and_words::images::projection::WorldCoord;
+/// # use images_and_words::images::view::View;
+/// # test_executors::sleep_on(async {
+/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
 /// // Create a buffer of precomputed sine values
 /// let sine_lut = Buffer::new(
-///     device,
+///     device.clone(),
 ///     256,
 ///     GPUBufferUsage::FragmentShaderRead,
 ///     "sine_lookup_table",
 ///     |i| (i as f32 * std::f32::consts::TAU / 256.0).sin()
-/// ).await?;
-/// # Ok(())
-/// # }
+/// ).await.expect("Failed to create buffer");
+/// # });
 /// ```
 pub struct Buffer<Element> {
     pub(crate) imp: imp::GPUableBuffer,
@@ -193,16 +195,18 @@ impl<Element> Buffer<Element> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # use std::sync::Arc;
+    /// ```
     /// # use images_and_words::bindings::forward::r#static::buffer::Buffer;
     /// # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
     /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
-    /// # use images_and_words::images::BoundDevice;
-    /// # async fn example(device: Arc<BoundDevice>) -> Result<(), Box<dyn std::error::Error>> {
+    /// # use images_and_words::images::projection::WorldCoord;
+    /// # use images_and_words::images::view::View;
+    /// # test_executors::sleep_on(async {
+    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     /// // Create an index buffer for a quad (two triangles)
     /// let indices = Buffer::new(
-    ///     device,
+    ///     device.clone(),
     ///     6,  // 6 indices for 2 triangles
     ///     GPUBufferUsage::Index,
     ///     "quad_indices",
@@ -211,9 +215,8 @@ impl<Element> Buffer<Element> {
     ///         3 => 2,    4 => 3, 5 => 0,  // Second triangle
     ///         _ => unreachable!()
     ///     }
-    /// ).await?;
-    /// # Ok(())
-    /// # }
+    /// ).await.expect("Failed to create buffer");
+    /// # });
     /// ```
     ///
     /// # Implementation Details
