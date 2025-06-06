@@ -14,7 +14,6 @@ pub mod scaled_iterator;
 pub mod scaled_row_cell;
 pub mod scaled_32;
 pub mod vtexture;
-pub mod vnoise;
 
 /**
 This will correctly-encode a floating-point color value to SRGB.
