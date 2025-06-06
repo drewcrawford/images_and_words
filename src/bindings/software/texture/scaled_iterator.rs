@@ -17,7 +17,7 @@ has an input texel at each corner, instead of having a dangling output texel wit
 
 If you have no input texture, and are trying to create a new texture of given size, use the constructor [Self::new_no_input].
 */
-#[derive(Copy,Clone)]
+#[derive(Debug,Copy,Clone)]
 pub struct ScaledIterator {
     next: ScaledRowCell,
     tx_width: u16,
