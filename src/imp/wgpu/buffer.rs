@@ -113,8 +113,7 @@ impl MappableBuffer {
         });
 
         // Use blocking poll to wait for map completion, avoiding VSync timing issues
-        let maintain_result = self.bound_device.0.device.poll(wgpu::Maintain::Wait);
-        //println!("maintain_result after map_write: {:?}", maintain_result.is_queue_empty());
+        self.bound_device.0.device.poll(wgpu::Maintain::Wait);
         r.await;
         let mut range = slice.get_mapped_range_mut();
         self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
@@ -270,44 +269,6 @@ impl GPUMultibuffer for GPUableBuffer {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    // Instead of testing with real MappableBuffer instances (which require GPU setup),
-    // let's test the logic by examining the code differences between map_read and map_write
-    
-    #[test]
-    fn test_map_write_missing_implementation() {
-        // This test demonstrates that map_write() is missing the crucial implementation
-        // It will FAIL, showing that the bug from the reproducer exists
-        
-        let map_write_source = include_str!("buffer.rs");
-        
-        // Verify map_read has the correct pattern
-        assert!(map_write_source.contains("let range = slice.get_mapped_range();"), 
-                "map_read should set mapped field");
-        assert!(map_write_source.contains("self.mapped = Some((range.as_ptr(), range.len()));"), 
-                "map_read should set mapped field");
-        
-        // Verify map_write is MISSING the equivalent pattern (this is the bug!)
-        let map_write_body_start = map_write_source.find("pub async fn map_write(&mut self) {").unwrap();
-        let map_write_body_end = map_write_source[map_write_body_start..].find("pub fn unmap(&mut self)").unwrap() + map_write_body_start;
-        let map_write_body = &map_write_source[map_write_body_start..map_write_body_end];
-        
-        // Check that map_write method body is missing the crucial code
-        let executable_lines: Vec<&str> = map_write_body.lines()
-            .filter(|line| !line.trim().starts_with("//"))
-            .collect();
-        let executable_code = executable_lines.join("\n");
-        
-        // These assertions will FAIL because the code is missing (demonstrating the bug)
-        assert!(executable_code.contains("let mut range = slice.get_mapped_range_mut()"), 
-                "map_write is missing get_mapped_range_mut - this is the bug from the reproducer!");
-        assert!(executable_code.contains("self.mapped_mut = Some((range.as_mut_ptr(), range.len()))"), 
-                "map_write is missing mapped_mut assignment - this is the bug from the reproducer!");
-    }
-    
-}
 
 

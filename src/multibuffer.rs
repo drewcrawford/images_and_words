@@ -213,18 +213,18 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
         }
     }
 
-    pub async fn access_read(&self) -> CPUReadGuard<T,U> where T: Mappable, U: GPUMultibuffer {
-        loop {
-            //insert first
-            let (s,f) = r#continue::continuation();
-            self.wake_list.lock().unwrap().push(s);
-            //then check
-            match self.mappable.cpu_read().await {
-                Ok(guard) => return CPUReadGuard{ imp: Some(guard), buffer: self },
-                Err(_) => f.await
-            }
-        }
-    }
+    // pub async fn access_read(&self) -> CPUReadGuard<T,U> where T: Mappable, U: GPUMultibuffer {
+    //     loop {
+    //         //insert first
+    //         let (s,f) = r#continue::continuation();
+    //         self.wake_list.lock().unwrap().push(s);
+    //         //then check
+    //         match self.mappable.cpu_read().await {
+    //             Ok(guard) => return CPUReadGuard{ imp: Some(guard), buffer: self },
+    //             Err(_) => f.await
+    //         }
+    //     }
+    // }
     
     /**
     Accesses the underlying data.

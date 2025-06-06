@@ -258,37 +258,37 @@ impl<Resource> ResourceTrackerInternal<Resource> {
             resource: UnsafeCell::new(resource),
         }
     }
-    /// Acquires the resource for CPU read access
-    ///
-    /// # Returns
-    ///
-    /// - `Ok(CPUReadGuard)` if the resource can be acquired for reading
-    /// - `Err(NotAvailable)` if the resource is currently in use
-    ///
-    /// # State Transitions
-    ///
-    /// Can acquire from: `UNUSED`, `PENDING_WRITE_TO_GPU`
-    /// Transitions to: `CPU_READ`
-    ///
-    /// # Async Behavior
-    ///
-    /// This method is async because it calls `map_read()` on the resource,
-    /// which may need to wait for GPU operations or data transfers.
-    pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
-        match self.state.fetch_update(std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed, |current| {
-            match current {
-                UNUSED | PENDING_WRITE_TO_GPU => Some(CPU_READ),
-                _ => None,
-            }
-        }) {
-            Ok(_) => {},
-            Err(other) => return Err(NotAvailable { read_state: other }),
-        }
-        unsafe {
-            self.resource.get().as_mut().unwrap().map_read().await;
-            Ok(CPUReadGuard { tracker: self })
-        }
-    }
+    // /// Acquires the resource for CPU read access
+    // ///
+    // /// # Returns
+    // ///
+    // /// - `Ok(CPUReadGuard)` if the resource can be acquired for reading
+    // /// - `Err(NotAvailable)` if the resource is currently in use
+    // ///
+    // /// # State Transitions
+    // ///
+    // /// Can acquire from: `UNUSED`, `PENDING_WRITE_TO_GPU`
+    // /// Transitions to: `CPU_READ`
+    // ///
+    // /// # Async Behavior
+    // ///
+    // /// This method is async because it calls `map_read()` on the resource,
+    // /// which may need to wait for GPU operations or data transfers.
+    // pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
+    //     match self.state.fetch_update(std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed, |current| {
+    //         match current {
+    //             UNUSED | PENDING_WRITE_TO_GPU => Some(CPU_READ),
+    //             _ => None,
+    //         }
+    //     }) {
+    //         Ok(_) => {},
+    //         Err(other) => return Err(NotAvailable { read_state: other }),
+    //     }
+    //     unsafe {
+    //         self.resource.get().as_mut().unwrap().map_read().await;
+    //         Ok(CPUReadGuard { tracker: self })
+    //     }
+    // }
     /// Acquires the resource for CPU write access
     ///
     /// # Returns
@@ -402,12 +402,12 @@ impl<Resource> ResourceTracker<Resource> {
             internal: Arc::new(ResourceTrackerInternal::new(resource, state)),
         }
     }
-    /// Acquires the resource for CPU read access
-    ///
-    /// See [`ResourceTrackerInternal::cpu_read`] for details.
-    pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
-        self.internal.cpu_read().await
-    }
+    // /// Acquires the resource for CPU read access
+    // ///
+    // /// See [`ResourceTrackerInternal::cpu_read`] for details.
+    // pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
+    //     self.internal.cpu_read().await
+    // }
     
     /// Acquires the resource for CPU write access
     ///
