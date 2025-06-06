@@ -104,7 +104,7 @@ pub struct BindInfo {
 /// 
 /// When binding a texture, you can optionally specify sampler settings that control
 /// how the texture is sampled (filtering, wrapping modes, etc.).
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SamplerInfo {
     /// The slot to bind the sampler to.
     pub pass_index: u32,
