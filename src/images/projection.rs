@@ -23,7 +23,7 @@ we move the object such that the camera is at the origin.
 
 So far the matrix we need is
 
-```ignore
+```text
 | 1  0  0 -x|
 | 0  1  0 -y|
 | 0  0  1 -z|
@@ -35,7 +35,7 @@ x is ok
 y needs inverse for WebGPU.
 z needs inverse
 
-```ignore
+```text
 | 1  0  0 0|
 | 0 -1  0 0|
 | 0  0 -1 0|
@@ -45,7 +45,7 @@ z needs inverse
 
 An orthographic projection can be defined as
 
-```ignore
+```text
 | 1.0 / s  0   0          0        |
 | 0        r/s 0          0        |
 | 0        0   1.0/(f-n) -n/(f-n)  |
@@ -58,7 +58,7 @@ with e.g. base_scale = 1.0 and z_ref = 1.0.
 
 Alternatively the projection matrix can be defined as
 
-```ignore
+```text
 | fl   0 0                   0 |
 | 0 fl*r 0                   0 |
 | 0    0    f/(f-n) -f*n/(f-n) |

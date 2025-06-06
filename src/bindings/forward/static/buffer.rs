@@ -1,6 +1,60 @@
-/*!
-Static buffer type.
-*/
+//! Static GPU buffer implementation for immutable data.
+//!
+//! This module provides the [`Buffer`] type for managing GPU buffers that contain
+//! data that doesn't change after creation. Static buffers are ideal for resources
+//! like mesh geometry, lookup tables, or any other data that remains constant
+//! throughout the application's lifetime.
+//!
+//! # Overview
+//!
+//! Static buffers differ from dynamic buffers in that they:
+//! - Are uploaded to the GPU once during creation
+//! - Cannot be modified after creation
+//! - Are optimized for GPU-only memory placement
+//! - Have lower overhead than dynamic buffers
+//!
+//! # Use Cases
+//!
+//! Static buffers are perfect for:
+//! - Mesh vertex and index data
+//! - Precomputed lookup tables
+//! - Constant coefficient arrays
+//! - Any data that won't change during runtime
+//!
+//! # Example
+//!
+//! ```no_run
+//! # use std::sync::Arc;
+//! # use images_and_words::bindings::forward::r#static::buffer::Buffer;
+//! # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
+//! # use images_and_words::bindings::visible_to::GPUBufferUsage;
+//! # use images_and_words::images::BoundDevice;
+//! # async fn example(device: Arc<BoundDevice>) -> Result<(), Box<dyn std::error::Error>> {
+//! // Define a vertex type
+//! #[repr(C)]
+//! struct Vertex {
+//!     position: [f32; 3],
+//!     color: [f32; 4],
+//! }
+//! 
+//! unsafe impl CRepr for Vertex {}
+//!
+//! // Create a static buffer with triangle vertices
+//! let vertex_buffer = Buffer::new(
+//!     device,
+//!     3,  // 3 vertices for a triangle
+//!     GPUBufferUsage::VertexBuffer,
+//!     "triangle_vertices",
+//!     |index| match index {
+//!         0 => Vertex { position: [-0.5, -0.5, 0.0], color: [1.0, 0.0, 0.0, 1.0] },
+//!         1 => Vertex { position: [ 0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0, 1.0] },
+//!         2 => Vertex { position: [ 0.0,  0.5, 0.0], color: [0.0, 0.0, 1.0, 1.0] },
+//!         _ => unreachable!()
+//!     }
+//! ).await?;
+//! # Ok(())
+//! # }
+//! ```
 
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
@@ -10,6 +64,45 @@ use crate::bindings::forward::dynamic::buffer::CRepr;
 use crate::images::BoundDevice;
 use crate::imp;
 
+/// A static GPU buffer containing immutable data.
+///
+/// `Buffer<T>` represents a GPU buffer whose contents are set once during creation
+/// and cannot be modified afterwards. This makes static buffers ideal for data that
+/// doesn't change, such as mesh geometry or lookup tables.
+///
+/// # Type Parameter
+///
+/// The type parameter `Element` must implement [`CRepr`] to ensure C-compatible
+/// memory layout for GPU interoperability.
+///
+/// # Performance
+///
+/// Static buffers offer several performance advantages:
+/// - Single upload operation during creation
+/// - Can be placed in GPU-only memory for optimal access speed
+/// - No synchronization overhead during rendering
+/// - No CPU-side memory allocation after creation
+///
+/// # Example
+///
+/// ```no_run
+/// # use std::sync::Arc;
+/// # use images_and_words::bindings::forward::r#static::buffer::Buffer;
+/// # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
+/// # use images_and_words::bindings::visible_to::GPUBufferUsage;
+/// # use images_and_words::images::BoundDevice;
+/// # async fn example(device: Arc<BoundDevice>) -> Result<(), Box<dyn std::error::Error>> {
+/// // Create a buffer of precomputed sine values
+/// let sine_lut = Buffer::new(
+///     device,
+///     256,
+///     GPUBufferUsage::FragmentShaderRead,
+///     "sine_lookup_table",
+///     |i| (i as f32 * std::f32::consts::TAU / 256.0).sin()
+/// ).await?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct Buffer<Element> {
     pub(crate) imp: imp::GPUableBuffer,
     #[allow(dead_code)] //nop implementation does not use
@@ -18,10 +111,46 @@ pub struct Buffer<Element> {
 }
 
 
+/// Error type for static buffer operations.
+///
+/// This error wraps underlying implementation errors that can occur during
+/// buffer creation. Common causes include:
+///
+/// - Out of memory conditions
+/// - Invalid buffer sizes (e.g., zero-sized buffers)
+/// - GPU device errors
+/// - Backend-specific limitations
 #[derive(Debug,thiserror::Error)]
-#[error("Texture error")]
+#[error("Static buffer error: {0}")]
 pub struct Error(#[from] imp::Error);
 
+/// Initializes a byte array with typed elements using a provided initializer function.
+///
+/// This function is used internally to populate buffer memory with initial values
+/// during buffer creation. It handles the unsafe conversion between byte arrays
+/// and typed element arrays while ensuring proper initialization.
+///
+/// # Parameters
+///
+/// * `element_count` - Number of elements to initialize
+/// * `byte_array` - Uninitialized byte array with exactly `element_count * size_of::<Element>()` bytes
+/// * `initializer` - Function that produces an element value given its index
+///
+/// # Returns
+///
+/// A mutable slice of initialized bytes ready for GPU upload.
+///
+/// # Panics
+///
+/// Panics if the byte array length doesn't match the expected size for the given
+/// element count and type.
+///
+/// # Safety
+///
+/// This function performs unsafe memory transmutation. It's safe because:
+/// - The `CRepr` trait ensures `Element` has C-compatible layout
+/// - We verify the byte array has the correct size
+/// - All bytes are initialized before being returned
 pub(crate) fn initialize_byte_array_with<Element,I: Fn(usize) -> Element>(element_count: usize, byte_array: &mut [MaybeUninit<u8>], initializer: I) -> &mut [u8] where Element: CRepr {
     let byte_size = element_count * std::mem::size_of::<Element>();
     assert_eq!(byte_array.len(),byte_size);
@@ -40,6 +169,60 @@ pub(crate) fn initialize_byte_array_with<Element,I: Fn(usize) -> Element>(elemen
 }
 
 impl<Element> Buffer<Element> {
+    /// Creates a new static buffer with the specified size and initial data.
+    ///
+    /// This method creates a GPU buffer and uploads the initial data in a single
+    /// operation. Once created, the buffer contents cannot be modified.
+    ///
+    /// # Parameters
+    ///
+    /// * `device` - The GPU device to create the buffer on
+    /// * `count` - Number of elements in the buffer
+    /// * `usage` - How the buffer will be used on the GPU (vertex data, uniform, etc.)
+    /// * `debug_name` - Human-readable name for debugging and profiling
+    /// * `initializer` - Function to generate each element by index
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(Buffer)` on success, or an [`Error`] if buffer creation fails.
+    ///
+    /// # Performance
+    ///
+    /// The initializer function is called once for each element during buffer creation.
+    /// For large buffers, ensure the initializer is efficient.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use std::sync::Arc;
+    /// # use images_and_words::bindings::forward::r#static::buffer::Buffer;
+    /// # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
+    /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
+    /// # use images_and_words::images::BoundDevice;
+    /// # async fn example(device: Arc<BoundDevice>) -> Result<(), Box<dyn std::error::Error>> {
+    /// // Create an index buffer for a quad (two triangles)
+    /// let indices = Buffer::new(
+    ///     device,
+    ///     6,  // 6 indices for 2 triangles
+    ///     GPUBufferUsage::Index,
+    ///     "quad_indices",
+    ///     |i| match i {
+    ///         0 => 0u16, 1 => 1, 2 => 2,  // First triangle
+    ///         3 => 2,    4 => 3, 5 => 0,  // Second triangle
+    ///         _ => unreachable!()
+    ///     }
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Implementation Details
+    ///
+    /// 1. Creates a CPU-mappable staging buffer
+    /// 2. Initializes the staging buffer using the provided initializer
+    /// 3. Creates the final GPU buffer with the specified usage
+    /// 4. Copies data from staging to GPU buffer
+    /// 5. The staging buffer is automatically cleaned up
     pub async fn new(device: Arc<BoundDevice>, count: usize, usage: crate::bindings::visible_to::GPUBufferUsage, debug_name: &str, initializer: impl Fn(usize) -> Element) -> Result<Self,Error> where Element: CRepr {
         let byte_size = std::mem::size_of::<Element>() * count;
         let mappable = imp::MappableBuffer::new(device.clone(), byte_size, MapType::Write, debug_name, |bytes| {
