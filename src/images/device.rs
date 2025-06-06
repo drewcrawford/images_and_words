@@ -66,21 +66,21 @@ impl std::error::Error for BindError {}
 #[derive(thiserror::Error,Debug)]
 pub(crate) enum EitherError {
     #[error("Error with entrypoint {0}")]
-    EntryPointError(#[from] EntryPointError),
+    EntryPoint(#[from] EntryPointError),
     #[error("Error binding a device {0}")]
-    BindError(BindError),
+    Bind(BindError),
     #[error("Error picking a device {0}")]
-    PickError(PickError),
+    Pick(PickError),
 }
 impl From<BindError> for EitherError {
     fn from(e: BindError) -> Self {
-        Self::BindError(e)
+        Self::Bind(e)
     }
 }
 
 impl From<PickError> for EitherError {
     fn from(e: PickError) -> Self {
-        Self::PickError(e)
+        Self::Pick(e)
     }
 }
 

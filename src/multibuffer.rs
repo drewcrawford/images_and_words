@@ -166,8 +166,7 @@ pub(crate) mod sealed {
 
         /**
         Safety: Caller must guarantee that the guard is live for the duration of the GPU read.
-*/
-
+        */
         unsafe fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::CorrespondingMappedType>, Guarded: Mappable;
 
     }

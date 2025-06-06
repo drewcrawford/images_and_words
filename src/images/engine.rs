@@ -27,7 +27,7 @@ impl Engine {
     pub async fn for_testing() -> Result<Arc<Self>, CreateError> {
         Self::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await
     }
-    pub async fn rendering_to<'this>(mut view: View, initial_camera_position: WorldCoord) -> Result<Arc<Self>,CreateError> {
+    pub async fn rendering_to(mut view: View, initial_camera_position: WorldCoord) -> Result<Arc<Self>,CreateError> {
         let entry_point =   Arc::new(EntryPoint::new().await?);
         view.provide_entry_point(&entry_point).await.expect("Can't provide entry point");
         let (initial_width, initial_height, initial_scale) = view.size_scale().await;
@@ -84,13 +84,13 @@ fn compile_check() {
 #[non_exhaustive]
 pub enum CreateError {
     #[error("Can't create engine {0}")]
-    EntryPointError(#[from] EntryPointError),
+    EntryPoint(#[from] EntryPointError),
     #[error("Can't find a GPU {0}")]
-    GPUError(#[from] PickError),
+    Gpu(#[from] PickError),
     #[error("Can't bind GPU {0}")]
-    BindError(#[from] BindError),
+    Bind(#[from] BindError),
     #[error("Can't create port {0}")]
-    PortError(#[from] super::port::Error),
+    Port(#[from] super::port::Error),
     #[error("Implementation error {0}")]
-    ImpError(#[from] imp::Error),
+    Imp(#[from] imp::Error),
 }
