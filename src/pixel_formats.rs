@@ -1,4 +1,52 @@
-/*!Contains various info about pixel formats */
+//! Type-safe pixel format definitions for GPU textures.
+//!
+//! This module provides compile-time type-safe pixel format definitions used throughout
+//! images_and_words for GPU texture operations. Each pixel format encodes:
+//! 
+//! - Number of channels (R, RG, RGB, RGBA)
+//! - Data type per channel (8-bit unorm, 16-bit unorm, 16/32-bit float, 32-bit sint)
+//! - Color space (linear or sRGB)
+//! - Memory layout guarantees
+//!
+//! # Design Philosophy
+//!
+//! Pixel formats are implemented as zero-sized types rather than enums to enable:
+//! - Compile-time type checking of pixel format compatibility
+//! - Zero-cost abstractions with optimized code generation
+//! - Type-safe texture operations without runtime dispatch
+//!
+//! # Available Formats
+//!
+//! ## Single Channel
+//! - [`R8UNorm`] - 8-bit normalized unsigned integer (0-255 mapped to 0.0-1.0)
+//! - [`R16Float`] - 16-bit half-precision float
+//! - [`R32Float`] - 32-bit single-precision float
+//! - [`R32SInt`] - 32-bit signed integer
+//!
+//! ## Multi-Channel
+//! - [`RGFloat`] - 2-channel 32-bit float (8 bytes total)
+//! - [`RGBA8UNorm`] - 4-channel 8-bit normalized (4 bytes total)
+//! - [`RGBA8UnormSRGB`] - 4-channel 8-bit normalized with sRGB encoding
+//! - [`BGRA8UNormSRGB`] - 4-channel 8-bit normalized with sRGB encoding (BGRA order)
+//! - [`RGBA16Unorm`] - 4-channel 16-bit normalized (8 bytes total)
+//! - [`RGBA32Float`] - 4-channel 32-bit float (16 bytes total)
+//!
+//! # Examples
+//!
+//! ```
+//! use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
+//! 
+//! // Create a red pixel
+//! let red_pixel = Unorm4 { r: 255, g: 0, b: 0, a: 255 };
+//! ```
+//!
+//! ```
+//! use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB, Float4};
+//! 
+//! // Convert from linear float to sRGB
+//! let linear_color = Float4 { r: 0.5, g: 0.0, b: 0.0, a: 1.0 };
+//! let srgb_pixel: BGRA8UnormPixelSRGB = linear_color.into();
+//! ```
 
 /*
 Quick note on type design.  We could implement pixel formats with an enum
@@ -38,29 +86,60 @@ use crate::pixel_formats::sealed::{CPixelTrait, PixelFormat, ReprC};
 
 pub use half::f16;
 
+/// Sealed traits for pixel format type safety.
+///
+/// This module uses the sealed trait pattern to ensure that only the pixel
+/// formats defined in this crate can be used with texture APIs. This prevents
+/// users from accidentally creating incompatible pixel format types.
 pub(crate) mod sealed {
     use std::fmt::Debug;
 
+    /// Core trait for pixel format types.
+    ///
+    /// This trait is sealed and cannot be implemented outside this crate.
+    /// Each pixel format type implements this to specify its memory layout
+    /// and associated pixel type.
     pub trait PixelFormat: std::fmt::Debug + Send + Sync + 'static + crate::imp::PixelFormat {
+        /// Number of bytes per pixel for this format.
         const BYTES_PER_PIXEL: u8;
-        ///A type we can use.  Guaranteed to have correct memory layout.
+        
+        /// The concrete pixel type with guaranteed C-compatible memory layout.
+        ///
+        /// This type is what you actually read/write when accessing texture data.
         type CPixel: Clone + Debug + Send + ReprC + CPixelTrait;
     }
-    /**
-    Marker trait that indicates that the type has a C-compatible memory layout.
-    */
-    pub unsafe trait ReprC {
+    
+    /// Marker trait indicating C-compatible memory layout.
+    ///
+    /// Types implementing this trait have predictable memory layout with:
+    /// - No padding between fields
+    /// - No uninitialized bytes
+    /// - Stable field ordering
+    ///
+    /// # Safety
+    ///
+    /// This trait is unsafe to implement because incorrect implementation
+    /// could lead to undefined behavior when casting to/from byte slices.
+    pub unsafe trait ReprC {}
 
-    }
-
+    /// Operations supported by pixel types.
     pub trait CPixelTrait {
+        /// Compute the average of an array of pixels.
+        ///
+        /// Used for mipmap generation and filtering operations.
         #[allow(dead_code)] //nop implementation does not use
         fn avg<const C: usize>(arr: &[Self; C]) -> Self where Self: Sized;
     }
 }
 
+/// Convert a slice of C-compatible pixels to raw bytes.
+///
+/// # Safety
+///
+/// This function is safe because it requires `T: ReprC`, which guarantees
+/// C-compatible memory layout with no padding or uninitialized bytes.
 #[allow(dead_code)] //nop implementation does not use
-pub(crate) fn pixel_as_bytes<T: ReprC> (t: &[T]) -> &[u8] {
+pub(crate) fn pixel_as_bytes<T: ReprC>(t: &[T]) -> &[u8] {
     //safe because we know that T is repr(C)
     //(we offloaded the safety check to the ReprC trait)
     unsafe {
@@ -70,6 +149,23 @@ pub(crate) fn pixel_as_bytes<T: ReprC> (t: &[T]) -> &[u8] {
 
 
 
+/// 8-bit normalized unsigned integer format with a single red channel.
+///
+/// Values are stored as 0-255 and interpreted as 0.0-1.0 when sampled.
+/// This format is commonly used for:
+/// - Grayscale images
+/// - Alpha masks
+/// - Single-channel data like height maps
+///
+/// # Examples
+///
+/// ```
+/// use images_and_words::pixel_formats::R8UNorm;
+/// 
+/// // The pixel type for R8UNorm is u8
+/// let pixel: u8 = 128;
+/// // This pixel value represents 128/255 ≈ 0.502 when normalized
+/// ```
 #[derive(Debug,Clone)]
 pub struct R8UNorm;
 impl PixelFormat for R8UNorm {
@@ -88,6 +184,15 @@ impl CPixelTrait for u8 {
     }
 }
 
+/// 16-bit normalized unsigned integer format with RGBA channels.
+///
+/// Each channel uses 16 bits (0-65535 mapped to 0.0-1.0), providing higher precision
+/// than 8-bit formats. Total size is 8 bytes per pixel.
+///
+/// Useful for:
+/// - High dynamic range textures
+/// - Intermediate render targets
+/// - Normal maps requiring extra precision
 #[derive(Debug,Clone)]
 pub struct RGBA16Unorm;
 impl PixelFormat for RGBA16Unorm {
@@ -114,6 +219,13 @@ impl CPixelTrait for RGBA16Pixel {
     }
 }
 
+/// Two-channel 32-bit floating point format.
+///
+/// Each channel is a full 32-bit float. Total size is 8 bytes per pixel.
+/// Commonly used for:
+/// - UV coordinates
+/// - 2D vector fields
+/// - Two-channel HDR data
 #[derive(Debug,Clone)]
 pub struct RGFloat;
 impl PixelFormat for RGFloat {
@@ -137,26 +249,45 @@ impl CPixelTrait for RGFloatPixel {
     }
 }
 
+/// Pixel type for [`RGFloat`] format.
+///
+/// Contains two 32-bit floating point values with C-compatible memory layout.
 #[repr(C)]
 #[derive(Clone,Debug)]
 pub struct RGFloatPixel {
+    /// Red channel value
     pub r: f32,
+    /// Green channel value
     pub g: f32,
 }
 unsafe impl ReprC for RGFloatPixel {}
 
+/// Pixel type for [`RGBA16Unorm`] format.
+///
+/// Contains four 16-bit normalized values with C-compatible memory layout.
+/// Values range from 0-65535.
 #[repr(C)]
 #[derive(Clone,Debug)]
 pub struct RGBA16Pixel {
-    r: u16,
-    g: u16,
-    b: u16,
-    a: u16,
+    /// Red channel (0-65535)
+    pub r: u16,
+    /// Green channel (0-65535)
+    pub g: u16,
+    /// Blue channel (0-65535)
+    pub b: u16,
+    /// Alpha channel (0-65535)
+    pub a: u16,
 }
 unsafe impl ReprC for RGBA16Pixel {}
 
+/// 32-bit signed integer format with a single red channel.
+///
+/// Unlike normalized formats, values are not normalized to 0.0-1.0.
+/// Useful for:
+/// - Index buffers
+/// - Integer compute data
+/// - Non-visual data storage
 #[derive(Debug,Clone)]
-///32-bit signed integer type, R channel
 pub struct R32SInt;
 impl PixelFormat for R32SInt {
     const BYTES_PER_PIXEL: u8 = 4;
@@ -174,8 +305,16 @@ impl CPixelTrait for i32 {
     }
 }
 
+/// 32-bit single-precision float format with a single red channel.
+///
+/// Provides full floating point precision for a single channel.
+/// Note: This format is sampleable on Metal, unlike some other float formats.
+///
+/// Common uses:
+/// - Depth buffers
+/// - Single-channel HDR data
+/// - Distance fields
 #[derive(Debug,Clone)]
-///Single-precision float format.  This is sampleable on Metal.
 pub struct R32Float;
 impl PixelFormat for R32Float {
     const BYTES_PER_PIXEL: u8 = 4;
@@ -192,6 +331,15 @@ impl CPixelTrait for f32 {
         sum / C as f32
     }
 }
+/// 16-bit half-precision float format with a single red channel.
+///
+/// Uses IEEE 754 half-precision format. More compact than R32Float
+/// but with reduced range and precision.
+///
+/// Useful for:
+/// - Memory-constrained applications
+/// - Mobile GPUs
+/// - Cases where full float precision isn't needed
 #[derive(Debug, Clone)]
 pub struct R16Float;
 impl PixelFormat for R16Float {
@@ -211,7 +359,23 @@ impl CPixelTrait for half::f16 {
 unsafe impl ReprC for half::f16 {}
 unsafe impl ReprC for f32 {}
 
-///C-compatible 4-field u8 type
+/// C-compatible RGBA pixel with 8-bit normalized unsigned values.
+///
+/// This is the pixel type for [`RGBA8UNorm`]. Values range from 0-255
+/// and are interpreted as 0.0-1.0 when used in shaders.
+///
+/// # Examples
+///
+/// ```
+/// use images_and_words::pixel_formats::{Unorm4, Float4};
+/// 
+/// // Create from individual channels
+/// let opaque_red = Unorm4 { r: 255, g: 0, b: 0, a: 255 };
+/// 
+/// // Convert from normalized floats
+/// let float_color = Float4 { r: 1.0, g: 0.5, b: 0.0, a: 1.0 };
+/// let unorm_color = Unorm4::from_floats(float_color);
+/// ```
 #[repr(C)]
 #[derive(Clone,Debug)]
 pub struct Unorm4 {
@@ -222,13 +386,15 @@ pub struct Unorm4 {
 }
 unsafe impl ReprC for Unorm4 {}
 impl Unorm4 {
+    /// Convert from normalized float values (0.0-1.0) to 8-bit values (0-255).
+    ///
+    /// Values are clamped to the valid range and rounded to nearest integer.
     pub fn from_floats(float4: Float4) -> Self {
         Unorm4 {
-            r: (float4.r * 255.0).round() as u8,
-            g: (float4.g * 255.0).round() as u8,
-            b: (float4.b * 255.0).round() as u8,
-            a: (float4.a * 255.0).round() as u8,
-
+            r: (float4.r * 255.0).round().clamp(0.0, 255.0) as u8,
+            g: (float4.g * 255.0).round().clamp(0.0, 255.0) as u8,
+            b: (float4.b * 255.0).round().clamp(0.0, 255.0) as u8,
+            a: (float4.a * 255.0).round().clamp(0.0, 255.0) as u8,
         }
     }
 }
@@ -247,6 +413,37 @@ impl Default for Unorm4 {
         Self { r: 0, g: 0, b: 0, a: 0}
     }
 }
+/// 8-bit normalized unsigned integer format with RGBA channels.
+///
+/// The most common texture format for color images. Each channel uses 8 bits
+/// (0-255 mapped to 0.0-1.0). Total size is 4 bytes per pixel.
+///
+/// # Examples
+///
+/// ```
+/// use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
+/// use images_and_words::bindings::forward::r#static::texture::Texture;
+/// use images_and_words::bindings::visible_to::TextureUsage;
+/// # use images_and_words::Priority;
+/// # use images_and_words::images::projection::WorldCoord;
+/// # use images_and_words::images::view::View;
+/// # test_executors::sleep_on(async {
+/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
+/// 
+/// // Create a texture with this format
+/// let texture = Texture::<RGBA8UNorm>::new(
+///     &device,
+///     256,
+///     256,
+///     TextureUsage::FragmentShaderSample,
+///     false,
+///     "my_texture",
+///     Priority::UserInitiated,
+///     |_| Unorm4 { r: 255, g: 128, b: 0, a: 255 }
+/// ).await.expect("Failed to create texture");
+/// # });
+/// ```
 #[derive(Debug,Clone)]
 pub struct RGBA8UNorm;
 impl PixelFormat for RGBA8UNorm {
@@ -274,11 +471,18 @@ impl CPixelTrait for Unorm4 {
 }
 
 
-/**
-Currently the preferred form for pre-lit, narrow-color textures.
-
-Could be optimized further on a per-platform basis, see obsidian://open?vault=mt2&file=IW%2FTexture%20formats for details.
-*/
+/// 8-bit normalized unsigned integer format with BGRA channel order and sRGB encoding.
+///
+/// This is the preferred format for pre-lit, narrow-color textures. The BGRA
+/// channel order is optimal for many GPUs and display systems. The sRGB encoding
+/// provides perceptually uniform color representation.
+///
+/// Features:
+/// - Automatic sRGB to linear conversion on sampling
+/// - Automatic linear to sRGB conversion on writing
+/// - Optimal memory layout for many platforms
+///
+/// Could be optimized further on a per-platform basis.
 #[derive(Debug,Copy,Clone)]
 pub struct BGRA8UNormSRGB;
 impl PixelFormat for BGRA8UNormSRGB {
@@ -304,6 +508,24 @@ impl CPixelTrait for BGRA8UnormPixelSRGB {
         }
     }
 }
+/// Pixel type for [`BGRA8UNormSRGB`] format.
+///
+/// Stores color values in sRGB space with BGRA channel order.
+/// Values are automatically converted between linear and sRGB space
+/// by the GPU when sampling or writing.
+///
+/// # Examples
+///
+/// ```
+/// use images_and_words::pixel_formats::{BGRA8UnormPixelSRGB, Float4};
+/// 
+/// // Create from sRGB values
+/// let srgb_pixel = BGRA8UnormPixelSRGB::from_srgb_gamma_floats(1.0, 0.5, 0.0, 1.0);
+/// 
+/// // Convert from linear color
+/// let linear_color = Float4 { r: 0.5, g: 0.0, b: 0.0, a: 1.0 };
+/// let srgb_pixel: BGRA8UnormPixelSRGB = linear_color.into();
+/// ```
 #[derive(Debug,Clone,Copy,PartialEq)]
 #[repr(C)]
 pub struct BGRA8UnormPixelSRGB {
@@ -314,8 +536,14 @@ pub struct BGRA8UnormPixelSRGB {
 }
 unsafe impl ReprC for BGRA8UnormPixelSRGB {}
 impl BGRA8UnormPixelSRGB {
+    /// Transparent black constant.
     pub const ZERO: BGRA8UnormPixelSRGB = Self { b: 0, g: 0, r: 0, a: 0 };
-    #[inline] pub fn from_srgb_gamma_floats(r: f32, g: f32, b: f32, a: f32) -> Self {
+    
+    /// Create from sRGB gamma-corrected float values (0.0-1.0).
+    ///
+    /// Input values are already in sRGB space and are simply scaled to 0-255.
+    #[inline] 
+    pub fn from_srgb_gamma_floats(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self {
             r: (255.0 * r).round() as u8,
             g: (255.0 * g).round() as u8,
@@ -325,6 +553,10 @@ impl BGRA8UnormPixelSRGB {
     }
 }
 impl From<Float4> for BGRA8UnormPixelSRGB {
+    /// Convert from linear to sRGB color space.
+    ///
+    /// Applies the sRGB transfer function to convert from linear
+    /// color values to gamma-corrected sRGB values.
     fn from(color: Float4) -> Self {
         let r = if color.r < 0.0031308 {
             12.92 * color.r
@@ -351,6 +583,25 @@ impl From<Float4> for BGRA8UnormPixelSRGB {
     }
 }
 
+/// Four-channel floating point color.
+///
+/// This is the pixel type for [`RGBA32Float`]. Values are stored as linear
+/// color values (not gamma corrected). Can be converted to/from sRGB formats.
+///
+/// # Examples
+///
+/// ```
+/// use images_and_words::pixel_formats::{Float4, BGRA8UnormPixelSRGB};
+/// 
+/// // Create a linear color
+/// let linear_red = Float4 { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
+/// 
+/// // Convert to sRGB
+/// let srgb_pixel: BGRA8UnormPixelSRGB = linear_red.into();
+/// 
+/// // Convert back to linear
+/// let linear_again: Float4 = srgb_pixel.into();
+/// ```
 #[repr(C)]
 #[derive(Clone,Debug)]
 pub struct Float4 {
@@ -362,6 +613,10 @@ pub struct Float4 {
 
 unsafe impl ReprC for Float4 {}
 impl From<BGRA8UnormPixelSRGB> for Float4 {
+    /// Convert from sRGB to linear color space.
+    ///
+    /// Applies the inverse sRGB transfer function to convert from
+    /// gamma-corrected sRGB values to linear color values.
     fn from(c: BGRA8UnormPixelSRGB) -> Self {
         let r_s = c.r as f32 / 255.0;
         let g_s = c.g as f32 / 255.0;
@@ -406,6 +661,16 @@ impl Into<tgar::PixelBGRA> for Float4 {
         }
     }
 }
+/// 32-bit floating point format with RGBA channels.
+///
+/// Each channel is a full 32-bit IEEE 754 float. Total size is 16 bytes per pixel.
+/// This format provides maximum precision and dynamic range.
+///
+/// Common uses:
+/// - HDR render targets
+/// - Scientific visualization
+/// - Intermediate computation buffers
+/// - Post-processing effects
 #[derive(Debug,Clone)]
 pub struct RGBA32Float;
 impl PixelFormat for RGBA32Float {
@@ -431,6 +696,12 @@ impl CPixelTrait for Float4 {
         }
     }
 }
+/// 8-bit normalized unsigned integer format with RGBA channel order and sRGB encoding.
+///
+/// Similar to [`BGRA8UNormSRGB`] but with RGBA channel order. The sRGB encoding
+/// provides automatic gamma correction.
+///
+/// Note: BGRA order is often preferred for performance reasons on many platforms.
 #[derive(Debug,Clone)]
 pub struct RGBA8UnormSRGB;
 impl PixelFormat for RGBA8UnormSRGB {
@@ -458,8 +729,10 @@ impl CPixelTrait for RGBA8UnormSRGBPixel {
 }
 
 unsafe impl ReprC for RGBA8UnormSRGBPixel {}
-/**
-Currently only used for png support. */
+/// Pixel type for [`RGBA8UnormSRGB`] format.
+///
+/// Currently primarily used for PNG support as PNG files typically
+/// use RGBA channel order.
 #[repr(C)]
 #[derive(Debug,Clone)]
 pub struct RGBA8UnormSRGBPixel {
