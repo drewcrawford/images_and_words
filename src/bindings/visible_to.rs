@@ -108,6 +108,7 @@ pub enum TextureUsage {
 /// let uniform_usage = GPUBufferUsage::FragmentShaderRead;
 /// ```
 #[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GPUBufferUsage {
     /// The buffer will be read as data in the vertex shader.
     ///
