@@ -16,7 +16,7 @@
 //!
 //! # Examples
 //!
-//! ```no_run
+//! ```
 //! use images_and_words::bindings::visible_to::{TextureUsage, GPUBufferUsage, CPUStrategy};
 //!
 //! // Declare a texture that will be sampled in fragment shaders
@@ -40,7 +40,7 @@
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use images_and_words::bindings::visible_to::TextureUsage;
 ///
 /// // A texture that will be sampled in the fragment shader (common for diffuse textures)
@@ -94,7 +94,7 @@ pub enum TextureUsage {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use images_and_words::bindings::visible_to::GPUBufferUsage;
 ///
 /// // A buffer containing vertex positions and colors
@@ -145,7 +145,7 @@ pub enum GPUBufferUsage {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use images_and_words::bindings::visible_to::CPUStrategy;
 ///
 /// // A render target that we'll read back for screenshots
