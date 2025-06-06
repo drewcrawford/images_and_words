@@ -386,32 +386,6 @@ impl Sampleable for f32 {
     }
 }
 
-/// Trait for rounding floating-point values to integer types.
-///
-/// This is primarily used internally for coordinate conversions.
-///
-/// # Examples
-///
-/// ```
-/// use images_and_words::bindings::software::texture::Round;
-///
-/// let float_val = 3.7f32;
-/// let rounded: i32 = Round::<i32>::round(&float_val);
-/// assert_eq!(rounded, 4);
-///
-/// let negative = -2.3f32;
-/// let rounded: i32 = Round::<i32>::round(&negative);
-/// assert_eq!(rounded, -2);
-/// ```
-pub trait Round<Output> {
-    /// Rounds the value to the nearest integer of type `Output`.
-    fn round(&self) -> Output;
-}
-impl Round<i32> for f32 {
-    fn round(&self) -> i32 {
-        f32::round(*self) as i32
-    }
-}
 
 impl Sampleable for i32 {
     type Sampled = f32;
@@ -590,7 +564,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// # Examples
     ///
     /// ```no_run
-    /// # //this is no_run due to file IO 
+    /// # //this is no_run due to file IO
     /// # async fn example() {
     /// use images_and_words::bindings::software::texture::Texture;
     /// use images_and_words::pixel_formats::RGBA8UnormSRGB;
