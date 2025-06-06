@@ -100,6 +100,7 @@ Represents a bindable GPU resource.
 
 Multibuffer type.
 */
+#[derive(Debug)]
 pub(crate) struct GPUGuard<T: Mappable, U: GPUMultibuffer> {
     imp: Option<Result<U,U::OutGuard<resource_tracking::GPUGuard<T>>>>,
     wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,

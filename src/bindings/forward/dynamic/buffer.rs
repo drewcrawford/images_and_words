@@ -322,6 +322,7 @@ impl<Element> Debug for RenderSide<Element> {
 ///
 /// The guard implements RAII - the buffer is automatically released when
 /// the guard is dropped, allowing the multibuffer system to recycle it.
+#[derive(Debug)]
 pub struct GPUAccess<Element> {
     #[allow(dead_code)] //nop implementation does not use
     imp: crate::multibuffer::GPUGuard<IndividualBuffer<Element>,GPUableBuffer>,
