@@ -301,7 +301,7 @@ impl Normalized {
     ///
     /// Panics if x or y are outside the range [0, 1].
     pub fn new(x: f32, y: f32) -> Self {
-        assert!(x >= 0.0 && x <= 1.0 && y >= 0.0 && y <= 1.0);
+        assert!((0.0..=1.0).contains(&x) && (0.0..=1.0).contains(&y));
         Self {
             x, y
         }
@@ -692,12 +692,12 @@ impl<Format: PixelFormat> Texture<Format> {
     /// });
     /// ```
     pub fn map<F: Fn(&Format::CPixel) -> T::CPixel, T: PixelFormat>(&self, mapfn: F) -> Texture<T> where T::CPixel: Default + Clone + std::fmt::Debug {
-        let new = Texture::new_with(self.width,self.height, |texel| {
+        
+        Texture::new_with(self.width,self.height, |texel| {
             let ours = &self[texel];
-            let theirs = mapfn(ours);
-            theirs
-        });
-        new
+            
+            mapfn(ours)
+        })
     }
 
 
@@ -716,7 +716,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// Panics if the file cannot be written.
     pub fn dump_c_to(&self, path: &std::path::Path) where Format: PixelFormat{
         let u8_slice: &[u8] = unsafe {
-            std::slice::from_raw_parts(self.texture_data() as *const _ as *const u8, self.texture_data().len() * std::mem::size_of::<Format::CPixel>())
+            std::slice::from_raw_parts(self.texture_data() as *const _ as *const u8, std::mem::size_of_val(self.texture_data()))
         };
         std::fs::write(path, u8_slice).unwrap()
     }
@@ -813,7 +813,7 @@ impl<Format: PixelFormat> Texture<Format> where Format::CPixel: Into<tgar::Pixel
                 vec.push(converted_px);
             }
         }
-        tgar::BGRA::new(self.width as u16, self.height as u16, &vec)
+        tgar::BGRA::new(self.width, self.height, &vec)
     }
 }
 

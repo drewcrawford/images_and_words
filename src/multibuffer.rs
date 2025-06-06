@@ -245,7 +245,7 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
             match self.mappable.cpu_write().await {
                 Ok(guard) => {
                     //Someone else will send a nonsense value to the sender later, that's fine.
-                    return CPUWriteGuard{ imp: Some(guard), buffer: &self };
+                    return CPUWriteGuard{ imp: Some(guard), buffer: self };
                 },
                 Err(_) => f.await //if we fail, wait for the next time
             }

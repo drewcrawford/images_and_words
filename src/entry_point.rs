@@ -22,7 +22,7 @@ impl std::error::Error for EntryPointError{}
 impl EntryPoint {
     ///Must use this constructor to get an [super::images]-compatible entrypoint.
     pub async fn new() -> Result<Self,EntryPointError> {
-        crate::imp::EntryPoint::new().await.map(|a| EntryPoint(a)).map_err(|e| EntryPointError(e))
+        crate::imp::EntryPoint::new().await.map(EntryPoint).map_err(EntryPointError)
     }
     #[cfg(target_os="windows")]
     pub fn as_vulkan(&self) -> &super::vulkan::entry_point::EntryPoint {

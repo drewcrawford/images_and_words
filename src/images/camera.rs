@@ -56,7 +56,7 @@ impl Camera {
 
     pub fn translate(&mut self, translation: WorldCoord) {
         let mut guard = self.shared.lock().unwrap();
-        guard.camera_position.0 = guard.camera_position.0 + translation.0;
+        guard.camera_position.0 += translation.0;
         guard.rematrix();
         guard.dirty_sender.mark_dirty(true);
     }

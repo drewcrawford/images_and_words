@@ -169,8 +169,8 @@ pub(crate) struct ErasedTextureRenderSide {
 impl ErasedTextureRenderSide {
     #[allow(dead_code)] //nop implementation does not use
     pub unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
-        let guard = unsafe { self.imp.acquire_gpu_texture(copy_info) };
-        guard
+        
+        unsafe { self.imp.acquire_gpu_texture(copy_info) }
     }
     pub fn gpu_dirty_receiver(&self) -> DirtyReceiver {
         self.imp.gpu_dirty_receiver()

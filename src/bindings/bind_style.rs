@@ -111,6 +111,12 @@ pub struct SamplerInfo {
     /// The sampler configuration to use.
     pub sampler_type: SamplerType,
 }
+impl Default for BindStyle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BindStyle {
     /// Creates a new, empty `BindStyle`.
     /// 

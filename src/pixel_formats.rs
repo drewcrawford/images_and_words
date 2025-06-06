@@ -143,7 +143,7 @@ pub(crate) fn pixel_as_bytes<T: ReprC>(t: &[T]) -> &[u8] {
     //safe because we know that T is repr(C)
     //(we offloaded the safety check to the ReprC trait)
     unsafe {
-        std::slice::from_raw_parts(t.as_ptr() as *const u8, t.len() * std::mem::size_of::<T>())
+        std::slice::from_raw_parts(t.as_ptr() as *const u8, std::mem::size_of_val(t))
     }
 }
 
@@ -202,7 +202,7 @@ impl PixelFormat for RGBA16Unorm {
 
 impl CPixelTrait for RGBA16Pixel {
     fn avg<const C: usize>(arr: &[Self; C]) -> Self {
-        let mut sum = (0 as u32, 0 as u32, 0 as u32, 0 as u32);
+        let mut sum = (0_u32, 0_u32, 0_u32, 0_u32);
         for i in arr {
             sum.0 += i.r as u32;
             sum.1 += i.g as u32;
@@ -238,8 +238,8 @@ impl CPixelTrait for RGFloatPixel {
     fn avg<const C: usize>(arr: &[Self; C]) -> Self {
         let mut sum = (0.0, 0.0);
         for i in arr {
-            sum.0 += i.r as f32;
-            sum.1 += i.g as f32;
+            sum.0 += i.r;
+            sum.1 += i.g;
         }
         let c = C as f32;
         RGFloatPixel {
@@ -378,6 +378,7 @@ unsafe impl ReprC for f32 {}
 /// ```
 #[repr(C)]
 #[derive(Clone,Debug)]
+#[derive(Default)]
 pub struct Unorm4 {
     pub r: u8,
     pub g: u8,
@@ -398,19 +399,14 @@ impl Unorm4 {
         }
     }
 }
-impl Into<PixelBGRA> for Unorm4 {
-    fn into(self) -> PixelBGRA {
+impl From<Unorm4> for PixelBGRA {
+    fn from(val: Unorm4) -> Self {
         PixelBGRA {
-            r: self.r,
-            b: self.b,
-            g: self.g,
-            a: self.a,
+            r: val.r,
+            b: val.b,
+            g: val.g,
+            a: val.a,
         }
-    }
-}
-impl Default for Unorm4 {
-    fn default() -> Self {
-        Self { r: 0, g: 0, b: 0, a: 0}
     }
 }
 /// 8-bit normalized unsigned integer format with RGBA channels.
@@ -651,13 +647,13 @@ impl Default for Float4 {
         Float4{ r: 0.0, g: 0.0, b: 0.0, a: 0.0}
     }
 }
-impl Into<tgar::PixelBGRA> for Float4 {
-    fn into(self) -> PixelBGRA {
+impl From<Float4> for tgar::PixelBGRA {
+    fn from(val: Float4) -> Self {
         PixelBGRA {
-            b: (self.b * 255.0) as u8,
-            g: (self.g * 255.0) as u8,
-            r: (self.r * 255.0) as u8,
-            a: (self.a * 255.0) as u8,
+            b: (val.b * 255.0) as u8,
+            g: (val.g * 255.0) as u8,
+            r: (val.r * 255.0) as u8,
+            a: (val.a * 255.0) as u8,
         }
     }
 }
@@ -753,29 +749,29 @@ impl From<RGBA8UnormSRGBPixel> for BGRA8UnormPixelSRGB {
     }
 }
 
-impl Into<tgar::PixelBGRA> for BGRA8UnormPixelSRGB {
-    fn into(self) -> PixelBGRA {
+impl From<BGRA8UnormPixelSRGB> for tgar::PixelBGRA {
+    fn from(val: BGRA8UnormPixelSRGB) -> Self {
         /*
         It seems to be unspecified whether or not TGA files
     are stored in any particular colorspace.
          See https://github.com/microsoft/DirectXTex/issues/136 for some discussion
          */
         PixelBGRA {
-            b: self.b,
-            g: self.g,
-            r: self.r,
-            a: self.a
+            b: val.b,
+            g: val.g,
+            r: val.r,
+            a: val.a
         }
     }
 }
 
-impl Into<tgar::PixelBGRA> for RGBA8UnormSRGBPixel {
-    fn into(self) -> PixelBGRA {
+impl From<RGBA8UnormSRGBPixel> for tgar::PixelBGRA {
+    fn from(val: RGBA8UnormSRGBPixel) -> Self {
         PixelBGRA {
-            b: self.b,
-            r: self.r,
-            g: self.g,
-            a: self.a,
+            b: val.b,
+            r: val.r,
+            g: val.g,
+            a: val.a,
         }
     }
 }

@@ -438,7 +438,7 @@ impl Port {
         let (port_sender,port_reporter) = port_reporter(0, &camera);
 
         Ok(Self{
-            imp: crate::imp::Port::new(engine, view,  camera.clone(),port_sender).map_err(|e| Error(e))?,
+            imp: crate::imp::Port::new(engine, view,  camera.clone(),port_sender).map_err(Error)?,
             port_reporter,
             descriptors: Default::default(),
             camera,
@@ -530,7 +530,7 @@ impl Port {
         //we need to figure out all the dirty stuff
         let mut dirty_receivers = Vec::new();
         for pass in &self.descriptors {
-            for (_, bind) in &pass.bind_style.binds {
+            for bind in pass.bind_style.binds.values() {
                 match &bind.target {
                     BindTarget::DynamicBuffer(a) => {
                         dirty_receivers.push(a.dirty_receiver());

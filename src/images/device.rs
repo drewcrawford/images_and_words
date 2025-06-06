@@ -21,7 +21,7 @@ impl UnboundDevice {
     }
     ///Pick a device for the associated surface
     pub async fn pick(view: &View,entry_point: &EntryPoint) -> Result<UnboundDevice,PickError> {
-        crate::imp::UnboundDevice::pick(view,entry_point).await.map(|d| UnboundDevice(d)).map_err(|e| PickError(e))
+        crate::imp::UnboundDevice::pick(view,entry_point).await.map(UnboundDevice).map_err(PickError)
     }
 
 }
@@ -89,7 +89,7 @@ impl BoundDevice {
     Vulkan prefers to create this impl as Arc because it points to itself internally.
      */
     pub(crate) async fn bind(unbound_device: UnboundDevice, entry_point: Arc<EntryPoint>) -> Result<Self,BindError> {
-        let bind = crate::imp::BoundDevice::bind(unbound_device, entry_point).await.map_err(|e| BindError(e))?;
+        let bind = crate::imp::BoundDevice::bind(unbound_device, entry_point).await.map_err(BindError)?;
         Ok(Self(bind))
     }
 

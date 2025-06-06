@@ -256,7 +256,7 @@ impl<Element> IndividualBuffer<Element> {
     pub fn write(&mut self, data: &[Element], dst_offset: usize) where Element: CRepr {
         let offset = dst_offset * std::mem::size_of::<Element>();
         let bytes = unsafe {
-            std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * std::mem::size_of::<Element>())
+            std::slice::from_raw_parts(data.as_ptr() as *const u8, std::mem::size_of_val(data))
         };
         self.imp.write(bytes, offset);
     }
@@ -333,7 +333,7 @@ pub struct GPUAccess<Element> {
 impl<Element> GPUAccess<Element> {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
-        &self.imp.as_imp()
+        self.imp.as_imp()
     }
 }
 
