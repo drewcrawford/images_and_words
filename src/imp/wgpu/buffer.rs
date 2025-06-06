@@ -6,7 +6,7 @@ use crate::images::BoundDevice;
 use crate::multibuffer::sealed::GPUMultibuffer;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
-use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label, Maintain};
+use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label, MaintainBase};
 
 /**
 A buffer that can be mapped onto the host.
@@ -100,7 +100,7 @@ impl MappableBuffer {
             r.unwrap();
             s.send(());
         });
-        self.bound_device.0.device.poll(Maintain::Wait);
+        self.bound_device.0.device.poll(MaintainBase::Wait).expect("Poll failed");
         r.await;
         let range = slice.get_mapped_range();
         self.mapped = Some((range.as_ptr(), range.len()));
@@ -114,7 +114,7 @@ impl MappableBuffer {
         });
 
         // Use blocking poll to wait for map completion, avoiding VSync timing issues
-        self.bound_device.0.device.poll(wgpu::Maintain::Wait);
+        self.bound_device.0.device.poll(MaintainBase::Wait).expect("Poll failed");
         r.await;
         let mut range = slice.get_mapped_range_mut();
         self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
@@ -244,7 +244,7 @@ impl GPUableBuffer {
         self.bound_device
             .0
             .device
-            .poll(wgpu::Maintain::WaitForSubmissionIndex(submission_index));
+            .poll(MaintainBase::WaitForSubmissionIndex(submission_index)).expect("Poll failed");
         r.await;
     }
     /**
