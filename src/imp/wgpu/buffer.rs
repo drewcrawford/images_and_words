@@ -56,7 +56,7 @@ impl MappableBuffer {
         let initialized = initialize_with(map_view);
 
         //very dumb check that they were the same pointer
-        assert_eq!(initialized.as_ptr() as *const u8, map_view_ptr as *const u8);
+        assert_eq!(initialized.as_ptr(), map_view_ptr as *const u8);
         //and have same length as requested
         assert_eq!(initialized.len(), map_view_len);
         std::mem::drop(entire_map);

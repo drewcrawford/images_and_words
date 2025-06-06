@@ -135,7 +135,7 @@ impl View {
             self.imp = Some(
                 crate::imp::View::from_surface(_entry_point, _window_handle, _display_handle).await?
             );
-            return Ok(());
+            Ok(())
         }
         #[cfg(not(feature = "app_window"))]
         {
@@ -169,7 +169,7 @@ impl View {
     pub(crate) async fn size_scale(&self) -> (u16,u16,f64) {
         #[cfg(feature = "app_window")]
         {
-            return match &self.os_impl {
+            match &self.os_impl {
                 OSImpl::AppWindow(surface, _, _) => {
                     let (size,scale) = surface.size_scale().await;
                     (size.width() as u16,size.height() as u16, scale)
@@ -179,7 +179,7 @@ impl View {
                     // Return a dummy size for testing
                     (800, 600, 1.0)
                 }
-            };
+            }
         }
         #[cfg(not(feature = "app_window"))]
         {
