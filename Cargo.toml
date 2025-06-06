@@ -24,8 +24,8 @@ await_values = {path = "../await_values"}
 # optional
 app_window = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/app_window.git", optional=true}
 # used for wgpu backend
-wgpu = {version = "24.0", optional = true}
-log = "0.4.25"
+wgpu = {version = "25", optional = true}
+log = "0.4"
 
 [features]
 # Create a view based on app_window Surface

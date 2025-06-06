@@ -21,7 +21,9 @@ impl UnboundDevice {
                 .as_ref(),
         };
         let adapter = entry_point.0.0.request_adapter(&options).await;
-        let adapter = adapter.ok_or(super::Error::NoSuchAdapter)?;
+        let adapter = adapter.or_else(|_| {
+            Err(super::Error::NoSuchAdapter)
+        })?;
 
         Ok(UnboundDevice { adapter })
     }
