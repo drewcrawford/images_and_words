@@ -94,7 +94,7 @@ impl MappableBuffer {
     pub async fn map_read(&mut self) {
         let (s,r) = r#continue::continuation();
         let slice = self.buffer.slice(..);
-        
+
         slice.map_async(wgpu::MapMode::Read, |r|{
             r.unwrap();
             s.send(());
@@ -153,12 +153,14 @@ pub(super) enum StorageType {
 impl GPUableBuffer {
     //only visible to wgpu backend
     pub(super) fn new_imp(bound_device: Arc<crate::images::BoundDevice>, size: usize, debug_name: &str, storage_type: StorageType) -> Self {
-        let usage_type = match storage_type {
-            StorageType::Uniform => BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            StorageType::Storage => BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            StorageType::Vertex => BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            StorageType::Index => BufferUsages::INDEX | BufferUsages::COPY_DST,
+        let forward_flags = BufferUsages::COPY_DST;
+        let usage_type_only = match storage_type {
+            StorageType::Uniform => BufferUsages::UNIFORM,
+            StorageType::Storage => BufferUsages::STORAGE,
+            StorageType::Vertex => BufferUsages::VERTEX,
+            StorageType::Index => BufferUsages::INDEX,
         };
+        let usage_type = usage_type_only | forward_flags;
         let descriptor = BufferDescriptor {
             label: Some(debug_name),
             size: size as u64,

@@ -79,7 +79,7 @@ use std::marker::PhantomData;
 use std::ops::Index;
 use std::sync::Arc;
 use crate::bindings::dirty_tracking::DirtyReceiver;
-use crate::multibuffer::{CPUReadGuard, CPUWriteGuard};
+use crate::multibuffer::CPUWriteGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
@@ -180,7 +180,7 @@ pub struct Buffer<Element> {
 ///
 /// `IndividualBuffer` represents a single buffer that can be mapped for CPU access.
 /// It's part of the internal multibuffering implementation and is accessed through
-/// [`Buffer::access_write`] or [`Buffer::access_read`].
+/// [`Buffer::access_write`].
 ///
 /// This type provides direct access to buffer memory for reading and writing,
 /// with proper synchronization handled by the multibuffer system.
@@ -515,38 +515,6 @@ impl<Element> Buffer<Element> {
             debug_name: debug_name.to_string(),
         })
     }
-    /// Acquires read access to the buffer's CPU-side data.
-    ///
-    /// This method waits until a buffer is available for CPU reading and returns
-    /// a guard that provides read-only access to the buffer contents. The buffer
-    /// remains locked for CPU access until the guard is dropped.
-    ///
-    /// # Asynchronous Behavior
-    ///
-    /// This method may suspend if all buffers in the multibuffer are currently
-    /// being used by the GPU. It will resume once a buffer becomes available.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-    /// use images_and_words::bindings::visible_to::GPUBufferUsage;
-    /// use images_and_words::images::projection::WorldCoord;
-    /// use images_and_words::images::view::View;
-    /// test_executors::sleep_on(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
-    /// let buffer = Buffer::<u8>::new(device.clone(), 10, GPUBufferUsage::VertexShaderRead, "test", |_| 2).expect("Failed to create buffer");
-    /// let _read_guard = buffer.access_read().await;
-    /// 
-    /// // The read guard provides access to buffer contents
-    /// // (actual reading omitted for test simplicity)
-    /// # });
-    /// ```
-    pub async fn access_read(&self) -> CPUReadGuard<IndividualBuffer<Element>,imp::GPUableBuffer> {
-        self.shared.multibuffer.access_read().await
-    }
-    
     /// Acquires write access to the buffer's CPU-side data.
     ///
     /// This method waits until a buffer is available for CPU writing and returns
@@ -652,4 +620,3 @@ unsafe impl CRepr for f64 {}
 unsafe impl CRepr for i32 {}
 unsafe impl CRepr for i16 {}
 unsafe impl CRepr for i8 {}
-
