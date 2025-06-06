@@ -15,10 +15,17 @@
 //!
 //! # Example
 //! 
-//! ```no_run
-//! let my_buffer: images_and_words::bindings::forward::r#static::buffer::Buffer::<f32> = todo!();
+//! ```
+//! use images_and_words::bindings::forward::r#static::buffer::Buffer;
+//! use images_and_words::pixel_formats::{BGRA8UNormSRGB};
+//! # test_executors::sleep_on(async {
+//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! # let bound_device = engine.bound_device().clone();
+//! let my_buffer: Buffer<u8> = Buffer::new(bound_device, 1024, images_and_words::bindings::visible_to::GPUBufferUsage::VertexBuffer, "my_buffer", |index| 2).await.expect("can't create buffer");
 //! # use images_and_words::bindings::bind_style::{BindSlot, Stage};
 //! # use images_and_words::bindings::BindStyle;
+//! # use images_and_words::images::projection::WorldCoord;
+//! use images_and_words::images::view::View;
 //! let mut bind_style = BindStyle::new();
 //!
 //! // Bind a camera matrix to slot 0 for the vertex shader
@@ -26,6 +33,7 @@
 //!
 //! // Bind a static buffer to slot 1 for the fragment shader
 //! bind_style.bind_static_buffer(BindSlot::new(1), Stage::Fragment, &my_buffer);
+//! # });
 //! ```
 
 use std::collections::HashMap;
@@ -316,17 +324,33 @@ pub enum Stage {
 /// 
 /// # Example
 /// 
-/// ```no_run
+/// ```
+///
 /// use images_and_words::bindings::bind_style::{BindStyle, BindSlot, Stage};
+/// use images_and_words::bindings::visible_to::TextureUsage;
+/// use images_and_words::images::projection::WorldCoord;
+/// use images_and_words::images::view::View;
+/// use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
+/// use images_and_words::Priority;
+///  # test_executors::sleep_on(async {
+/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let bound_device = engine.bound_device().clone();
 /// let mut bind_style = BindStyle::new();
-/// let texture: images_and_words::bindings::forward::r#static::texture::Texture<images_and_words::pixel_formats::BGRA8UNormSRGB> = todo!();
+/// let texture = images_and_words::bindings::forward::r#static::texture::Texture::<BGRA8UNormSRGB>::new(
+/// &bound_device,
+/// 1024, 1024, TextureUsage::VertexShaderRead,true, "my_texture", Priority::unit_test(), |_| BGRA8UnormPixelSRGB { r: 255, g: 0, b: 0, a: 255 }
+/// ).await.expect("can't create texture");
+///
+///
+///
 /// // In your shader:
 /// // layout(binding = 0) uniform CameraData { ... };
 /// // layout(binding = 1) uniform sampler2D myTexture;
-/// 
+///
 /// // In Rust:
 /// bind_style.bind_camera_matrix(BindSlot::new(0), Stage::Vertex);
 /// bind_style.bind_static_texture(BindSlot::new(1), Stage::Fragment, &texture, None);
+/// # });
 /// ```
 #[derive(Clone,Debug)]
 pub struct BindSlot {
