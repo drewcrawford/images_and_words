@@ -157,6 +157,7 @@ pub enum GPUBufferUsage {
 /// let texture_strategy = CPUStrategy::WontRead;
 /// ```
 #[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CPUStrategy {
     /// The CPU will frequently read from this resource.
     ///
