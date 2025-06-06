@@ -1,4 +1,7 @@
-use crate::pixel_formats::{BGRA8UNormSRGB, R16Float, R32Float, R32SInt, R8UNorm, RGBA16Unorm, RGBA32Float, RGBA8UNorm, RGBA8UnormSRGB, RGFloat};
+use crate::pixel_formats::{
+    BGRA8UNormSRGB, R8UNorm, R16Float, R32Float, R32SInt, RGBA8UNorm, RGBA8UnormSRGB, RGBA16Unorm,
+    RGBA32Float, RGFloat,
+};
 
 pub trait PixelFormat {
     const WGPU_FORMAT: wgpu::TextureFormat;

@@ -17,7 +17,7 @@ has an input texel at each corner, instead of having a dangling output texel wit
 
 If you have no input texture, and are trying to create a new texture of given size, use the constructor [Self::new_no_input].
 */
-#[derive(Debug,Copy,Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ScaledIterator {
     next: ScaledRowCell,
     tx_width: u16,
@@ -38,9 +38,10 @@ impl ScaledIterator {
                 row: 0,
                 scale,
                 cell_i: 0,
-                cell_j: 0
+                cell_j: 0,
             },
-            tx_height, tx_width
+            tx_height,
+            tx_width,
         }
     }
 
@@ -51,7 +52,7 @@ impl ScaledIterator {
     The `new` constructor generally iterates to one less than that size.
     */
     pub fn new_no_input(out_width: u16, out_height: u16, scale: u8) -> Self {
-        Self::new(out_width+1,out_height+1,scale)
+        Self::new(out_width + 1, out_height + 1, scale)
     }
     /**
     Creates a new [ScaledRowCell] based on an output coordinate.
@@ -64,7 +65,13 @@ impl ScaledIterator {
     * `output_x`: `x` coordinate in the output texture
     * `output_y`: `y` coordinate in the output texture
      */
-    pub const fn new_output_coordinate(tx_width: u16, tx_height: u16, scale: u8,output_x: u16, output_y: u16) -> ScaledRowCell {
+    pub const fn new_output_coordinate(
+        tx_width: u16,
+        tx_height: u16,
+        scale: u8,
+        output_x: u16,
+        output_y: u16,
+    ) -> ScaledRowCell {
         assert!(output_x < (tx_width - 1) * scale as u16);
         assert!(output_y < (tx_height - 1) * scale as u16);
         let cell = output_x / scale as u16;
@@ -72,10 +79,13 @@ impl ScaledIterator {
         let cell_i = (output_x % scale as u16) as u8;
         let cell_j = (output_y % scale as u16) as u8;
         ScaledRowCell {
-            cell,row,scale,cell_i,cell_j
+            cell,
+            row,
+            scale,
+            cell_i,
+            cell_j,
         }
     }
-
 }
 
 impl Iterator for ScaledIterator {
@@ -110,68 +120,116 @@ impl Iterator for ScaledIterator {
         //this slightly reduces the cost of iteration
         self.next.cell_i += 1;
         Some(current)
-
     }
 }
 
-#[cfg(test)] mod tests {
+#[cfg(test)]
+mod tests {
     use crate::bindings::software::texture::scaled_iterator::ScaledIterator;
     use crate::bindings::software::texture::scaled_row_cell::ScaledRowCell;
 
-    #[test] fn test() {
-        let mut iter = ScaledIterator::new(3,3,2);
+    #[test]
+    fn test() {
+        let mut iter = ScaledIterator::new(3, 3, 2);
         //note we go in TEXTURE ORDER.  First, go hard X direction:
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(0,0,2,0,0)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(0,0,2,1,0)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(0, 0, 2, 0, 0)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(0, 0, 2, 1, 0)));
         //X direction next cell!
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(1,0,2,0,0)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(1,0,2,1,0)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(1, 0, 2, 0, 0)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(1, 0, 2, 1, 0)));
 
         //now we step down to next "jrow", j=1
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(0,0,2,0,1)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(0,0,2,1,1)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(1,0,2,0,1)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(1,0,2,1,1)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(0, 0, 2, 0, 1)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(0, 0, 2, 1, 1)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(1, 0, 2, 0, 1)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(1, 0, 2, 1, 1)));
 
         //we repeat all this for row=1
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(0,1,2,0,0)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(0,1,2,1,0)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(0, 1, 2, 0, 0)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(0, 1, 2, 1, 0)));
         //X direction next cell!
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(1,1,2,0,0)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(1,1,2,1,0)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(1, 1, 2, 0, 0)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(1, 1, 2, 1, 0)));
 
         //next "jrow", j=1
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(0,1,2,0,1)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(0,1,2,1,1)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(1,1,2,0,1)));
-        assert_eq!(iter.next(), Some(ScaledRowCell::new(1,1,2,1,1)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(0, 1, 2, 0, 1)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(0, 1, 2, 1, 1)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(1, 1, 2, 0, 1)));
+        assert_eq!(iter.next(), Some(ScaledRowCell::new(1, 1, 2, 1, 1)));
 
         assert_eq!(iter.next(), None);
-
     }
 
-    #[test] fn output_coordinates() {
+    #[test]
+    fn output_coordinates() {
         //Tests new_output_coordinate
         //uses same iteration as main test
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,0,0), ScaledRowCell::new(0,0,2,0,0));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,1,0), ScaledRowCell::new(0,0,2,1,0));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,2,0), ScaledRowCell::new(1,0,2,0,0));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,3,0), ScaledRowCell::new(1,0,2,1,0));
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 0, 0),
+            ScaledRowCell::new(0, 0, 2, 0, 0)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 1, 0),
+            ScaledRowCell::new(0, 0, 2, 1, 0)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 2, 0),
+            ScaledRowCell::new(1, 0, 2, 0, 0)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 3, 0),
+            ScaledRowCell::new(1, 0, 2, 1, 0)
+        );
 
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,0,1), ScaledRowCell::new(0,0,2,0,1));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,1,1), ScaledRowCell::new(0,0,2,1,1));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,2,1), ScaledRowCell::new(1,0,2,0,1));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,3,1), ScaledRowCell::new(1,0,2,1,1));
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 0, 1),
+            ScaledRowCell::new(0, 0, 2, 0, 1)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 1, 1),
+            ScaledRowCell::new(0, 0, 2, 1, 1)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 2, 1),
+            ScaledRowCell::new(1, 0, 2, 0, 1)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 3, 1),
+            ScaledRowCell::new(1, 0, 2, 1, 1)
+        );
 
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,0,2), ScaledRowCell::new(0,1,2,0,0));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,1,2), ScaledRowCell::new(0,1,2,1,0));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,2,2), ScaledRowCell::new(1,1,2,0,0));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,3,2), ScaledRowCell::new(1,1,2,1,0));
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 0, 2),
+            ScaledRowCell::new(0, 1, 2, 0, 0)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 1, 2),
+            ScaledRowCell::new(0, 1, 2, 1, 0)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 2, 2),
+            ScaledRowCell::new(1, 1, 2, 0, 0)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 3, 2),
+            ScaledRowCell::new(1, 1, 2, 1, 0)
+        );
 
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,0,3), ScaledRowCell::new(0,1,2,0,1));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,1,3), ScaledRowCell::new(0,1,2,1,1));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,2,3), ScaledRowCell::new(1,1,2,0,1));
-        assert_eq!(ScaledIterator::new_output_coordinate(3,3,2,3,3), ScaledRowCell::new(1,1,2,1,1));
-
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 0, 3),
+            ScaledRowCell::new(0, 1, 2, 0, 1)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 1, 3),
+            ScaledRowCell::new(0, 1, 2, 1, 1)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 2, 3),
+            ScaledRowCell::new(1, 1, 2, 0, 1)
+        );
+        assert_eq!(
+            ScaledIterator::new_output_coordinate(3, 3, 2, 3, 3),
+            ScaledRowCell::new(1, 1, 2, 1, 1)
+        );
     }
 }

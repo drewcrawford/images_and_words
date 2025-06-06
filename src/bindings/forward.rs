@@ -64,7 +64,7 @@ Forward resources handle:
 # struct CameraMatrix { view: [[f32; 4]; 4], proj: [[f32; 4]; 4] }
 # unsafe impl CRepr for CameraMatrix {}
 # let camera_matrix = CameraMatrix { view: [[0.0; 4]; 4], proj: [[0.0; 4]; 4] };
-# 
+#
 // Static mesh data - uploaded once
 let vertices = forward::r#static::buffer::Buffer::new(
     device.clone(),

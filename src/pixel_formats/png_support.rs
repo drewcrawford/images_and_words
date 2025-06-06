@@ -1,5 +1,5 @@
+use crate::pixel_formats::RGBA8UnormSRGB;
 use png::{BitDepth, ColorType};
-use crate::pixel_formats::{RGBA8UnormSRGB};
 
 /**
 # Safety
@@ -20,4 +20,3 @@ unsafe impl PngPixelFormat for RGBA8UnormSRGB {
         BitDepth::Eight
     }
 }
-

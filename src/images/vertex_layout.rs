@@ -43,22 +43,22 @@
 ///
 /// // Define a layout for vertices with 3D position and UV coordinates
 /// let mut layout = VertexLayout::new();
-/// 
+///
 /// // Add position fields (x, y, z)
 /// layout.add_field("position_x", VertexFieldType::F32);
 /// layout.add_field("position_y", VertexFieldType::F32);
 /// layout.add_field("position_z", VertexFieldType::F32);
-/// 
+///
 /// // Add texture coordinate fields (u, v)
 /// layout.add_field("texcoord_u", VertexFieldType::F32);
 /// layout.add_field("texcoord_v", VertexFieldType::F32);
 /// ```
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct VertexLayout {
     pub(crate) fields: Vec<VertexField>,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct VertexField {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) name: &'static str,
@@ -80,7 +80,7 @@ pub(crate) struct VertexField {
 /// // Currently F32 is the only supported type
 /// let field_type = VertexFieldType::F32;
 /// ```
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum VertexFieldType {
     /// A 32-bit floating point value.
@@ -114,11 +114,9 @@ impl VertexLayout {
     /// // Layout is empty until fields are added
     /// ```
     pub fn new() -> Self {
-        Self {
-            fields: Vec::new(),
-        }
+        Self { fields: Vec::new() }
     }
-    
+
     /// Adds a field to the vertex layout.
     ///
     /// Each field represents one component of a vertex attribute. For multi-component
@@ -139,11 +137,11 @@ impl VertexLayout {
     /// use images_and_words::images::vertex_layout::{VertexLayout, VertexFieldType};
     ///
     /// let mut layout = VertexLayout::new();
-    /// 
+    ///
     /// // Add a 2D position attribute
     /// layout.add_field("pos_x", VertexFieldType::F32);
     /// layout.add_field("pos_y", VertexFieldType::F32);
-    /// 
+    ///
     /// // Add an RGB color attribute  
     /// layout.add_field("color_r", VertexFieldType::F32);
     /// layout.add_field("color_g", VertexFieldType::F32);
@@ -152,9 +150,9 @@ impl VertexLayout {
     pub fn add_field(&mut self, name: &'static str, r#type: VertexFieldType) {
         self.fields.push(VertexField { name, r#type });
     }
-    
+
     #[allow(dead_code)] //nop implementation does not use
-    pub (crate) fn element_stride(&self) -> usize {
+    pub(crate) fn element_stride(&self) -> usize {
         self.fields.iter().map(|e| e.r#type.stride()).sum()
     }
 }

@@ -1,5 +1,5 @@
 //! Rendering surfaces and views for the images_and_words graphics system.
-//! 
+//!
 //! A [`View`] represents a rendering surface that can be either:
 //! - A window surface (when using the `app_window` feature)
 //! - A test surface (when using the `testing` feature)
@@ -15,7 +15,7 @@
 //! # #[cfg(feature = "testing")]
 //! # {
 //! use images_and_words::images::view::View;
-//! 
+//!
 //! let view = View::for_testing();
 //! # }
 //! ```
@@ -27,7 +27,7 @@
 //! # {
 //! use images_and_words::images::view::View;
 //! # let surface: app_window::surface::Surface = todo!();
-//! 
+//!
 //! let view = View::from_surface(surface).expect("Failed to create view");
 //! # }
 //! ```
@@ -48,14 +48,18 @@
 //! # });
 //! ```
 
+use crate::entry_point::EntryPoint;
 #[cfg(feature = "app_window")]
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
-use crate::entry_point::EntryPoint;
 
 #[derive(Debug)]
 enum OSImpl {
     #[cfg(feature = "app_window")]
-    AppWindow(app_window::surface::Surface, RawWindowHandle, RawDisplayHandle),
+    AppWindow(
+        app_window::surface::Surface,
+        RawWindowHandle,
+        RawDisplayHandle,
+    ),
     #[cfg(any(test, feature = "testing"))]
     Testing,
 }
@@ -64,12 +68,12 @@ enum OSImpl {
 ///
 /// This wraps the underlying implementation errors that can occur when
 /// creating or initializing views.
-#[derive(thiserror::Error,Debug)]
+#[derive(thiserror::Error, Debug)]
 pub struct Error(#[from] crate::imp::Error);
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"{}",self.0)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -92,7 +96,7 @@ impl std::fmt::Display for Error {
 /// Views implement `Send` to allow them to be moved between threads,
 /// which is necessary for the rendering architecture.
 #[derive(Debug)]
-pub struct View{
+pub struct View {
     #[allow(dead_code)] //nop implementation does not use
     os_impl: OSImpl,
     //late initialized once entrypoint is ready
@@ -101,9 +105,7 @@ pub struct View{
 }
 
 //we need this to port across to render thread
-unsafe impl Send for View {
-
-}
+unsafe impl Send for View {}
 
 impl View {
     /// Internal method to initialize the view with an entry point.
@@ -121,19 +123,26 @@ impl View {
     ///
     /// Returns `Ok(())` if initialization succeeded, or an `Error` if the
     /// backend view could not be created.
-    pub(crate) async fn provide_entry_point(&mut self, _entry_point: &EntryPoint) -> Result<(),Error> {
+    pub(crate) async fn provide_entry_point(
+        &mut self,
+        _entry_point: &EntryPoint,
+    ) -> Result<(), Error> {
         #[cfg(feature = "app_window")]
         {
-            let (_window_handle, _display_handle): (RawWindowHandle, RawDisplayHandle) = match &self.os_impl {
-                OSImpl::AppWindow(_, window_handle, display_handle) => (*window_handle, *display_handle),
-                #[cfg(any(test, feature = "testing"))]
-                OSImpl::Testing => {
-                    // For testing, imp is already set in for_testing()
-                    return Ok(());
-                }
-            };
+            let (_window_handle, _display_handle): (RawWindowHandle, RawDisplayHandle) =
+                match &self.os_impl {
+                    OSImpl::AppWindow(_, window_handle, display_handle) => {
+                        (*window_handle, *display_handle)
+                    }
+                    #[cfg(any(test, feature = "testing"))]
+                    OSImpl::Testing => {
+                        // For testing, imp is already set in for_testing()
+                        return Ok(());
+                    }
+                };
             self.imp = Some(
-                crate::imp::View::from_surface(_entry_point, _window_handle, _display_handle).await?
+                crate::imp::View::from_surface(_entry_point, _window_handle, _display_handle)
+                    .await?,
             );
             Ok(())
         }
@@ -145,7 +154,6 @@ impl View {
                     // For testing, imp is already set in for_testing()
                     Ok(())
                 }
-
             }
         }
     }
@@ -166,13 +174,13 @@ impl View {
     /// - `scale_factor` - The DPI scale factor (f64)
     ///
     /// For test views, this always returns (800, 600, 1.0).
-    pub(crate) async fn size_scale(&self) -> (u16,u16,f64) {
+    pub(crate) async fn size_scale(&self) -> (u16, u16, f64) {
         #[cfg(feature = "app_window")]
         {
             match &self.os_impl {
                 OSImpl::AppWindow(surface, _, _) => {
-                    let (size,scale) = surface.size_scale().await;
-                    (size.width() as u16,size.height() as u16, scale)
+                    let (size, scale) = surface.size_scale().await;
+                    (size.width() as u16, size.height() as u16, scale)
                 }
                 #[cfg(any(test, feature = "testing"))]
                 OSImpl::Testing => {
@@ -224,10 +232,10 @@ impl View {
     ///
     /// This method is only available when the `app_window` feature is enabled.
     #[cfg(feature = "app_window")]
-    pub fn from_surface(surface: app_window::surface::Surface) -> Result<Self,Error> {
+    pub fn from_surface(surface: app_window::surface::Surface) -> Result<Self, Error> {
         let handle = surface.raw_window_handle();
         let display_handle = surface.raw_display_handle();
-        Ok(View{
+        Ok(View {
             os_impl: OSImpl::AppWindow(surface, handle, display_handle),
             imp: None,
         })

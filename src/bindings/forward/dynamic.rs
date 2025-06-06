@@ -88,7 +88,7 @@ ensures the GPU sees consistent data.
 # struct Particle { pos: [f32; 3], vel: [f32; 3] }
 # unsafe impl CRepr for Particle {}
 # let active_particles = vec![Particle { pos: [0.0; 3], vel: [1.0; 3] }; 1000];
-# 
+#
 // Per-frame uniforms
 let uniforms = dynamic::buffer::Buffer::<CameraUniforms>::new(
     device.clone(),
@@ -137,5 +137,5 @@ let framebuffer = dynamic::frame_texture::FrameTexture::<RGBA8UNorm>::new(
 For immutable data, use `static` resources for better performance.
 
 */
-pub mod frame_texture;
 pub mod buffer;
+pub mod frame_texture;

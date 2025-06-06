@@ -9,8 +9,8 @@ Another distinction is that the receivers can be 'lately-bound' - that is, they 
 */
 
 use std::hash::Hash;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 // This represents the shared state between different LateBoundSenders
 #[derive(Debug)]
@@ -20,18 +20,17 @@ impl SharedSend {
     fn new() -> Self {
         SharedSend(Mutex::new(None))
     }
-    
+
     fn set_sender(&self, sender: r#continue::Sender<()>) {
         *self.0.lock().unwrap() = Some(sender);
     }
-    
+
     fn r#continue(&self) {
         if let Some(sender) = self.0.lock().unwrap().take() {
             sender.send(());
         }
     }
 }
-
 
 #[derive(Debug)]
 struct LateBoundSender(Arc<SharedSend>);
@@ -54,9 +53,6 @@ impl LateBoundSender {
     }
 }
 
-
-
-
 #[derive(Debug)]
 struct SharedSendReceive {
     //each dirty can be independently set and unset
@@ -64,7 +60,7 @@ struct SharedSendReceive {
     continuation: Mutex<LateBoundSender>,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct DirtySender {
     shared: Arc<SharedSendReceive>,
 }
@@ -76,8 +72,7 @@ impl DirtySender {
             shared: Arc::new(SharedSendReceive {
                 dirty: AtomicBool::new(dirty),
                 continuation: Mutex::new(s),
-                }
-            )
+            }),
         }
     }
     pub fn mark_dirty(&self, dirty: bool) {
@@ -125,15 +120,15 @@ pub struct DirtyAggregateReceiver {
 }
 impl DirtyAggregateReceiver {
     pub fn new(receivers: Vec<DirtyReceiver>) -> DirtyAggregateReceiver {
-        DirtyAggregateReceiver {
-            receivers,
-        }
+        DirtyAggregateReceiver { receivers }
     }
 
     #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {
         // Check if any of the receivers are dirty
-        self.receivers.iter().any(|receiver| receiver.shared.dirty.load(Ordering::Relaxed))
+        self.receivers
+            .iter()
+            .any(|receiver| receiver.shared.dirty.load(Ordering::Relaxed))
     }
 
     ///Waits for a dirty signal.
@@ -142,7 +137,7 @@ impl DirtyAggregateReceiver {
         // portable_async_sleep::async_sleep(Duration::from_millis(100)).await;
         // return;
         //instead let's use real dirty tracking to wait for the next frame
-        
+
         let (sender, receiver) = r#continue::continuation();
         let late_bound_sender = LateBoundSender::new();
         late_bound_sender.set_sender(sender);
@@ -165,6 +160,5 @@ impl DirtyAggregateReceiver {
         //wait for next receiver!
         receiver.await;
         // println!("Continuation received");
-
     }
 }

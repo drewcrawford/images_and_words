@@ -52,17 +52,26 @@ const PENDING_WRITE_TO_GPU: u8 = 4;
 /// The guard maintains the invariant that the resource is in `CPU_READ` state
 /// for its entire lifetime, preventing concurrent GPU or CPU write access.
 #[derive(Debug)]
-pub struct CPUReadGuard<'a, Resource> where Resource: sealed::Mappable {
+pub struct CPUReadGuard<'a, Resource>
+where
+    Resource: sealed::Mappable,
+{
     tracker: &'a ResourceTrackerInternal<Resource>,
 }
 
-impl<Resource> Deref for CPUReadGuard<'_, Resource> where Resource: sealed::Mappable {
+impl<Resource> Deref for CPUReadGuard<'_, Resource>
+where
+    Resource: sealed::Mappable,
+{
     type Target = Resource;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.tracker.resource.get() }
     }
 }
-impl <Resource> Drop for CPUReadGuard<'_, Resource> where Resource: sealed::Mappable {
+impl<Resource> Drop for CPUReadGuard<'_, Resource>
+where
+    Resource: sealed::Mappable,
+{
     fn drop(&mut self) {
         //safety: it's the guard's responsibility to ensure the lock is held
         unsafe {
@@ -82,31 +91,40 @@ impl <Resource> Drop for CPUReadGuard<'_, Resource> where Resource: sealed::Mapp
 /// The guard maintains the invariant that the resource is in `CPU_WRITE` state
 /// for its entire lifetime, preventing any concurrent access.
 #[derive(Debug)]
-pub struct CPUWriteGuard<'a, Resource> where Resource: sealed::Mappable  {
+pub struct CPUWriteGuard<'a, Resource>
+where
+    Resource: sealed::Mappable,
+{
     tracker: &'a ResourceTrackerInternal<Resource>,
 }
 
-
-
-impl<Resource> Deref for CPUWriteGuard<'_, Resource> where Resource: sealed::Mappable {
+impl<Resource> Deref for CPUWriteGuard<'_, Resource>
+where
+    Resource: sealed::Mappable,
+{
     type Target = Resource;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.tracker.resource.get() }
     }
 }
 
-impl<Resource> DerefMut for CPUWriteGuard<'_, Resource> where Resource: sealed::Mappable {
+impl<Resource> DerefMut for CPUWriteGuard<'_, Resource>
+where
+    Resource: sealed::Mappable,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.tracker.resource.get() }
     }
 }
 
-impl <Resource> Drop for CPUWriteGuard<'_, Resource> where Resource: sealed::Mappable {
+impl<Resource> Drop for CPUWriteGuard<'_, Resource>
+where
+    Resource: sealed::Mappable,
+{
     fn drop(&mut self) {
         //safety: it's the guard's responsibility to ensure the lock is held
         unsafe {
             self.tracker.unuse_cpu();
-
         }
     }
 }
@@ -122,24 +140,36 @@ impl <Resource> Drop for CPUWriteGuard<'_, Resource> where Resource: sealed::Map
 /// Can only be acquired when the resource is in `PENDING_WRITE_TO_GPU` state.
 /// Transitions to `GPU` state when acquired and back to `UNUSED` when dropped.
 #[derive(Debug)]
-pub struct GPUGuard<Resource> where Resource: sealed::Mappable {
+pub struct GPUGuard<Resource>
+where
+    Resource: sealed::Mappable,
+{
     tracker: Arc<ResourceTrackerInternal<Resource>>,
 }
 
-impl<Resource> Deref for GPUGuard<Resource> where Resource: sealed::Mappable {
+impl<Resource> Deref for GPUGuard<Resource>
+where
+    Resource: sealed::Mappable,
+{
     type Target = Resource;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.tracker.resource.get() }
     }
 }
 
-impl<Resource> DerefMut for GPUGuard<Resource> where Resource: sealed::Mappable {
+impl<Resource> DerefMut for GPUGuard<Resource>
+where
+    Resource: sealed::Mappable,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.tracker.resource.get() }
     }
 }
 
-impl<Resource> Drop for GPUGuard<Resource> where Resource: sealed::Mappable {
+impl<Resource> Drop for GPUGuard<Resource>
+where
+    Resource: sealed::Mappable,
+{
     fn drop(&mut self) {
         //println!("DEBUG: GPUGuard::drop releasing GPU resource");
         self.tracker.unuse_gpu();
@@ -170,12 +200,9 @@ impl Debug for NotAvailable {
     }
 }
 
-
-
-
 pub(crate) mod sealed {
     use std::future::Future;
-    
+
     /// Trait for resources that can be mapped for CPU access
     ///
     /// This trait must be implemented by any resource type that needs
@@ -187,7 +214,7 @@ pub(crate) mod sealed {
         /// This operation is asynchronous as it may need to wait for
         /// GPU operations to complete or for data to be transferred.
         fn map_read(&mut self) -> impl Future<Output = ()> + Send;
-        
+
         /// Maps the resource for read-write CPU access
         ///
         /// This operation is asynchronous as it may need to wait for
@@ -201,7 +228,6 @@ pub(crate) mod sealed {
         ///
         /// Called automatically when CPU access guards are dropped.
         fn unmap(&mut self);
-
     }
 }
 
@@ -221,8 +247,6 @@ impl<Resource> Debug for ResourceTrackerInternal<Resource> {
             .finish()
     }
 }
-
-
 
 /// Thread-safe resource tracker for CPU/GPU synchronization
 ///
@@ -249,7 +273,6 @@ pub(crate) struct ResourceTracker<Resource> {
 //todo: do we need these underlying constraints on Resource?
 unsafe impl<Resource: Send> Send for ResourceTrackerInternal<Resource> {}
 unsafe impl<Resource: Sync> Sync for ResourceTrackerInternal<Resource> {}
-
 
 impl<Resource> ResourceTrackerInternal<Resource> {
     pub fn new(resource: Resource, initial_state: u8) -> Self {
@@ -306,17 +329,22 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     ///
     /// This method is async because it calls `map_write()` on the resource,
     /// which may need to wait for GPU operations or data transfers.
-    pub async fn cpu_write(&self) -> Result<CPUWriteGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
-        match self.state.fetch_update(std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed, |current| {
-            match current {
+    pub async fn cpu_write(&self) -> Result<CPUWriteGuard<Resource>, NotAvailable>
+    where
+        Resource: sealed::Mappable,
+    {
+        match self.state.fetch_update(
+            std::sync::atomic::Ordering::Acquire,
+            std::sync::atomic::Ordering::Relaxed,
+            |current| match current {
                 UNUSED | PENDING_WRITE_TO_GPU => Some(CPU_WRITE),
                 _ => None,
-            }
-        }) {
-            Ok(_) => {},
+            },
+        ) {
+            Ok(_) => {}
             Err(other) => {
                 return Err(NotAvailable { read_state: other });
-            },
+            }
         }
         unsafe {
             self.resource.get().as_mut().unwrap().map_write().await;
@@ -340,13 +368,22 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     ///
     /// This method requires `&Arc<Self>` because the returned guard needs
     /// to hold an Arc reference to ensure the tracker stays alive.
-    pub fn gpu(self: &Arc<Self>) -> Result<GPUGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
-        match self.state.compare_exchange(PENDING_WRITE_TO_GPU, GPU, std::sync::atomic::Ordering::Acquire, std::sync::atomic::Ordering::Relaxed) {
-            Ok(_) => Ok(GPUGuard { tracker: self.clone() }),
+    pub fn gpu(self: &Arc<Self>) -> Result<GPUGuard<Resource>, NotAvailable>
+    where
+        Resource: sealed::Mappable,
+    {
+        match self.state.compare_exchange(
+            PENDING_WRITE_TO_GPU,
+            GPU,
+            std::sync::atomic::Ordering::Acquire,
+            std::sync::atomic::Ordering::Relaxed,
+        ) {
+            Ok(_) => Ok(GPUGuard {
+                tracker: self.clone(),
+            }),
             Err(other) => Err(NotAvailable { read_state: other }),
         }
     }
-
 
     /// Releases CPU access to the resource
     ///
@@ -354,23 +391,38 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     ///
     /// Caller must ensure that they hold a valid CPU lock (read or write).
     /// This is enforced by the guard types which are the only callers.
-    unsafe fn unuse_cpu(&self) where Resource: sealed::Mappable { unsafe {
-        (*self.resource.get()).unmap();
-        let old_state = self.state.fetch_update(std::sync::atomic::Ordering::Release, std::sync::atomic::Ordering::Relaxed, |current| {
-            match current {
-                CPU_READ => Some(UNUSED),
-                CPU_WRITE => Some(PENDING_WRITE_TO_GPU),
-                _ => panic!("unuse_cpu called from invalid state: {}", current),
-            }
-        }).expect("unuse_cpu state transition failed");
-        assert!(old_state == CPU_READ || old_state == CPU_WRITE, "Resource was not in CPU use");
-    }}
+    unsafe fn unuse_cpu(&self)
+    where
+        Resource: sealed::Mappable,
+    {
+        unsafe {
+            (*self.resource.get()).unmap();
+            let old_state = self
+                .state
+                .fetch_update(
+                    std::sync::atomic::Ordering::Release,
+                    std::sync::atomic::Ordering::Relaxed,
+                    |current| match current {
+                        CPU_READ => Some(UNUSED),
+                        CPU_WRITE => Some(PENDING_WRITE_TO_GPU),
+                        _ => panic!("unuse_cpu called from invalid state: {}", current),
+                    },
+                )
+                .expect("unuse_cpu state transition failed");
+            assert!(
+                old_state == CPU_READ || old_state == CPU_WRITE,
+                "Resource was not in CPU use"
+            );
+        }
+    }
     /// Releases GPU access to the resource
     ///
     /// Transitions the resource from `GPU` state back to `UNUSED`.
     /// Panics if the resource was not in GPU state.
     fn unuse_gpu(&self) {
-        let o = self.state.swap(UNUSED, std::sync::atomic::Ordering::Release);
+        let o = self
+            .state
+            .swap(UNUSED, std::sync::atomic::Ordering::Release);
         assert_ne!(o, UNUSED, "Resource was not in use");
     }
 }
@@ -408,21 +460,27 @@ impl<Resource> ResourceTracker<Resource> {
     // pub async fn cpu_read(&self) -> Result<CPUReadGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
     //     self.internal.cpu_read().await
     // }
-    
+
     /// Acquires the resource for CPU write access
     ///
     /// See [`ResourceTrackerInternal::cpu_write`] for details.
-    pub async fn cpu_write(&self) -> Result<CPUWriteGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
+    pub async fn cpu_write(&self) -> Result<CPUWriteGuard<Resource>, NotAvailable>
+    where
+        Resource: sealed::Mappable,
+    {
         self.internal.cpu_write().await
     }
-    
+
     /// Acquires the resource for GPU use
     ///
     /// See [`ResourceTrackerInternal::gpu`] for details.
-    pub(crate) fn gpu(&self) -> Result<GPUGuard<Resource>,NotAvailable> where Resource: sealed::Mappable {
+    pub(crate) fn gpu(&self) -> Result<GPUGuard<Resource>, NotAvailable>
+    where
+        Resource: sealed::Mappable,
+    {
         self.internal.gpu()
     }
-    
+
     /// Unsafely accesses the underlying resource
     ///
     /// # Safety

@@ -131,23 +131,18 @@ here instead.
 
 */
 
-
-
+pub mod bindings;
+mod bittricks;
 mod entry_point;
 pub mod images;
-pub mod bindings;
-pub mod pixel_formats;
 mod imp;
 mod multibuffer;
-mod bittricks;
-mod stable_address_vec;
+pub mod pixel_formats;
 mod send_phantom;
+mod stable_address_vec;
 
-pub use vectormatrix;
 pub use await_values::Observer;
+pub use vectormatrix;
 
 pub type Priority = some_executor::Priority;
 pub type Strategy = vec_parallel::Strategy;
-
-
-

@@ -142,46 +142,43 @@ pub struct IndexGenerator {
 
 impl IndexGenerator {
     /// Creates a new index generator for a grid of vertices.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `width` - The number of vertices in the X direction (must be > 1)
     /// * `height` - The number of vertices in the Y direction (must be > 1)
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if width or height is less than or equal to 1, as at least a 2x2 grid
     /// is required to form triangles.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use images_and_words::images::index_algorithms::IndexGenerator;
-    /// 
+    ///
     /// // Create a generator for a 4x3 grid (12 vertices total)
     /// let generator = IndexGenerator::new(4, 3);
-    /// 
+    ///
     /// // This will create (4-1) * (3-1) = 6 cells
     /// // Each cell has 2 triangles, so 12 triangles total
     /// assert_eq!(generator.num_triangles(), 12);
     /// ```
     pub fn new(width: usize, height: usize) -> Self {
         assert!(width > 1 && height > 1, "Invalid geometry");
-        Self {
-            width,
-            height,
-        }
+        Self { width, height }
     }
 
     /// Returns the total number of indices needed to render the grid.
-    /// 
+    ///
     /// This is the number of triangles multiplied by 3 (vertices per triangle).
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use images_and_words::images::index_algorithms::IndexGenerator;
-    /// 
+    ///
     /// let generator = IndexGenerator::new(3, 2);
     /// // 2x1 cells = 2 cells, 2 triangles per cell = 4 triangles
     /// // 4 triangles * 3 vertices per triangle = 12 indices
@@ -191,18 +188,16 @@ impl IndexGenerator {
         self.num_triangles() * VERTEX_PER_TRIANGLE
     }
 
-
-
     /// Returns the number of triangles in the mesh.
-    /// 
+    ///
     /// Each cell in the grid generates 2 triangles, and the number of cells
     /// is `(width - 1) * (height - 1)`.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use images_and_words::images::index_algorithms::IndexGenerator;
-    /// 
+    ///
     /// let generator = IndexGenerator::new(5, 4);
     /// // (5-1) * (4-1) = 4 * 3 = 12 cells
     /// // 12 cells * 2 triangles per cell = 24 triangles
@@ -213,28 +208,28 @@ impl IndexGenerator {
     }
 
     /// Returns the vertex index for a given position in the index buffer.
-    /// 
+    ///
     /// This method maps from a position in the linear index buffer to the actual
     /// vertex index in the grid. The index buffer is organized as a sequence of
     /// triangles, with each triangle consisting of 3 vertex indices.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `buffer_pos` - The position in the index buffer (0-based)
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The vertex index in the original grid (0-based, row-major order)
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `buffer_pos` is out of bounds for the generated indices.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use images_and_words::images::index_algorithms::IndexGenerator;
-    /// 
+    ///
     /// // Create a 3x3 grid:
     /// // 0 - 1 - 2
     /// // |   |   |
@@ -242,22 +237,22 @@ impl IndexGenerator {
     /// // |   |   |
     /// // 6 - 7 - 8
     /// let generator = IndexGenerator::new(3, 3);
-    /// 
+    ///
     /// // First triangle of first cell: vertices 0, 3, 1
     /// assert_eq!(generator.index_for(0), 0);
     /// assert_eq!(generator.index_for(1), 3);
     /// assert_eq!(generator.index_for(2), 1);
-    /// 
+    ///
     /// // Second triangle of first cell: vertices 1, 3, 4
     /// assert_eq!(generator.index_for(3), 1);
     /// assert_eq!(generator.index_for(4), 3);
     /// assert_eq!(generator.index_for(5), 4);
     /// ```
-    /// 
+    ///
     /// # Triangle Order
-    /// 
+    ///
     /// For each cell, the triangles are generated in the following pattern:
-    /// 
+    ///
     /// ```text
     /// top_left ────── top_right
     ///     │  ╲    2  ╱ │
@@ -266,7 +261,7 @@ impl IndexGenerator {
     ///     │     ╲╱     │
     /// bottom_left ── bottom_right
     /// ```
-    /// 
+    ///
     /// - Triangle 1: (top_left, bottom_left, top_right)
     /// - Triangle 2: (bottom_left, bottom_right, top_right)
     pub fn index_for(&self, buffer_pos: usize) -> usize {
@@ -275,19 +270,11 @@ impl IndexGenerator {
         let cell_x = cell % (self.width - 1);
         let cell_y = cell / (self.width - 1);
         assert!(cell_y < self.height, "Index out of bounds");
-        let (x,y) = match cell_vertex {
-            0 => {
-                (cell_x, cell_y)
-            }
-            1|4 => {
-                (cell_x, cell_y+1)
-            }
-            2 | 3 => {
-                (cell_x+1, cell_y)
-            }
-            5 => {
-                (cell_x + 1, cell_y + 1)
-            }
+        let (x, y) = match cell_vertex {
+            0 => (cell_x, cell_y),
+            1 | 4 => (cell_x, cell_y + 1),
+            2 | 3 => (cell_x + 1, cell_y),
+            5 => (cell_x + 1, cell_y + 1),
             _ => {
                 unreachable!();
             }
@@ -297,4 +284,3 @@ impl IndexGenerator {
         y * self.width + x
     }
 }
-

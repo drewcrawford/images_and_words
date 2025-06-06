@@ -45,19 +45,19 @@ assert_eq!(value, 255u8);
 ```
 */
 
-use std::ops::{Index, IndexMut};
-use std::path::Path;
-use some_executor::hint::Hint;
 use crate::Strategy;
 use crate::bindings::software::texture::scaled_32::Scaled32;
 use crate::bindings::software::texture::vtexture::VTexture;
-use crate::pixel_formats::{Float4};
+use crate::pixel_formats::Float4;
 use crate::pixel_formats::png_support::PngPixelFormat;
 use crate::pixel_formats::sealed::PixelFormat;
+use some_executor::hint::Hint;
+use std::ops::{Index, IndexMut};
+use std::path::Path;
 
+pub mod scaled_32;
 pub mod scaled_iterator;
 pub mod scaled_row_cell;
-pub mod scaled_32;
 pub mod vtexture;
 
 /// Converts a linear color value to sRGB color space.
@@ -97,11 +97,11 @@ pub mod vtexture;
 /// let white = linear_to_srgb(1.0);
 /// assert!((white - 1.0).abs() < 0.0001);
 /// ```
-#[inline] pub fn linear_to_srgb(linear: f32) -> f32 {
-  if linear <= 0.0031308 {
-      12.92 * linear
-  }
-    else {
+#[inline]
+pub fn linear_to_srgb(linear: f32) -> f32 {
+    if linear <= 0.0031308 {
+        12.92 * linear
+    } else {
         1.055 * linear.powf(1.0 / 2.4) - 0.055
     }
 }
@@ -177,16 +177,16 @@ pub struct Texture<Format: PixelFormat> {
 /// assert_eq!(origin.x, 0);
 /// assert_eq!(origin.y, 0);
 /// ```
-#[derive(Copy,Clone,PartialEq,Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Texel {
     /// X coordinate (horizontal position)
     pub x: u16,
     /// Y coordinate (vertical position)
-    pub y: u16
+    pub y: u16,
 }
 impl Texel {
     /// The origin texel at coordinates (0, 0).
-    pub const ZERO: Texel = Texel{x: 0, y: 0};
+    pub const ZERO: Texel = Texel { x: 0, y: 0 };
     /// Converts texel coordinates to a linear array index.
     ///
     /// Used internally for indexing into the texture's data array.
@@ -200,7 +200,10 @@ impl Texel {
     const fn from_vec_offset(width: u16, offset: usize) -> Texel {
         let y = offset / width as usize;
         let x = offset % width as usize;
-        Texel{x: x as u16, y: y as u16 }
+        Texel {
+            x: x as u16,
+            y: y as u16,
+        }
     }
     /// Creates a new texel by offsetting this texel and clamping to texture bounds.
     ///
@@ -236,32 +239,21 @@ impl Texel {
     /// assert_eq!(clamped.x, 9); // Clamped to width-1
     /// assert_eq!(clamped.y, 9); // Clamped to height-1
     /// ```
-    #[inline] pub const fn new_clamping(self,dx: i8,dy: i8,width:u16,height:u16) -> Self {
+    #[inline]
+    pub const fn new_clamping(self, dx: i8, dy: i8, width: u16, height: u16) -> Self {
         let new_x = if dx >= 0 {
             let r = self.x.saturating_add(dx as u16);
-            if r >= width {
-                width - 1
-            }
-            else {
-                r
-            }
-        }
-        else {
+            if r >= width { width - 1 } else { r }
+        } else {
             self.x.saturating_sub(-dx as u16)
         };
         let new_y = if dy >= 0 {
             let r = self.y.saturating_add(dy as u16);
-            if r >= height {
-                height - 1
-            }
-            else {
-                r
-            }
-        }
-        else {
+            if r >= height { height - 1 } else { r }
+        } else {
             self.y.saturating_sub(-dy as u16)
         };
-        Self { x: new_x, y: new_y}
+        Self { x: new_x, y: new_y }
     }
 }
 
@@ -287,12 +279,12 @@ impl Texel {
 /// assert_eq!(clamped.x(), 1.0);
 /// assert_eq!(clamped.y(), 0.0);
 /// ```
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Normalized {
     /// X coordinate in range [0, 1]
     pub x: f32,
     /// Y coordinate in range [0, 1]
-    pub y: f32
+    pub y: f32,
 }
 impl Normalized {
     /// Creates new normalized coordinates.
@@ -302,9 +294,7 @@ impl Normalized {
     /// Panics if x or y are outside the range [0, 1].
     pub fn new(x: f32, y: f32) -> Self {
         assert!((0.0..=1.0).contains(&x) && (0.0..=1.0).contains(&y));
-        Self {
-            x, y
-        }
+        Self { x, y }
     }
     /// Returns the X coordinate.
     pub const fn x(&self) -> f32 {
@@ -314,14 +304,15 @@ impl Normalized {
     pub const fn y(&self) -> f32 {
         self.y
     }
-    
+
     /// Creates new normalized coordinates, clamping values to [0, 1].
     ///
     /// Unlike [`new`](Self::new), this method doesn't panic on out-of-range values.
-    #[inline] pub fn new_clamping(x: f32, y: f32) -> Self {
+    #[inline]
+    pub fn new_clamping(x: f32, y: f32) -> Self {
         Self {
             x: x.clamp(0.0, 1.0),
-            y: y.clamp(0.0, 1.0)
+            y: y.clamp(0.0, 1.0),
         }
     }
 
@@ -331,10 +322,11 @@ impl Normalized {
     ///
     /// * `dx` - Offset to add to X coordinate
     /// * `dy` - Offset to add to Y coordinate
-    #[inline] pub fn clamped_offset(self, dx: f32, dy: f32) -> Normalized {
+    #[inline]
+    pub fn clamped_offset(self, dx: f32, dy: f32) -> Normalized {
         Normalized {
-            x: (self.x + dx).clamp(0.0,1.0),
-            y: (self.y + dy).clamp(0.0, 1.0)
+            x: (self.x + dx).clamp(0.0, 1.0),
+            y: (self.y + dy).clamp(0.0, 1.0),
         }
     }
 }
@@ -366,13 +358,13 @@ pub trait Sampleable: Sized + Clone {
     /// The output type of sampling operations.
     /// Usually a floating-point type for smooth interpolation.
     type Sampled;
-    
+
     /// Calculates a weighted average of samples.
     ///
     /// # Arguments
     ///
     /// * `elements` - Slice of (weight, value) pairs where weights should sum to 1.0
-    fn avg(elements: &[(f32,Self)]) -> Self::Sampled;
+    fn avg(elements: &[(f32, Self)]) -> Self::Sampled;
 }
 impl Sampleable for f32 {
     type Sampled = f32;
@@ -385,7 +377,6 @@ impl Sampleable for f32 {
         avg
     }
 }
-
 
 impl Sampleable for i32 {
     type Sampled = f32;
@@ -409,7 +400,6 @@ impl Sampleable for Float4 {
             avg.g += element.0 * element.1.g;
             avg.b += element.0 * element.1.b;
             avg.a += element.0 * element.1.a;
-
         }
         avg
     }
@@ -435,15 +425,18 @@ impl<Format: PixelFormat> Texture<Format> {
     /// assert_eq!(texture.width(), 64);
     /// assert_eq!(texture.height(), 64);
     /// ```
-    pub fn new(width: u16, height: u16, initialize_element: Format::CPixel)  -> Self where Format::CPixel : Clone {
+    pub fn new(width: u16, height: u16, initialize_element: Format::CPixel) -> Self
+    where
+        Format::CPixel: Clone,
+    {
         let mut vec = Vec::with_capacity(width as usize * height as usize);
-        for _ in 0..(width as u32*height as u32) {
+        for _ in 0..(width as u32 * height as u32) {
             vec.push(initialize_element.clone())
         }
         Self {
             width,
             height,
-            data: vec
+            data: vec,
         }
     }
     /// Creates a new texture with pixels initialized by a function.
@@ -472,17 +465,21 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     }
     /// });
     /// ```
-    pub fn new_with<F: Fn(Texel) -> Format::CPixel>(width: u16, height: u16, initialize_with: F)  -> Self  {
+    pub fn new_with<F: Fn(Texel) -> Format::CPixel>(
+        width: u16,
+        height: u16,
+        initialize_with: F,
+    ) -> Self {
         let mut vec = Vec::with_capacity(width as usize * height as usize);
         for y in 0..height {
             for x in 0..width {
-                vec.push(initialize_with(Texel{x,y}))
+                vec.push(initialize_with(Texel { x, y }))
             }
         }
         Self {
             width,
             height,
-            data: vec
+            data: vec,
         }
     }
     /// Creates a new texture with pixels initialized by a function, computed in parallel.
@@ -504,11 +501,11 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::bindings::software::texture::{Texture, Texel};
     /// use images_and_words::pixel_formats::{RGBA32Float, Float4};
     /// use images_and_words::{Priority, Strategy};
-    /// 
+    ///
     /// test_executors::sleep_on(async {
     ///     // Create a complex procedural texture in parallel
     ///     let texture = Texture::<RGBA32Float>::new_with_parallel(
-    ///         512, 512, 
+    ///         512, 512,
     ///         Priority::UserInitiated,
     ///         Strategy::One,
     ///         |texel| {
@@ -528,9 +525,17 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     assert_eq!(texture.height(), 512);
     /// });
     /// ```
-    pub async fn new_with_parallel<F: Fn(Texel) -> Format::CPixel + Sync + Clone + Send + 'static>(width: u16, height: u16, priority: some_executor::Priority, strategy: Strategy, initialize_with: F) -> Self {
+    pub async fn new_with_parallel<
+        F: Fn(Texel) -> Format::CPixel + Sync + Clone + Send + 'static,
+    >(
+        width: u16,
+        height: u16,
+        priority: some_executor::Priority,
+        strategy: Strategy,
+        initialize_with: F,
+    ) -> Self {
         let len = width as usize * height as usize;
-        let build_vec = vec_parallel::build_vec(len, strategy, move |index | {
+        let build_vec = vec_parallel::build_vec(len, strategy, move |index| {
             let t = Texel::from_vec_offset(width, index);
             initialize_with(t)
         });
@@ -577,14 +582,22 @@ impl<Format: PixelFormat> Texture<Format> {
     /// ).await;
     /// # }
     /// ```
-    pub async fn new_from_path(path: &Path, priority: async_file::Priority) -> Self where Format: PngPixelFormat, Format::CPixel: std::fmt::Debug {
+    pub async fn new_from_path(path: &Path, priority: async_file::Priority) -> Self
+    where
+        Format: PngPixelFormat,
+        Format::CPixel: std::fmt::Debug,
+    {
         let file = async_file::File::open(path, priority).await.unwrap();
         let data = file.read_all(priority).await.unwrap();
 
-        println!("read {} bytes",data.len());
+        println!("read {} bytes", data.len());
         let decoder = png::Decoder::new(&*data);
         let mut reader = decoder.read_info().unwrap();
-        println!("will decode {}x{}",reader.info().width, reader.info().height);
+        println!(
+            "will decode {}x{}",
+            reader.info().width,
+            reader.info().height
+        );
         //allocate an output buffer that is correctly-aligned
         let vec_capacity = reader.info().width as usize * reader.info().height as usize;
         let mut buf = Vec::<Format::CPixel>::with_capacity(vec_capacity);
@@ -594,10 +607,12 @@ impl<Format: PixelFormat> Texture<Format> {
         assert!(reader.info().color_type == Format::png_color_type());
         assert!(reader.info().bit_depth == Format::png_bit_depth());
         //get a slice to the raw bytes
-        let byte_slice = unsafe{std::slice::from_raw_parts_mut(buf.as_mut_slice().as_mut_ptr() as *mut u8, num_bytes)};
+        let byte_slice = unsafe {
+            std::slice::from_raw_parts_mut(buf.as_mut_slice().as_mut_ptr() as *mut u8, num_bytes)
+        };
         let info = reader.next_frame(byte_slice).unwrap();
         let actual_elements = info.width as usize * info.height as usize;
-        unsafe{buf.set_len(actual_elements)};
+        unsafe { buf.set_len(actual_elements) };
 
         // let pixel = &buf[85];
         // println!("buf {pixel:?}");
@@ -638,21 +653,23 @@ impl<Format: PixelFormat> Texture<Format> {
         let mut vec = Vec::with_capacity(width as usize * height as usize);
         for y in 0..height {
             for x in 0..width {
-                vec.push(cloning.read(Texel{x,y}))
+                vec.push(cloning.read(Texel { x, y }))
             }
         }
         Self {
             width,
             height,
-            data: vec
+            data: vec,
         }
     }
     /// Returns the width of the texture in pixels.
-    #[inline] pub fn width(&self) -> u16 {
+    #[inline]
+    pub fn width(&self) -> u16 {
         self.width
     }
     /// Returns the height of the texture in pixels.
-    #[inline] pub fn height(&self) -> u16 {
+    #[inline]
+    pub fn height(&self) -> u16 {
         self.height
     }
 
@@ -663,7 +680,8 @@ impl<Format: PixelFormat> Texture<Format> {
     /// - X=0 is the leftmost column
     ///
     /// This layout is suitable for direct upload to GPU textures.
-    #[inline] pub(crate) fn texture_data(&self) -> &[Format::CPixel] {
+    #[inline]
+    pub(crate) fn texture_data(&self) -> &[Format::CPixel] {
         &self.data
     }
 
@@ -691,15 +709,16 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     pixel as f32 / 255.0
     /// });
     /// ```
-    pub fn map<F: Fn(&Format::CPixel) -> T::CPixel, T: PixelFormat>(&self, mapfn: F) -> Texture<T> where T::CPixel: Default + Clone + std::fmt::Debug {
-        
-        Texture::new_with(self.width,self.height, |texel| {
+    pub fn map<F: Fn(&Format::CPixel) -> T::CPixel, T: PixelFormat>(&self, mapfn: F) -> Texture<T>
+    where
+        T::CPixel: Default + Clone + std::fmt::Debug,
+    {
+        Texture::new_with(self.width, self.height, |texel| {
             let ours = &self[texel];
-            
+
             mapfn(ours)
         })
     }
-
 
     /// Writes the raw texture data to a file for debugging.
     ///
@@ -714,9 +733,15 @@ impl<Format: PixelFormat> Texture<Format> {
     /// # Panics
     ///
     /// Panics if the file cannot be written.
-    pub fn dump_c_to(&self, path: &std::path::Path) where Format: PixelFormat{
+    pub fn dump_c_to(&self, path: &std::path::Path)
+    where
+        Format: PixelFormat,
+    {
         let u8_slice: &[u8] = unsafe {
-            std::slice::from_raw_parts(self.texture_data() as *const _ as *const u8, std::mem::size_of_val(self.texture_data()))
+            std::slice::from_raw_parts(
+                self.texture_data() as *const _ as *const u8,
+                std::mem::size_of_val(self.texture_data()),
+            )
         };
         std::fs::write(path, u8_slice).unwrap()
     }
@@ -754,15 +779,21 @@ impl<Format: PixelFormat> Texture<Format> {
 /// # use images_and_words::pixel_formats::R32Float;
 /// // Create a simple texture
 /// let texture = Texture::<R32Float>::new(64, 64, 0.5);
-/// 
+///
 /// // Sample at position (10.5, 20.3)
 /// let coords = Scaled32::new(10, 20, 0.5, 0.3);
 /// let sampled = sample_bilinear(&texture, coords);
-/// 
+///
 /// // The result is a weighted average of the 4 neighboring pixels
 /// assert!((sampled - 0.5).abs() < 0.01);
 /// ```
-pub fn sample_bilinear<T: VTexture<Format>, Format: PixelFormat>(texture: &T, scaled: Scaled32) -> <<Format as PixelFormat>::CPixel as Sampleable>::Sampled where Format::CPixel: Sampleable {
+pub fn sample_bilinear<T: VTexture<Format>, Format: PixelFormat>(
+    texture: &T,
+    scaled: Scaled32,
+) -> <<Format as PixelFormat>::CPixel as Sampleable>::Sampled
+where
+    Format::CPixel: Sampleable,
+{
     let base_x = scaled.cell_i();
     let base_y = scaled.cell_j();
     let w11 = (1.0 - base_x) * (1.0 - base_y); //0,0
@@ -771,18 +802,30 @@ pub fn sample_bilinear<T: VTexture<Format>, Format: PixelFormat>(texture: &T, sc
     let w22 = base_x * base_y; //1,1
     let down = scaled.row() + 1;
     let right = scaled.cell() + 1;
-    let c11 = Texel{x: scaled.cell(), y: scaled.row()}; //0,0
-    let c12 = Texel{x: scaled.cell(), y: down}; //0,1
-    let c21 = Texel{x: right, y: scaled.row()}; //1,0
-    let c22 = Texel{x: right, y: down};
+    let c11 = Texel {
+        x: scaled.cell(),
+        y: scaled.row(),
+    }; //0,0
+    let c12 = Texel {
+        x: scaled.cell(),
+        y: down,
+    }; //0,1
+    let c21 = Texel {
+        x: right,
+        y: scaled.row(),
+    }; //1,0
+    let c22 = Texel { x: right, y: down };
     let v11 = texture.read(c11).clone();
     let v12 = texture.read(c12).clone();
     let v21 = texture.read(c21).clone();
     let v22 = texture.read(c22).clone();
-    Format::CPixel::avg(&[(w11,v11),(w12,v12),(w21,v21),(w22,v22)])
+    Format::CPixel::avg(&[(w11, v11), (w12, v12), (w21, v21), (w22, v22)])
 }
 
-impl<Format: PixelFormat> Texture<Format> where Format::CPixel: Into<tgar::PixelBGRA> + Clone{
+impl<Format: PixelFormat> Texture<Format>
+where
+    Format::CPixel: Into<tgar::PixelBGRA> + Clone,
+{
     /// Converts the texture to TGA format for saving.
     ///
     /// This is useful for debugging and exporting textures to a common
@@ -800,7 +843,7 @@ impl<Format: PixelFormat> Texture<Format> where Format::CPixel: Into<tgar::Pixel
     /// // Create a small texture with gray pixels
     /// let pixel = BGRA8UnormPixelSRGB { b: 128, g: 128, r: 128, a: 255 };
     /// let texture = Texture::<BGRA8UNormSRGB>::new(2, 2, pixel);
-    /// 
+    ///
     /// let tga = texture.dump_tga();
     /// // The TGA struct contains the image data ready to be saved
     /// ```
@@ -808,7 +851,7 @@ impl<Format: PixelFormat> Texture<Format> where Format::CPixel: Into<tgar::Pixel
         let mut vec = Vec::with_capacity(self.width as usize * self.height as usize);
         for y in 0..self.height {
             for x in 0..self.width {
-                let read_px = self[Texel{x,y}].clone();
+                let read_px = self[Texel { x, y }].clone();
                 let converted_px = read_px.into();
                 vec.push(converted_px);
             }
@@ -832,7 +875,7 @@ impl<Format: PixelFormat> Index<Texel> for Texture<Format> {
          */
         let ptr = self.data.as_ptr();
         let index = index.vec_offset(self.width);
-        unsafe{&* ptr.add(index)}
+        unsafe { &*ptr.add(index) }
     }
 }
 impl<Format: PixelFormat> IndexMut<Texel> for Texture<Format> {

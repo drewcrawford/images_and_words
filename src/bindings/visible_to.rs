@@ -60,28 +60,28 @@ pub enum TextureUsage {
     /// Use this for textures that store data rather than images, where you need
     /// exact texel values without filtering.
     FragmentShaderRead,
-    
+
     /// The texture will be read directly (without sampling) in the vertex shader.
     ///
     /// Common for textures storing per-vertex or per-instance data.
     VertexShaderRead,
-    
+
     /// The texture will be read directly in both vertex and fragment shaders.
     ///
     /// Use when the same texture data is needed in multiple shader stages.
     VertexAndFragmentShaderRead,
-    
+
     /// The texture will be sampled (with filtering) in fragment shaders.
     ///
     /// This is the most common usage for image textures like diffuse maps,
     /// normal maps, etc.
     FragmentShaderSample,
-    
+
     /// The texture will be sampled (with filtering) in vertex shaders.
     ///
     /// Less common, but useful for displacement mapping or vertex animation textures.
     VertexShaderSample,
-    
+
     /// The texture will be sampled in both vertex and fragment shaders.
     ///
     /// Use when the same texture needs to be sampled in multiple shader stages,
@@ -116,19 +116,19 @@ pub enum GPUBufferUsage {
     /// Use for uniform buffers, storage buffers, or other data accessed
     /// by vertex shaders.
     VertexShaderRead,
-    
+
     /// The buffer will be read as data in the fragment shader.
     ///
     /// Use for uniform buffers, storage buffers, or other data accessed
     /// by fragment shaders.
     FragmentShaderRead,
-    
+
     /// The buffer contains vertex attribute data.
     ///
     /// This buffer will be bound as a vertex buffer and its contents will be
     /// interpreted according to the vertex layout/format specified in the pipeline.
     VertexBuffer,
-    
+
     /// The buffer contains index data for indexed drawing.
     ///
     /// This buffer will be bound as an index buffer and used to specify the
@@ -167,7 +167,7 @@ pub enum CPUStrategy {
     /// or perform CPU-side analysis of GPU computations. The resource may be placed
     /// in memory that's accessible to both CPU and GPU.
     ReadsFrequently,
-    
+
     /// The CPU will not frequently read from this resource.
     ///
     /// This is the most common case for textures and buffers that are uploaded once

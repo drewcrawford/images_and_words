@@ -3,8 +3,8 @@ use std::time::{Duration, Instant};
 
 use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
 use images_and_words::bindings::visible_to::GPUBufferUsage;
+use images_and_words::images::Engine;
 use images_and_words::images::projection::WorldCoord;
-use images_and_words::images::{Engine};
 use images_and_words::images::view::View;
 
 #[repr(C)]
@@ -19,23 +19,23 @@ struct TestData {
 unsafe impl CRepr for TestData {}
 
 /// Test that reproduces the buffer write performance issue from the reproducer.
-/// 
+///
 /// This test creates an Engine with for_testing() View, creates a Buffer, and measures
 /// buffer.access_write().await performance. The test verifies that buffer operations
 /// complete in reasonable time and detects if they're being throttled by the render pipeline.
-/// 
+///
 /// This test should FAIL if the bug exists where buffer writes take seconds instead of milliseconds.
 #[test_executors::async_test]
 async fn test_buffer_write_performance_issue() {
     // Create a view for testing (bypasses surface requirement)
     let view = View::for_testing();
-    
+
     // Create an engine with a stationary camera
     let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
     let engine = Arc::new(
         Engine::rendering_to(view, initial_camera_position)
             .await
-            .expect("Failed to create engine for testing")
+            .expect("Failed to create engine for testing"),
     );
 
     let device = engine.bound_device();
@@ -46,18 +46,24 @@ async fn test_buffer_write_performance_issue() {
         10, // Small buffer size for testing
         GPUBufferUsage::VertexBuffer,
         "test_buffer_performance",
-        |_| TestData { x: 0.0, y: 0.0, z: 0.0, w: 0.0 }
-    ).expect("Failed to create test buffer");
+        |_| TestData {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 0.0,
+        },
+    )
+    .expect("Failed to create test buffer");
 
     println!("=== Testing buffer write performance ===");
-    
+
     // Test multiple buffer write operations and measure timing
     let mut total_time = Duration::ZERO;
     let iterations = 3;
-    
+
     for i in 0..iterations {
         let start = Instant::now();
-        
+
         // This is the operation that was slow in the reproducer
         let mut write_guard = test_buffer.access_write().await;
         let test_data = TestData {
@@ -68,22 +74,22 @@ async fn test_buffer_write_performance_issue() {
         };
         write_guard.write(&[test_data], 0);
         drop(write_guard);
-        
+
         let elapsed = start.elapsed();
         println!("  Buffer write iteration {} took: {:?}", i + 1, elapsed);
         total_time += elapsed;
-        
+
         // Small delay between operations like in the reproducer
         portable_async_sleep::async_sleep(Duration::from_millis(1)).await;
     }
-    
+
     let avg_time = total_time / iterations as u32;
     println!("Average buffer write time: {:?}", avg_time);
 
     // The bug manifested as buffer writes taking SECONDS instead of milliseconds
     // If any single operation takes more than 1 second, that indicates the bug
     let max_acceptable_time = Duration::from_secs(1);
-    
+
     assert!(
         avg_time < max_acceptable_time,
         "Buffer write performance issue detected! Average write time ({:?}) exceeds acceptable threshold ({:?}). \
@@ -93,5 +99,8 @@ async fn test_buffer_write_performance_issue() {
         max_acceptable_time
     );
 
-    println!("✅ Buffer write performance is acceptable (avg: {:?})", avg_time);
+    println!(
+        "✅ Buffer write performance is acceptable (avg: {:?})",
+        avg_time
+    );
 }

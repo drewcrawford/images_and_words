@@ -28,13 +28,16 @@ impl<T> StableAddressVec<T> {
 
     #[allow(dead_code)] //nop implementation does not use
     pub fn push(&self, value: T) -> &T {
-        let (next_len,capacity) = unsafe {
+        let (next_len, capacity) = unsafe {
             //safe because we are the only ones with access to the vec, and we only perform read ops
             let vec = &*self.vec.get();
             (vec.len() + 1, vec.capacity())
         };
 
-        assert!(next_len <= capacity, "Cannot push to a StableAddressVec that has reached capacity");
+        assert!(
+            next_len <= capacity,
+            "Cannot push to a StableAddressVec that has reached capacity"
+        );
         //safe because we won't reallocate
         unsafe {
             (*self.vec.get()).push(value);

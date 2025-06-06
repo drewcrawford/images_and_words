@@ -11,24 +11,32 @@ The objects here are fully generic, and may support buffers or textures.
 
 */
 
-use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
 use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
 use crate::bindings::resource_tracking;
-use crate::bindings::resource_tracking::{ResourceTracker};
+use crate::bindings::resource_tracking::ResourceTracker;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::imp::CopyInfo;
 use crate::multibuffer::sealed::GPUMultibuffer;
+use std::ops::{Deref, DerefMut};
+use std::sync::{Arc, Mutex};
 
 //We need to wrap the ResourceTracker types in a newtype so that we can implement multibuffering behaviors.
 //primarily, we want to mark things dirty.
-pub struct CPUReadGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
+pub struct CPUReadGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: GPUMultibuffer,
+{
     //option so we can take on drop
     imp: Option<crate::bindings::resource_tracking::CPUReadGuard<'a, Element>>,
-    buffer: &'a Multibuffer<Element, U>
+    buffer: &'a Multibuffer<Element, U>,
 }
 
-impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
+impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: GPUMultibuffer,
+{
     fn drop(&mut self) {
         _ = self.imp.take().expect("Dropped CPUReadGuard already");
         //wake up the waiting threads
@@ -45,7 +53,11 @@ impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U> where Element: Mappab
     }
 }
 
-impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
+impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: GPUMultibuffer,
+{
     type Target = Element;
     fn deref(&self) -> &Self::Target {
         self.imp.as_ref().unwrap()
@@ -53,20 +65,27 @@ impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U> where Element: Mappa
 }
 
 #[derive(Debug)]
-pub struct CPUWriteGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
+pub struct CPUWriteGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: GPUMultibuffer,
+{
     imp: Option<crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>>, //option for drop!
-    buffer: &'a Multibuffer<Element, U>
+    buffer: &'a Multibuffer<Element, U>,
 }
 
-
-impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
+impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: GPUMultibuffer,
+{
     fn drop(&mut self) {
         // Just drop the CPU guard - this will transition to PENDING_WRITE_TO_GPU automatically
         _ = self.imp.take().expect("Dropped CPUWriteGuard already");
-        
+
         // Mark that GPU side needs updating
         self.buffer.gpu_side_is_dirty.mark_dirty(true);
-        
+
         //wake up the waiting threads
         // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
         let wakers_to_send: Vec<r#continue::Sender<()>> = {
@@ -81,19 +100,26 @@ impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U> where Element: Mappa
     }
 }
 
-impl<'a, Element, U> DerefMut for CPUWriteGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
+impl<'a, Element, U> DerefMut for CPUWriteGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: GPUMultibuffer,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.imp.as_mut().expect("No imp??")
     }
 }
 
-impl<'a, Element, U> Deref for CPUWriteGuard<'a, Element, U> where Element: Mappable, U: GPUMultibuffer {
+impl<'a, Element, U> Deref for CPUWriteGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: GPUMultibuffer,
+{
     type Target = Element;
     fn deref(&self) -> &Self::Target {
         self.imp.as_ref().expect("No imp??")
     }
 }
-
 
 /**
 Represents a bindable GPU resource.
@@ -102,12 +128,12 @@ Multibuffer type.
 */
 #[derive(Debug)]
 pub(crate) struct GPUGuard<T: Mappable, U: GPUMultibuffer> {
-    imp: Option<Result<U,U::OutGuard<resource_tracking::GPUGuard<T>>>>,
+    imp: Option<Result<U, U::OutGuard<resource_tracking::GPUGuard<T>>>>,
     wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
 }
 
 //drop impl for GPUGuard
-impl<T: Mappable, U: GPUMultibuffer> Drop for GPUGuard<T,U> {
+impl<T: Mappable, U: GPUMultibuffer> Drop for GPUGuard<T, U> {
     fn drop(&mut self) {
         let _ = self.imp.take().unwrap();
         //wake up the waiting threads
@@ -124,28 +150,21 @@ impl<T: Mappable, U: GPUMultibuffer> Drop for GPUGuard<T,U> {
     }
 }
 
-impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T,U> {
+impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T, U> {
     pub fn as_imp(&self) -> &U {
         match self.imp {
             Some(Ok(ref imp)) => imp,
             Some(Err(ref imp)) => imp.as_ref(),
-            None => unreachable!()
+            None => unreachable!(),
         }
     }
 }
 
-
-
-
-
 pub(crate) mod sealed {
-    
-    
+
     use crate::bindings::resource_tracking::GPUGuard;
     use crate::bindings::resource_tracking::sealed::Mappable;
     use crate::imp::CopyInfo;
-
-
 
     pub trait GPUMultibuffer: Clone {
         /*
@@ -167,19 +186,27 @@ pub(crate) mod sealed {
         /**
         Safety: Caller must guarantee that the guard is live for the duration of the GPU read.
         */
-        unsafe fn copy_from_buffer<'a,Guarded>(&self, source_offset: usize, dest_offset: usize, copy_len: usize, info: &mut CopyInfo<'a>, guard: GPUGuard<Guarded>) -> Self::OutGuard<GPUGuard<Guarded>> where Guarded: AsRef<Self::CorrespondingMappedType>, Guarded: Mappable;
-
+        unsafe fn copy_from_buffer<'a, Guarded>(
+            &self,
+            source_offset: usize,
+            dest_offset: usize,
+            copy_len: usize,
+            info: &mut CopyInfo<'a>,
+            guard: GPUGuard<Guarded>,
+        ) -> Self::OutGuard<GPUGuard<Guarded>>
+        where
+            Guarded: AsRef<Self::CorrespondingMappedType>,
+            Guarded: Mappable;
     }
     /**
-    Indicates that the type can be a source of a multibuffer copy operation
-*/
+        Indicates that the type can be a source of a multibuffer copy operation
+    */
     pub trait CPUMultibuffer {
         type Source;
         #[allow(dead_code)] //nop implementation does not use
         fn as_source(&self) -> &Self::Source;
     }
 }
-
 
 /**
 
@@ -190,7 +217,11 @@ Implements multibuffering.
 `U` - the GPU type.  wgpu and similar don't allow GPU-side buffers to be mapped.
 */
 #[derive(Debug)]
-pub struct Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
+pub struct Multibuffer<T, U>
+where
+    T: Mappable,
+    U: GPUMultibuffer,
+{
     //right now, not really a multibuffer!
     mappable: ResourceTracker<T>,
     wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
@@ -198,17 +229,21 @@ pub struct Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     gpu_side_is_dirty: DirtySender,
 }
 
-impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
+impl<T, U> Multibuffer<T, U>
+where
+    T: Mappable,
+    U: GPUMultibuffer,
+{
     pub fn new(element: T, gpu: U, initial_write_to_gpu: bool) -> Self {
         let tracker = ResourceTracker::new(element, initial_write_to_gpu);
         // Don't immediately lock for GPU - start in UNUSED state
         // The resource will transition to PENDING_WRITE_TO_GPU when first written
-        
+
         Multibuffer {
             mappable: tracker,
             gpu,
             wake_list: Arc::new(Mutex::new(Vec::new())),
-            gpu_side_is_dirty: DirtySender::new(false)
+            gpu_side_is_dirty: DirtySender::new(false),
         }
     }
 
@@ -224,10 +259,10 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     //         }
     //     }
     // }
-    
+
     /**
     Accesses the underlying data.
-    
+
     This function is unsafe because we perform no locking or checks.
     */
     #[allow(dead_code)] //nop implementation does not use
@@ -235,18 +270,25 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
         &self.gpu
     }
 
-    pub async fn access_write(&self) -> CPUWriteGuard<T, U> where T: Mappable, U: GPUMultibuffer {
+    pub async fn access_write(&self) -> CPUWriteGuard<T, U>
+    where
+        T: Mappable,
+        U: GPUMultibuffer,
+    {
         loop {
             // FIRST, insert into the list.  Think very carefully before changing this order.
-            let (s,f) = r#continue::continuation();
+            let (s, f) = r#continue::continuation();
             self.wake_list.lock().unwrap().push(s);
             // THEN, try to acquire the write lock.
             match self.mappable.cpu_write().await {
                 Ok(guard) => {
                     //Someone else will send a nonsense value to the sender later, that's fine.
-                    return CPUWriteGuard{ imp: Some(guard), buffer: self };
-                },
-                Err(_) => f.await //if we fail, wait for the next time
+                    return CPUWriteGuard {
+                        imp: Some(guard),
+                        buffer: self,
+                    };
+                }
+                Err(_) => f.await, //if we fail, wait for the next time
             }
         }
     }
@@ -259,18 +301,26 @@ impl<T,U> Multibuffer<T,U> where T: Mappable, U: GPUMultibuffer {
     # Safety
     Caller must guarantee that the guard is live for the duration of the GPU access.
     */
-    pub (crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<T,U> where T: Mappable, U: GPUMultibuffer, T: AsRef<U::CorrespondingMappedType> {
+    pub(crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<T, U>
+    where
+        T: Mappable,
+        U: GPUMultibuffer,
+        T: AsRef<U::CorrespondingMappedType>,
+    {
         // Try to acquire GPU resource if it's in PENDING_WRITE_TO_GPU state
         match self.mappable.gpu() {
             Ok(gpu_guard) => {
                 // Resource was in PENDING_WRITE_TO_GPU state, need to copy
                 self.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
-                let copy_guard = unsafe { self.gpu.copy_from_buffer(0, 0, gpu_guard.byte_len(), copy_info, gpu_guard) };
+                let copy_guard = unsafe {
+                    self.gpu
+                        .copy_from_buffer(0, 0, gpu_guard.byte_len(), copy_info, gpu_guard)
+                };
                 GPUGuard {
                     imp: Some(Err(copy_guard)),
                     wake_list: self.wake_list.clone(),
                 }
-            },
+            }
             Err(_) => {
                 // Resource is not in PENDING_WRITE_TO_GPU state, no copy needed
                 GPUGuard {

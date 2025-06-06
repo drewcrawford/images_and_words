@@ -1,16 +1,16 @@
 /*! Camera utilities. */
 
-use std::sync::{Arc, Mutex};
 use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
 use crate::images::projection::{Projection, WorldCoord};
+use std::sync::{Arc, Mutex};
 
 ///Shared data between cameras instances
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct Shared {
     /*
-When updating these, we also need to update the matrix.
- */
-    window_size_scale: (u16,u16,f64),
+    When updating these, we also need to update the matrix.
+     */
+    window_size_scale: (u16, u16, f64),
     camera_position: WorldCoord,
     projection: Projection,
     dirty_sender: DirtySender,
@@ -18,25 +18,34 @@ When updating these, we also need to update the matrix.
 
 impl Shared {
     fn rematrix(&mut self) {
-        self.projection = Projection::new(self.camera_position, self.window_size_scale.0, self.window_size_scale.1, self.window_size_scale.2);
+        self.projection = Projection::new(
+            self.camera_position,
+            self.window_size_scale.0,
+            self.window_size_scale.1,
+            self.window_size_scale.2,
+        );
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Camera {
     shared: Arc<Mutex<Shared>>,
 }
 impl Camera {
-
-    pub fn new(window_size: (u16,u16,f64), initial_position: WorldCoord) -> Camera {
-        let initial_projection = Projection::new(initial_position, window_size.0, window_size.1, window_size.2);
+    pub fn new(window_size: (u16, u16, f64), initial_position: WorldCoord) -> Camera {
+        let initial_projection = Projection::new(
+            initial_position,
+            window_size.0,
+            window_size.1,
+            window_size.2,
+        );
         Self {
             shared: Arc::new(Mutex::new(Shared {
                 dirty_sender: DirtySender::new(false),
                 window_size_scale: window_size,
                 camera_position: initial_position,
                 projection: initial_projection,
-            }))
+            })),
         }
     }
     #[allow(dead_code)] //nop implementation does not use
@@ -61,7 +70,7 @@ impl Camera {
         guard.dirty_sender.mark_dirty(true);
     }
 
-    pub fn changed_size(&mut self, new_size: (u16,u16)) {
+    pub fn changed_size(&mut self, new_size: (u16, u16)) {
         let mut guard = self.shared.lock().unwrap();
         guard.window_size_scale.0 = new_size.0;
         guard.window_size_scale.1 = new_size.1;

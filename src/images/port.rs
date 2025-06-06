@@ -1,5 +1,5 @@
 //! Ports control rendering to a single surface with render passes and frame pacing.
-//! 
+//!
 //! A [`Port`] represents a rendering target (like a window or offscreen surface) that manages:
 //! - Multiple render passes that execute in sequence
 //! - Frame pacing and synchronization
@@ -7,7 +7,7 @@
 //! - Camera management for the viewport
 //!
 //! ## Basic Usage
-//! 
+//!
 //! Ports are typically created through an [`Engine`] rather than directly:
 //!
 //! ```
@@ -19,7 +19,7 @@
 //! let engine = Engine::rendering_to(view, camera_position)
 //!     .await
 //!     .expect("Failed to create engine");
-//! 
+//!
 //! // Access the main port
 //! let port = engine.main_port_mut();
 //! // Port is ready to accept render passes
@@ -32,21 +32,21 @@
 //! When any bound resource (buffer, texture, camera) is modified, the port
 //! schedules a new frame to be rendered.
 
-use std::fmt::Formatter;
-use std::sync::{Arc, Mutex};
-use crate::images::render_pass::PassDescriptor;
-use crate::images::Engine;
-use std::sync::atomic::{Ordering,AtomicU32};
-use crate::images::camera::{Camera};
-use std::time::{Instant};
 use crate::bindings::bind_style::BindTarget;
 use crate::bindings::dirty_tracking::{DirtyAggregateReceiver, DirtyReceiver};
 use crate::bittricks::{u16s_to_u32, u32_to_u16s};
+use crate::images::Engine;
+use crate::images::camera::Camera;
 use crate::images::frame::Frame;
 use crate::images::projection::{Projection, WorldCoord};
+use crate::images::render_pass::PassDescriptor;
 use crate::images::view::View;
 use crate::imp;
-use await_values::{Value, Observer};
+use await_values::{Observer, Value};
+use std::fmt::Formatter;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 /**
 Guard type for tracking frame timing information.
@@ -83,13 +83,13 @@ impl Drop for FrameGuard {
     fn drop(&mut self) {
         let cpu_end = self.cpu_end.lock().unwrap().expect("CPU end time not set");
         let gpu_end = self.gpu_end.lock().unwrap().expect("GPU end time not set");
-        
+
         let frame_info = FrameInfo {
             frame_start: self.frame_start,
             cpu_end,
             gpu_end,
         };
-        
+
         self.port_reporter.add_frame_info(frame_info);
     }
 }
@@ -114,20 +114,12 @@ impl FrameInfo {
     pub(crate) fn gpu_duration_ms(&self) -> i32 {
         self.gpu_end.duration_since(self.cpu_end).as_millis() as i32
     }
-    
+
     #[allow(dead_code)]
     pub(crate) fn total_duration_ms(&self) -> i32 {
         self.gpu_end.duration_since(self.frame_start).as_millis() as i32
     }
 }
-
-
-
-
-
-
-
-
 
 /// A rendering port that manages render passes for a single surface.
 ///
@@ -162,9 +154,7 @@ pub struct Port {
 
 /// Error type for port operations.
 #[derive(Debug)]
-pub struct Error (
-    imp::Error,
-);
+pub struct Error(imp::Error);
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.0, f)
@@ -197,20 +187,20 @@ impl From<imp::Error> for Error {
 /// #     .await.expect("Failed to create engine");
 /// # let port = engine.main_port_mut();
 /// let reporter = port.port_reporter();
-/// 
+///
 /// // Access performance observers
 /// let fps_observer = reporter.fps();
 /// let gpu_ms_observer = reporter.ms();
-/// 
+///
 /// // Check current camera projection
 /// let projection = reporter.camera_projection();
-/// 
+///
 /// // Get the drawable size
 /// let (width, height) = reporter.drawable_size();
 /// println!("Drawable size: {}x{}", width, height);
 /// # });
 /// ```
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct PortReporter {
     imp: Arc<PortReporterImpl>,
     camera: Camera,
@@ -220,7 +210,6 @@ pub struct PortReporter {
     min_elapsed_ms: Observer<i32>,
 }
 impl PortReporter {
-
     /// Returns the frame number of the most recently started frame.
     ///
     /// This method helps with cache invalidation and synchronization decisions.
@@ -249,7 +238,7 @@ impl PortReporter {
     ///
     /// The returned size approximates the state at the latest frame,
     /// but exact synchronization is not guaranteed.
-    pub fn drawable_size(&self) -> (u16,u16) {
+    pub fn drawable_size(&self) -> (u16, u16) {
         let u = self.imp.drawable_size.load(Ordering::Relaxed);
         u32_to_u16s(u)
     }
@@ -257,17 +246,17 @@ impl PortReporter {
     pub fn fps(&self) -> &Observer<i32> {
         &self.fps
     }
-    
+
     /// Returns an observer for the average GPU time per frame in milliseconds.
     pub fn ms(&self) -> &Observer<i32> {
         &self.ms
     }
-    
+
     /// Returns an observer for the average CPU time per frame in milliseconds.
     pub fn cpu_ms(&self) -> &Observer<i32> {
         &self.cpu_ms
     }
-    
+
     /// Returns an observer for the minimum elapsed time between frames in milliseconds.
     ///
     /// This metric is useful for frame pacing, as it indicates the fastest
@@ -296,52 +285,54 @@ impl PortReporterImpl {
     pub(crate) fn create_frame_guard(self: &Arc<Self>) -> FrameGuard {
         FrameGuard::new(self.clone())
     }
-    
+
     pub(crate) fn add_frame_info(&self, frame_info: FrameInfo) {
         const MAX_HISTORY: usize = 60; // Keep last 60 frames
-        
+
         let mut history = self.frame_history.lock().unwrap();
         history.push(frame_info);
-        
+
         // Keep only the most recent frames
         while history.len() > MAX_HISTORY {
             history.remove(0);
         }
-        
+
         // Recalculate statistics
         if !history.is_empty() {
             // Calculate FPS from frame intervals
             let mut total_interval = 0.0;
             let mut min_interval = f64::MAX;
-            
+
             for i in 1..history.len() {
-                let interval = history[i].frame_start.duration_since(history[i-1].frame_start).as_secs_f64();
+                let interval = history[i]
+                    .frame_start
+                    .duration_since(history[i - 1].frame_start)
+                    .as_secs_f64();
                 total_interval += interval;
                 min_interval = min_interval.min(interval);
             }
-            
+
             if history.len() > 1 {
                 let avg_interval = total_interval / (history.len() - 1) as f64;
                 let fps = (1.0 / avg_interval).round() as i32;
                 self.fps.set(fps);
-                
+
                 let min_elapsed_ms = (min_interval * 1000.0) as i32;
                 self.min_elapsed_ms.set(min_elapsed_ms);
             }
-            
+
             // Calculate average GPU and CPU times
             let total_gpu_ms: i32 = history.iter().map(|f| f.gpu_duration_ms()).sum();
             let total_cpu_ms: i32 = history.iter().map(|f| f.cpu_duration_ms()).sum();
-            
+
             let avg_gpu_ms = total_gpu_ms / history.len() as i32;
             let avg_cpu_ms = total_cpu_ms / history.len() as i32;
-            
+
             self.ms.set(avg_gpu_ms);
             self.cpu_ms.set(avg_cpu_ms);
         }
     }
 }
-
 
 #[derive(Debug)]
 pub(crate) struct PortReporterSend {
@@ -354,8 +345,10 @@ impl PortReporterSend {
     }
     //todo: read this, mt2-491
     #[allow(dead_code)]
-    pub(crate) fn drawable_size(&self, size: (u16,u16)) {
-        self.imp.drawable_size.store(u16s_to_u32(size.0, size.1), Ordering::Relaxed);
+    pub(crate) fn drawable_size(&self, size: (u16, u16)) {
+        self.imp
+            .drawable_size
+            .store(u16s_to_u32(size.0, size.1), Ordering::Relaxed);
     }
 
     #[allow(dead_code)] //nop implementation does not use
@@ -364,17 +357,17 @@ impl PortReporterSend {
     }
 }
 
-fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortReporter) {
+fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend, PortReporter) {
     let fps = Value::new(0);
     let ms = Value::new(0);
     let cpu_ms = Value::new(0);
     let min_elapsed_ms = Value::new(0);
-    
+
     let fps_observer = fps.observe();
     let ms_observer = ms.observe();
     let cpu_ms_observer = cpu_ms.observe();
     let min_elapsed_ms_observer = min_elapsed_ms.observe();
-    
+
     let imp = Arc::new(PortReporterImpl {
         frame_begun: AtomicU32::new(initial_frame),
         drawable_size: AtomicU32::new(0),
@@ -386,9 +379,7 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
     });
 
     (
-        PortReporterSend {
-            imp: imp.clone(),
-        },
+        PortReporterSend { imp: imp.clone() },
         PortReporter {
             imp,
             camera: camera.clone(),
@@ -396,11 +387,9 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend,PortR
             ms: ms_observer,
             cpu_ms: cpu_ms_observer,
             min_elapsed_ms: min_elapsed_ms_observer,
-        }
+        },
     )
-
 }
-
 
 impl Port {
     /// Creates a new port for rendering to the specified view.
@@ -423,7 +412,7 @@ impl Port {
     /// # let engine = Arc::new(Engine::rendering_to(view, WorldCoord::new(0.0, 0.0, 10.0))
     /// #     .await
     /// #     .expect("Failed to create engine"));
-    /// # 
+    /// #
     /// # let another_view = View::for_testing();
     /// let port = Port::new(
     ///     &engine,
@@ -433,12 +422,17 @@ impl Port {
     /// ).expect("Failed to create port");
     /// # });
     /// ```
-    pub fn new(engine: &Arc<Engine>, view: View, initial_camera_position: WorldCoord,window_size: (u16,u16,f64)) -> Result<Self,Error> {
+    pub fn new(
+        engine: &Arc<Engine>,
+        view: View,
+        initial_camera_position: WorldCoord,
+        window_size: (u16, u16, f64),
+    ) -> Result<Self, Error> {
         let camera = Camera::new(window_size, initial_camera_position);
-        let (port_sender,port_reporter) = port_reporter(0, &camera);
+        let (port_sender, port_reporter) = port_reporter(0, &camera);
 
-        Ok(Self{
-            imp: crate::imp::Port::new(engine, view,  camera.clone(),port_sender).map_err(Error)?,
+        Ok(Self {
+            imp: crate::imp::Port::new(engine, view, camera.clone(), port_sender).map_err(Error)?,
             port_reporter,
             descriptors: Default::default(),
             camera,
@@ -462,15 +456,15 @@ impl Port {
     /// # let engine = Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 10.0))
     /// #     .await.expect("Failed to create engine");
     /// # let mut port = engine.main_port_mut();
-    /// let vertex_shader = VertexShader::new("test", 
-    ///     "@vertex fn vs_main() -> @builtin(position) vec4<f32> { 
-    ///         return vec4<f32>(0.0, 0.0, 0.0, 1.0); 
+    /// let vertex_shader = VertexShader::new("test",
+    ///     "@vertex fn vs_main() -> @builtin(position) vec4<f32> {
+    ///         return vec4<f32>(0.0, 0.0, 0.0, 1.0);
     ///     }".to_string());
     /// let fragment_shader = FragmentShader::new("test",
-    ///     "@fragment fn fs_main() -> @location(0) vec4<f32> { 
-    ///         return vec4<f32>(1.0, 0.0, 0.0, 1.0); 
+    ///     "@fragment fn fs_main() -> @location(0) vec4<f32> {
+    ///         return vec4<f32>(1.0, 0.0, 0.0, 1.0);
     ///     }".to_string());
-    /// 
+    ///
     /// let pass = PassDescriptor::new(
     ///     "test_pass".to_string(),
     ///     vertex_shader,
@@ -480,13 +474,13 @@ impl Port {
     ///     false,  // depth test
     ///     false   // depth write
     /// );
-    /// 
+    ///
     /// port.add_fixed_pass(pass).await;
     /// # });
     /// ```
     ///
     /// # Limitations
-    /// 
+    ///
     /// - Currently cannot add passes while the port is running (mt2-242)
     /// - There is no way to remove passes once added (mt2-243)
     pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
@@ -524,8 +518,6 @@ impl Port {
         self.imp.render_frame().await;
     }
 
-
-
     fn collect_dirty_receivers(&self) -> Vec<DirtyReceiver> {
         //we need to figure out all the dirty stuff
         let mut dirty_receivers = Vec::new();
@@ -535,7 +527,7 @@ impl Port {
                     BindTarget::DynamicBuffer(a) => {
                         dirty_receivers.push(a.dirty_receiver());
                     }
-                    BindTarget::DynamicVB(_,a) => {
+                    BindTarget::DynamicVB(_, a) => {
                         dirty_receivers.push(a.dirty_receiver());
                     }
                     BindTarget::Camera => {
@@ -544,13 +536,13 @@ impl Port {
                     BindTarget::DynamicTexture(texture) => {
                         dirty_receivers.push(texture.gpu_dirty_receiver())
                     }
-                    BindTarget::StaticBuffer(_) => { /* nothing to do, not considered dirty */}
-                    BindTarget::FrameCounter => {/* nothing to do - not considered dirty */}
+                    BindTarget::StaticBuffer(_) => { /* nothing to do, not considered dirty */ }
+                    BindTarget::FrameCounter => { /* nothing to do - not considered dirty */ }
 
-                    BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */}
-                    BindTarget::Sampler(_) => { /* also not considered dirty */}
-                    BindTarget::VB(..)  => { /* also not considered dirty */}
-
+                    BindTarget::StaticTexture(_, _) => { /* also not considered dirty the 2nd+ time */
+                    }
+                    BindTarget::Sampler(_) => { /* also not considered dirty */ }
+                    BindTarget::VB(..) => { /* also not considered dirty */ }
                 }
             }
         }
@@ -574,7 +566,7 @@ impl Port {
     /// # let mut port = engine.main_port_mut();
     /// // Add render passes first
     /// // port.add_fixed_pass(pass).await;
-    /// 
+    ///
     /// // Start rendering - this runs forever
     /// // port.start().await?;
     /// # });
@@ -584,7 +576,7 @@ impl Port {
     ///
     /// Ports do not render by default - you must call this method to begin
     /// the render loop.
-    pub async fn start(&mut self) -> Result<(),Error> {
+    pub async fn start(&mut self) -> Result<(), Error> {
         //render first frame regardless
         self.force_render().await;
         loop {
@@ -594,7 +586,7 @@ impl Port {
         }
     }
 
-    #[cfg(feature="testing")]
+    #[cfg(feature = "testing")]
     pub fn needs_render(&self) -> bool {
         //this is a test-only function that returns true if the port needs to render.
         //it is used in tests to check if the port is rendering correctly.
@@ -606,12 +598,11 @@ impl Port {
     pub fn port_reporter(&self) -> &PortReporter {
         &self.port_reporter
     }
-    
+
     /// Returns the camera associated with this port.
     ///
     /// The camera controls the view transformation and projection for rendering.
     pub fn camera(&self) -> &Camera {
         &self.camera
     }
-
 }

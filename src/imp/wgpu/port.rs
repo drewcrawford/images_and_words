@@ -1,17 +1,25 @@
 use crate::bindings::bind_style::BindTarget;
-use crate::images::camera::Camera;
-use crate::images::port::{PortReporterSend};
-use crate::images::render_pass::{DrawCommand, PassDescriptor};
-use crate::imp::{CopyInfo, Error};
-use std::num::NonZero;
-use std::sync::Arc;
-use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
 use crate::bindings::forward::dynamic::buffer::{CRepr, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::GPUBufferUsage;
+use crate::images::camera::Camera;
+use crate::images::port::PortReporterSend;
+use crate::images::render_pass::{DrawCommand, PassDescriptor};
 use crate::images::vertex_layout::VertexFieldType;
 use crate::imp::wgpu::buffer::StorageType;
+use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
+use std::num::NonZero;
+use std::sync::Arc;
+use wgpu::{
+    BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
+    BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction,
+    CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState,
+    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
+    RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType,
+    StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType,
+    TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode,
+};
 
 #[repr(C)]
 pub struct CameraProjection {
@@ -67,7 +75,7 @@ fn prepare_pass_descriptor(
                     has_dynamic_offset: false,
                     min_binding_size: Some(BufferSize::new(imp.element_size as u64).unwrap()),
                 }
-            },
+            }
             BindTarget::StaticBuffer(imp) => {
                 let buffer_binding_type = match imp.storage_type() {
                     StorageType::Uniform => BufferBindingType::Uniform,
@@ -80,7 +88,7 @@ fn prepare_pass_descriptor(
                     has_dynamic_offset: false,
                     min_binding_size: NonZero::new(imp.buffer.size()),
                 }
-            },
+            }
             BindTarget::Camera => {
                 //I guess these are implemented with buffers for now...
                 BindingType::Buffer {
@@ -97,13 +105,13 @@ fn prepare_pass_descriptor(
                     min_binding_size: Some(NonZero::new(1).unwrap()), //???
                 }
             }
-            BindTarget::StaticTexture(_texture, sampler_type) => {
-                BindingType::Texture {
-                    sample_type: TextureSampleType::Float { filterable: sampler_type.is_some() },
-                    view_dimension: TextureViewDimension::D2,
-                    multisampled: false,
-                }
-            }
+            BindTarget::StaticTexture(_texture, sampler_type) => BindingType::Texture {
+                sample_type: TextureSampleType::Float {
+                    filterable: sampler_type.is_some(),
+                },
+                view_dimension: TextureViewDimension::D2,
+                multisampled: false,
+            },
             BindTarget::DynamicTexture(_texture) => {
                 BindingType::Texture {
                     sample_type: TextureSampleType::Float { filterable: false }, //??
@@ -113,10 +121,10 @@ fn prepare_pass_descriptor(
             }
             BindTarget::Sampler(_sampler) => BindingType::Sampler(SamplerBindingType::Filtering),
             BindTarget::VB(..) => {
-                continue //not considered as a binding
+                continue; //not considered as a binding
             }
             BindTarget::DynamicVB(..) => {
-                continue //not considered as a binding
+                continue; //not considered as a binding
             }
         };
         let layout = BindGroupLayoutEntry {
@@ -137,7 +145,6 @@ fn prepare_pass_descriptor(
                 label: Some(descriptor.name()),
                 entries: layouts.as_slice(),
             });
-
 
     let pipeline_layout = bind_device
         .0
@@ -164,14 +171,20 @@ fn prepare_pass_descriptor(
 
     for buffer in descriptor.bind_style.binds.values() {
         match &buffer.target {
-            BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_)  => {}
-            BindTarget::VB(layout,_)  | BindTarget::DynamicVB(layout,_) => {
+            BindTarget::StaticBuffer(_)
+            | BindTarget::DynamicBuffer(_)
+            | BindTarget::Camera
+            | BindTarget::FrameCounter
+            | BindTarget::DynamicTexture(_)
+            | BindTarget::StaticTexture(..)
+            | BindTarget::Sampler(_) => {}
+            BindTarget::VB(layout, _) | BindTarget::DynamicVB(layout, _) => {
                 let mut each_vertex_attributes = Vec::new();
                 let mut offset = 0;
-                for (f,field) in layout.fields.iter().enumerate() {
+                for (f, field) in layout.fields.iter().enumerate() {
                     let attribute = VertexAttribute {
                         format: match field.r#type {
-                            VertexFieldType::F32 => { wgpu::VertexFormat::Float32 },
+                            VertexFieldType::F32 => wgpu::VertexFormat::Float32,
                         },
                         offset,
                         shader_location: f as u32,
@@ -242,7 +255,7 @@ fn prepare_pass_descriptor(
 
     let depth_state = Some(DepthStencilState {
         format: TextureFormat::Depth16Unorm,
-        depth_write_enabled: true,                   //??
+        depth_write_enabled: true,                 //??
         depth_compare: CompareFunction::LessEqual, //?
         stencil: StencilState {
             front: StencilFaceState::IGNORE,
@@ -270,8 +283,7 @@ fn prepare_pass_descriptor(
         });
     let blend = if descriptor.alpha {
         Some(BlendState::ALPHA_BLENDING)
-    }
-    else {
+    } else {
         None
     };
     let color_target_state = ColorTargetState {
@@ -298,7 +310,10 @@ fn prepare_pass_descriptor(
         multiview: None,
         cache: None, //todo, caching?
     };
-    let pipeline = bind_device.0.device.create_render_pipeline(&render_descriptor);
+    let pipeline = bind_device
+        .0
+        .device
+        .create_render_pipeline(&render_descriptor);
     PreparedPass {
         pipeline,
         vertex_count,
@@ -334,72 +349,72 @@ pub fn prepare_bind_group(
     let gpu_guard_buffers = StableAddressVec::with_capactiy(5);
     let gpu_guard_textures = StableAddressVec::with_capactiy(5);
 
-
     for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
         let resource = match &info.target {
             BindTarget::DynamicBuffer(buf) => {
                 //safety: Keep the guard alive
-                let build_buffer = unsafe{gpu_guard_buffers.push(buf.imp.acquire_gpu_buffer(copy_info))};
+                let build_buffer =
+                    unsafe { gpu_guard_buffers.push(buf.imp.acquire_gpu_buffer(copy_info)) };
                 BindingResource::Buffer(BufferBinding {
                     buffer: &build_buffer.as_imp().buffer,
                     offset: 0,
                     size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
                 })
             }
-            BindTarget::StaticBuffer(buf) => {
-                BindingResource::Buffer(BufferBinding {
-                    buffer: &buf.buffer,
-                    offset: 0,
-                    size: Some(NonZero::new(buf.buffer.size()).unwrap()),
-                })
+            BindTarget::StaticBuffer(buf) => BindingResource::Buffer(BufferBinding {
+                buffer: &buf.buffer,
+                offset: 0,
+                size: Some(NonZero::new(buf.buffer.size()).unwrap()),
+            }),
+            BindTarget::Camera => BindingResource::Buffer(BufferBinding {
+                buffer: &camera_buffer.as_imp().buffer,
+                offset: 0,
+                size: Some(NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap()),
+            }),
+            BindTarget::FrameCounter => {
+                todo!()
             }
-            BindTarget::Camera => {
-                BindingResource::Buffer(BufferBinding {
-                    buffer: &camera_buffer.as_imp().buffer,
-                    offset: 0,
-                    size: Some(NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap()),
-                })
-            }
-            BindTarget::FrameCounter => { todo!() }
             BindTarget::StaticTexture(texture_render_side, _sampler_type) => {
-                let view = build_resources.push(texture_render_side.texture.create_view(&wgpu::TextureViewDescriptor {
-                    label: None,
-                    format: None,
-                    dimension: None,
-                    usage: None,
-                    aspect: Default::default(),
-                    base_mip_level: 0,
-                    mip_level_count: None,
-                    base_array_layer: 0,
-                    array_layer_count: None,
-                }));
+                let view = build_resources.push(texture_render_side.texture.create_view(
+                    &wgpu::TextureViewDescriptor {
+                        label: None,
+                        format: None,
+                        dimension: None,
+                        usage: None,
+                        aspect: Default::default(),
+                        base_mip_level: 0,
+                        mip_level_count: None,
+                        base_array_layer: 0,
+                        array_layer_count: None,
+                    },
+                ));
                 BindingResource::TextureView(view)
             }
             BindTarget::DynamicTexture(texture) => {
                 //safety: keep the guard alive
-                let texture = unsafe{gpu_guard_textures.push(texture.acquire_gpu_texture(copy_info))};
-                let view = build_resources.push(texture.texture.create_view(&wgpu::TextureViewDescriptor {
-                    label: None,
-                    format: None,
-                    dimension: None,
-                    usage: None,
-                    aspect: Default::default(),
-                    base_mip_level: 0,
-                    mip_level_count: None,
-                    base_array_layer: 0,
-                    array_layer_count: None,
-                }));
+                let texture =
+                    unsafe { gpu_guard_textures.push(texture.acquire_gpu_texture(copy_info)) };
+                let view = build_resources.push(texture.texture.create_view(
+                    &wgpu::TextureViewDescriptor {
+                        label: None,
+                        format: None,
+                        dimension: None,
+                        usage: None,
+                        aspect: Default::default(),
+                        base_mip_level: 0,
+                        mip_level_count: None,
+                        base_array_layer: 0,
+                        array_layer_count: None,
+                    },
+                ));
                 BindingResource::TextureView(view)
             }
-            BindTarget::Sampler(sampler) => {
-                match sampler {
-                    SamplerType::Mipmapped => { BindingResource::Sampler(mipmapped_sampler) }
-                }
-            }
+            BindTarget::Sampler(sampler) => match sampler {
+                SamplerType::Mipmapped => BindingResource::Sampler(mipmapped_sampler),
+            },
             BindTarget::VB(..) | BindTarget::DynamicVB(..) => {
-                continue //not considered as a binding
+                continue; //not considered as a binding
             }
-
         };
 
         let entry = BindGroupEntry {
@@ -408,25 +423,34 @@ pub fn prepare_bind_group(
         };
         entries.push(entry);
     }
-    let bind_group = bind_device.0.device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some(prepared.pass_descriptor.name()),
-        layout: &prepared.pipeline.get_bind_group_layout(0),
-        entries: entries.as_slice(),
-    });
+    let bind_group = bind_device
+        .0
+        .device
+        .create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some(prepared.pass_descriptor.name()),
+            layout: &prepared.pipeline.get_bind_group_layout(0),
+            entries: entries.as_slice(),
+        });
 
     //find vertex buffers
     let mut vertex_buffers = Vec::new();
     let mut dynamic_vertex_buffers = Vec::new();
-    for (b,buffer) in &prepared.pass_descriptor.bind_style().binds {
+    for (b, buffer) in &prepared.pass_descriptor.bind_style().binds {
         match &buffer.target {
-            BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_) => {}
-            BindTarget::VB(_layout,render_side) => {
+            BindTarget::StaticBuffer(_)
+            | BindTarget::DynamicBuffer(_)
+            | BindTarget::Camera
+            | BindTarget::FrameCounter
+            | BindTarget::DynamicTexture(_)
+            | BindTarget::StaticTexture(..)
+            | BindTarget::Sampler(_) => {}
+            BindTarget::VB(_layout, render_side) => {
                 let buffer = render_side.buffer.clone();
                 vertex_buffers.push((*b, buffer));
             }
-            BindTarget::DynamicVB(_layout,render_side) => {
+            BindTarget::DynamicVB(_layout, render_side) => {
                 //safety: guard kept alive
-                let buffer = unsafe{render_side.imp.acquire_gpu_buffer(copy_info)};
+                let buffer = unsafe { render_side.imp.acquire_gpu_buffer(copy_info) };
                 dynamic_vertex_buffers.push((*b, buffer));
             }
         }
@@ -438,7 +462,6 @@ pub fn prepare_bind_group(
     } else {
         None
     };
-
 
     BindGroupGuard {
         bind_group,
@@ -465,15 +488,11 @@ impl Port {
             frame: 0,
         })
     }
-    pub async fn add_fixed_pass(
-        &mut self,
-        descriptor: PassDescriptor,
-    )  {
+    pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
         self.pass_descriptors.push(descriptor);
         println!("now up to {} passes", self.pass_descriptors.len());
     }
     pub async fn render_frame(&mut self) {
-
         self.port_reporter_send.begin_frame(self.frame);
         let frame_guard = self.port_reporter_send.create_frame_guard();
         //todo: We are currently doing a lot of setup work on each frame, that ought to be moved to initialization?
@@ -517,7 +536,6 @@ impl Port {
             }
         }
 
-
         let mipmapped_sampler = device.0.device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("mipmapped sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -533,30 +551,36 @@ impl Port {
             border_color: None,
         });
 
-        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(self.engine.bound_device().clone(), 1, GPUBufferUsage::VertexShaderRead, "Camera", |_initialize| {
-            let projection = self.camera.copy_projection_and_clear_dirty_bit();
-            CameraProjection {
-                projection: [
-                    *projection.matrix().columns()[0].x(),
-                    *projection.matrix().columns()[0].y(),
-                    *projection.matrix().columns()[0].z(),
-                    *projection.matrix().columns()[0].w(),
-                    *projection.matrix().columns()[1].x(),
-                    *projection.matrix().columns()[1].y(),
-                    *projection.matrix().columns()[1].z(),
-                    *projection.matrix().columns()[1].w(),
-                    *projection.matrix().columns()[2].x(),
-                    *projection.matrix().columns()[2].y(),
-                    *projection.matrix().columns()[2].z(),
-                    *projection.matrix().columns()[2].w(),
-                    *projection.matrix().columns()[3].x(),
-                    *projection.matrix().columns()[3].y(),
-                    *projection.matrix().columns()[3].z(),
-                    *projection.matrix().columns()[3].w(),
-                ]
-            }
-        }).expect("Create camera buffer");
-
+        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(
+            self.engine.bound_device().clone(),
+            1,
+            GPUBufferUsage::VertexShaderRead,
+            "Camera",
+            |_initialize| {
+                let projection = self.camera.copy_projection_and_clear_dirty_bit();
+                CameraProjection {
+                    projection: [
+                        *projection.matrix().columns()[0].x(),
+                        *projection.matrix().columns()[0].y(),
+                        *projection.matrix().columns()[0].z(),
+                        *projection.matrix().columns()[0].w(),
+                        *projection.matrix().columns()[1].x(),
+                        *projection.matrix().columns()[1].y(),
+                        *projection.matrix().columns()[1].z(),
+                        *projection.matrix().columns()[1].w(),
+                        *projection.matrix().columns()[2].x(),
+                        *projection.matrix().columns()[2].y(),
+                        *projection.matrix().columns()[2].z(),
+                        *projection.matrix().columns()[2].w(),
+                        *projection.matrix().columns()[3].x(),
+                        *projection.matrix().columns()[3].y(),
+                        *projection.matrix().columns()[3].z(),
+                        *projection.matrix().columns()[3].w(),
+                    ],
+                }
+            },
+        )
+        .expect("Create camera buffer");
 
         //create per-frame resources
         let frame_guards = StableAddressVec::with_capactiy(10);
@@ -598,8 +622,16 @@ impl Port {
                 };
             }
             Some(surface) => {
-                frame = Some(surface.get_current_texture().expect("Acquire swapchain texture"));
-                wgpu_view = frame.as_ref().unwrap().texture.create_view(&wgpu::TextureViewDescriptor::default());
+                frame = Some(
+                    surface
+                        .get_current_texture()
+                        .expect("Acquire swapchain texture"),
+                );
+                wgpu_view = frame
+                    .as_ref()
+                    .unwrap()
+                    .texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
                 color_attachment = wgpu::RenderPassColorAttachment {
                     view: &wgpu_view,
                     resolve_target: None,
@@ -618,7 +650,7 @@ impl Port {
             label: Some("depth texture"),
             size: wgpu::Extent3d {
                 width: scaled_size.0,
-                height:  scaled_size.1,
+                height: scaled_size.1,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -674,7 +706,13 @@ impl Port {
         let mut frame_bind_groups = Vec::new();
         for prepared in &prepared {
             let camera_gpu_deref: &dyn SomeGPUAccess = &**camera_gpu_access;
-            let bind_group = prepare_bind_group(device, prepared, camera_gpu_deref, &mipmapped_sampler, &mut copy_info);
+            let bind_group = prepare_bind_group(
+                device,
+                prepared,
+                camera_gpu_deref,
+                &mipmapped_sampler,
+                &mut copy_info,
+            );
             frame_bind_groups.push(bind_group);
         }
         //in the second pass, we encode our render pass
@@ -686,7 +724,7 @@ impl Port {
             occlusion_query_set: None,
         });
 
-        for (p,prepared) in prepared.iter().enumerate() {
+        for (p, prepared) in prepared.iter().enumerate() {
             render_pass.push_debug_group(prepared.pass_descriptor.name());
             render_pass.set_pipeline(&prepared.pipeline);
 
@@ -695,7 +733,7 @@ impl Port {
 
             render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
 
-            for (v,buffer) in &bind_group.vertex_buffers {
+            for (v, buffer) in &bind_group.vertex_buffers {
                 render_pass.set_vertex_buffer(*v, buffer.slice(..));
             }
             for (v, buffer) in &bind_group.dynamic_vertex_buffers {
@@ -705,8 +743,7 @@ impl Port {
             if let Some(buffer) = &bind_group.index_buffer {
                 render_pass.set_index_buffer(buffer.slice(..), wgpu::IndexFormat::Uint16);
                 render_pass.draw_indexed(0..prepared.vertex_count, 0, 0..1);
-            }
-            else {
+            } else {
                 render_pass.draw(0..prepared.vertex_count, 0..1);
             }
             render_pass.pop_debug_group();
@@ -726,10 +763,11 @@ impl Port {
             callback_guard.mark_gpu_complete();
         });
         device.0.queue.submit(std::iter::once(encoded));
-        if let Some(f) = frame { f.present(); }
+        if let Some(f) = frame {
+            f.present();
+        }
         self.frame += 1;
         frame_guard_for_callback.mark_cpu_complete();
         // FrameGuard will be dropped here, triggering statistics update
-
     }
 }

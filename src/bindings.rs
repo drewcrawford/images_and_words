@@ -84,15 +84,14 @@ This module is organized hierarchically by direction, then by mutability:
 
 */
 
-
 pub mod bind_style;
 pub mod forward;
 
 pub use bind_style::BindStyle;
-pub mod visible_to;
-pub mod coordinates;
-pub mod software;
 pub(crate) mod buffer_access;
-pub mod resource_tracking;
+pub mod coordinates;
 pub(crate) mod dirty_tracking;
+pub mod resource_tracking;
 pub mod sampler;
+pub mod software;
+pub mod visible_to;

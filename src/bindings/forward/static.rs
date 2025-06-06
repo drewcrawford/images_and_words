@@ -70,11 +70,11 @@ Use **Texture** when you need:
 # struct Vertex { x: f32, y: f32, z: f32 }
 # unsafe impl CRepr for Vertex {}
 # struct Mesh { vertices: Vec<Vertex>, indices: Vec<u16> }
-# let mesh = Mesh { 
+# let mesh = Mesh {
 #     vertices: vec![Vertex { x: 0.0, y: 0.0, z: 0.0 }; 100],
 #     indices: vec![0, 1, 2, 3, 4, 5] // At least 6 indices for alignment
 # };
-# 
+#
 // Load a mesh once
 let vertex_buffer = r#static::buffer::Buffer::new(
     device.clone(),
@@ -140,5 +140,5 @@ For resources that need updates, see the `dynamic` module instead.
 
 */
 
-pub mod texture;
 pub mod buffer;
+pub mod texture;

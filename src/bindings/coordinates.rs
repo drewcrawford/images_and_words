@@ -56,7 +56,7 @@ pub struct RasterCoord2D {
     /// The horizontal position, increasing from left to right.
     pub x: u16,
     /// The vertical position, increasing from top to bottom.
-    pub y: u16
+    pub y: u16,
 }
 
 impl RasterCoord2D {

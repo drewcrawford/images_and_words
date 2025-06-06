@@ -1,12 +1,12 @@
-use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
-use crate::images::device::BoundDevice;
 use crate::entry_point::{EntryPoint, EntryPointError};
+use crate::images::device::BoundDevice;
 use crate::images::device::{BindError, PickError, UnboundDevice};
 use crate::images::port::Port;
 use crate::images::projection::WorldCoord;
 use crate::images::view::View;
 use crate::imp;
+use std::ops::{Deref, DerefMut};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct Engine {
@@ -19,35 +19,47 @@ pub struct Engine {
     device: Arc<BoundDevice>,
     _entry_point: Arc<EntryPoint>,
     _engine: crate::imp::Engine,
-
 }
 
 impl Engine {
-    #[cfg(feature="testing")]
+    #[cfg(feature = "testing")]
     pub async fn for_testing() -> Result<Arc<Self>, CreateError> {
         Self::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await
     }
-    pub async fn rendering_to(mut view: View, initial_camera_position: WorldCoord) -> Result<Arc<Self>,CreateError> {
-        let entry_point =   Arc::new(EntryPoint::new().await?);
-        view.provide_entry_point(&entry_point).await.expect("Can't provide entry point");
+    pub async fn rendering_to(
+        mut view: View,
+        initial_camera_position: WorldCoord,
+    ) -> Result<Arc<Self>, CreateError> {
+        let entry_point = Arc::new(EntryPoint::new().await?);
+        view.provide_entry_point(&entry_point)
+            .await
+            .expect("Can't provide entry point");
         let (initial_width, initial_height, initial_scale) = view.size_scale().await;
 
-        let unbound_device = UnboundDevice::pick(&view,&entry_point).await?;
-        let bound_device = Arc::new(BoundDevice::bind(unbound_device,entry_point.clone()).await?);
+        let unbound_device = UnboundDevice::pick(&view, &entry_point).await?;
+        let bound_device = Arc::new(BoundDevice::bind(unbound_device, entry_point.clone()).await?);
         let initial_port = Mutex::new(None);
         let imp = crate::imp::Engine::rendering_to_view(&bound_device).await;
-        let r = Arc::new(Engine{
+        let r = Arc::new(Engine {
             main_port: initial_port,
             device: bound_device,
             _entry_point: entry_point,
             _engine: imp,
         });
-        let final_port = Port::new(&r, view, initial_camera_position, (initial_width, initial_height, initial_scale)).unwrap();
+        let final_port = Port::new(
+            &r,
+            view,
+            initial_camera_position,
+            (initial_width, initial_height, initial_scale),
+        )
+        .unwrap();
         r.main_port.lock().unwrap().replace(final_port);
         Ok(r)
     }
     pub fn main_port_mut(&self) -> PortGuard<'_> {
-        PortGuard{ guard: self.main_port.lock().unwrap() }
+        PortGuard {
+            guard: self.main_port.lock().unwrap(),
+        }
     }
     pub fn bound_device(&self) -> &Arc<BoundDevice> {
         &self.device
@@ -57,7 +69,7 @@ impl Engine {
 An opaque guard type for ports.
 */
 pub struct PortGuard<'a> {
-    guard: std::sync::MutexGuard<'a, Option<Port>>
+    guard: std::sync::MutexGuard<'a, Option<Port>>,
 }
 impl Deref for PortGuard<'_> {
     type Target = Port;
@@ -72,15 +84,13 @@ impl DerefMut for PortGuard<'_> {
     }
 }
 
-
-
 fn assert_send_sync<T: Send + Sync>() {}
 #[allow(dead_code)]
 fn compile_check() {
     assert_send_sync::<Engine>();
 }
 
-#[derive(Debug,thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum CreateError {
     #[error("Can't create engine {0}")]

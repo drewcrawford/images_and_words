@@ -44,11 +44,11 @@ impl VTexture<R32Float> for CheckerboardTexture {
     fn width(&self) -> u16 {
         self.size
     }
-    
+
     fn height(&self) -> u16 {
         self.size
     }
-    
+
     fn read(&self, texel: Texel) -> f32 {
         let x_cell = texel.x / self.scale;
         let y_cell = texel.y / self.scale;
@@ -67,13 +67,13 @@ assert_eq!(checker.read(Texel { x: 64, y: 64 }), 1.0);
 ```
  */
 
-use crate::bindings::software::texture::{Texel};
+use crate::bindings::software::texture::Texel;
 use crate::pixel_formats::sealed::PixelFormat;
 
 /// A trait for types that can be read as textures.
-/// 
+///
 /// VTexture provides a uniform interface for reading pixel values from various sources.
-/// This includes both regular [`Texture`](crate::bindings::software::texture::Texture)s 
+/// This includes both regular [`Texture`](crate::bindings::software::texture::Texture)s
 /// and "virtual" textures that generate pixel values procedurally.
 ///
 /// # Type Parameters
@@ -93,7 +93,7 @@ pub trait VTexture<Format: PixelFormat> {
     /// assert_eq!(texture.width(), 100);
     /// ```
     fn width(&self) -> u16;
-    
+
     /// Returns the height of the texture in texels.
     ///
     /// # Examples
@@ -132,15 +132,18 @@ pub trait VTexture<Format: PixelFormat> {
     /// #
     /// let mut texture = Texture::<RGBA32Float>::new(2, 2, Float4 { r: 0.0, g: 0.0, b: 0.0, a: 1.0 });
     /// texture[Texel { x: 1, y: 0 }] = Float4 { r: 1.0, g: 0.5, b: 0.25, a: 1.0 };
-    /// 
+    ///
     /// let color = texture.read(Texel { x: 1, y: 0 });
     /// assert_eq!(color.r, 1.0);
     /// assert_eq!(color.g, 0.5);
     /// ```
-    fn read(&self,texel: Texel) -> Format::CPixel;
+    fn read(&self, texel: Texel) -> Format::CPixel;
 }
 
-impl<Format: PixelFormat> VTexture<Format> for crate::bindings::software::texture::Texture<Format> where Format::CPixel: Clone {
+impl<Format: PixelFormat> VTexture<Format> for crate::bindings::software::texture::Texture<Format>
+where
+    Format::CPixel: Clone,
+{
     fn width(&self) -> u16 {
         Self::width(self)
     }

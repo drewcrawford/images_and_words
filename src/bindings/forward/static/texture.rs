@@ -44,16 +44,15 @@
 //! - [`forward::static::Buffer`](crate::bindings::forward::static::buffer::Buffer) - For immutable structured data
 //! - [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 
+use crate::bindings::software::texture::Texel;
+use crate::bindings::software::texture::vtexture::VTexture;
+use crate::bindings::visible_to::TextureUsage;
+use crate::images::device::BoundDevice;
+use crate::pixel_formats::sealed::PixelFormat;
+use crate::{Priority, imp};
 use std::fmt::{Debug, Display};
 use std::path::Path;
 use std::sync::Arc;
-use crate::bindings::visible_to::TextureUsage;
-use crate::images::device::BoundDevice;
-use crate::{imp, Priority};
-use crate::bindings::software::texture::Texel;
-use crate::bindings::software::texture::vtexture::VTexture;
-use crate::pixel_formats::sealed::PixelFormat;
-
 
 /// A GPU-resident, immutable texture.
 ///
@@ -72,7 +71,7 @@ use crate::pixel_formats::sealed::PixelFormat;
 /// # Thread Safety
 ///
 /// Textures can be safely shared between threads and are `Send + Sync`.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Texture<Format> {
     pub(crate) imp: imp::GPUableTexture<Format>,
     width: u16,
@@ -82,10 +81,8 @@ pub struct Texture<Format> {
 ///
 /// This error wraps backend-specific errors that can occur during texture creation,
 /// such as out-of-memory conditions, invalid parameters, or device errors.
-#[derive(Debug,thiserror::Error)]
-pub struct Error(
-    #[from] imp::Error
-);
+#[derive(Debug, thiserror::Error)]
+pub struct Error(#[from] imp::Error);
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -138,13 +135,28 @@ impl<Format: PixelFormat> Texture<Format> {
     ///      ).await.expect("Failed to create texture");
     /// # });
     /// ```
-    pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(device: &Arc<BoundDevice>, width: u16, height: u16, visible_to: TextureUsage, mipmaps: bool, debug_name: &str, priority: Priority, initialize_to: Initializer) -> Result<Self,Error>  {
-        let imp = imp::GPUableTexture::new_initialize(device, width, height, visible_to, mipmaps, debug_name, priority, initialize_to).await?;
-        Ok(Self {
-            imp,
+    pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(
+        device: &Arc<BoundDevice>,
+        width: u16,
+        height: u16,
+        visible_to: TextureUsage,
+        mipmaps: bool,
+        debug_name: &str,
+        priority: Priority,
+        initialize_to: Initializer,
+    ) -> Result<Self, Error> {
+        let imp = imp::GPUableTexture::new_initialize(
+            device,
             width,
-            height
-        })
+            height,
+            visible_to,
+            mipmaps,
+            debug_name,
+            priority,
+            initialize_to,
+        )
+        .await?;
+        Ok(Self { imp, width, height })
     }
     /// Creates a texture by copying data from a software texture.
     ///
@@ -194,10 +206,24 @@ impl<Format: PixelFormat> Texture<Format> {
     /// ).await.expect("Failed to create GPU texture");
     /// # });
     /// ```
-    pub async fn from_software(device: &Arc<BoundDevice>, texture: &crate::bindings::software::texture::Texture<Format>, visible_to: TextureUsage, debug_name: &str, priority: Priority) -> Result<Self,Error> {
-        Self::new(device, texture.width(), texture.height(), visible_to, false, debug_name, priority, |texel| {
-            texture.read(texel)
-        }).await
+    pub async fn from_software(
+        device: &Arc<BoundDevice>,
+        texture: &crate::bindings::software::texture::Texture<Format>,
+        visible_to: TextureUsage,
+        debug_name: &str,
+        priority: Priority,
+    ) -> Result<Self, Error> {
+        Self::new(
+            device,
+            texture.width(),
+            texture.height(),
+            visible_to,
+            false,
+            debug_name,
+            priority,
+            |texel| texture.read(texel),
+        )
+        .await
     }
     /// Creates a texture from an asset file.
     ///
@@ -219,7 +245,14 @@ impl<Format: PixelFormat> Texture<Format> {
     /// # Future
     ///
     /// This method will support common image formats like PNG, JPEG, etc.
-    pub async fn new_asset(_path: &Path, _bound_device: &Arc<BoundDevice>, _visible_to: TextureUsage, _mipmaps: bool,_debug_name: &str, _priority: Priority) -> Result<Self,Error> {
+    pub async fn new_asset(
+        _path: &Path,
+        _bound_device: &Arc<BoundDevice>,
+        _visible_to: TextureUsage,
+        _mipmaps: bool,
+        _debug_name: &str,
+        _priority: Priority,
+    ) -> Result<Self, Error> {
         todo!()
     }
     /// Creates a texture from a slice of pixel data.
@@ -274,12 +307,28 @@ impl<Format: PixelFormat> Texture<Format> {
     /// ).await.expect("Failed to create texture");
     /// # });
     /// ```
-    pub async fn new_slice(slice: &[Format::CPixel], width: u16, bound_device: &Arc<BoundDevice>, visible_to: TextureUsage, mipmaps: bool, debug_name: &str, priority: Priority) -> Result<Self,Error> {
+    pub async fn new_slice(
+        slice: &[Format::CPixel],
+        width: u16,
+        bound_device: &Arc<BoundDevice>,
+        visible_to: TextureUsage,
+        mipmaps: bool,
+        debug_name: &str,
+        priority: Priority,
+    ) -> Result<Self, Error> {
         let height = slice.len() / width as usize;
         let height_u16 = height.try_into().unwrap();
-        Self::new(bound_device, width, height_u16, visible_to, mipmaps, debug_name, priority, |texel| {
-            slice[texel.y as usize * width as usize + texel.x as usize].clone()
-        }).await
+        Self::new(
+            bound_device,
+            width,
+            height_u16,
+            visible_to,
+            mipmaps,
+            debug_name,
+            priority,
+            |texel| slice[texel.y as usize * width as usize + texel.x as usize].clone(),
+        )
+        .await
     }
 
     /// Returns the width of the texture in pixels.
@@ -292,6 +341,3 @@ impl<Format: PixelFormat> Texture<Format> {
         self.height
     }
 }
-
-
-

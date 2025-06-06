@@ -48,7 +48,7 @@
 //!     y: f32,
 //!     z: f32,
 //! }
-//! 
+//!
 //! unsafe impl CRepr for Vertex {}
 //!
 //! // Create a dynamic buffer for 100 vertices
@@ -80,19 +80,19 @@
 //! - [`forward::dynamic::FrameTexture`](crate::bindings::forward::dynamic::frame_texture::FrameTexture) - For dynamic image data
 //! - [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 
-use std::fmt::{Debug, Display, Formatter};
-use std::marker::PhantomData;
-use std::ops::Index;
-use std::sync::Arc;
 use crate::bindings::dirty_tracking::DirtyReceiver;
-use crate::multibuffer::CPUWriteGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp;
 use crate::imp::{CopyInfo, GPUableBuffer, SendPhantom};
+use crate::multibuffer::CPUWriteGuard;
 use crate::multibuffer::Multibuffer;
 use crate::multibuffer::sealed::CPUMultibuffer;
+use std::fmt::{Debug, Display, Formatter};
+use std::marker::PhantomData;
+use std::ops::Index;
+use std::sync::Arc;
 
 /// Indicates how frequently a dynamic buffer will be updated.
 ///
@@ -116,7 +116,7 @@ pub enum WriteFrequency {
     /// - Configuration data
     /// - Infrequently updated game state
     Infrequent,
-    
+
     /// Buffer updates roughly once per frame.
     ///
     /// Use this for data that changes every frame or nearly every frame, such as:
@@ -177,7 +177,7 @@ impl<Element> Debug for Shared<Element> {
 /// ).expect("Failed to create buffer");
 /// # });
 /// ```
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Buffer<Element> {
     shared: Arc<Shared<Element>>,
     count: usize,
@@ -212,15 +212,12 @@ impl<Element> Debug for IndividualBuffer<Element> {
     }
 }
 
-
 impl<Element> Index<usize> for IndividualBuffer<Element> {
     type Output = Element;
     fn index(&self, index: usize) -> &Self::Output {
         let offset = index * std::mem::size_of::<Element>();
-        let bytes: &[u8] = &self.imp.as_slice()[offset..offset+std::mem::size_of::<Element>()];
-        unsafe {
-            &*(bytes.as_ptr() as *const Element)
-        }
+        let bytes: &[u8] = &self.imp.as_slice()[offset..offset + std::mem::size_of::<Element>()];
+        unsafe { &*(bytes.as_ptr() as *const Element) }
     }
 }
 
@@ -248,19 +245,21 @@ impl<Element> IndividualBuffer<Element> {
     /// let device = engine.bound_device();
     /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
-    /// 
+    ///
     /// // Write 3 floats starting at index 5
     /// write_guard.write(&[1.0, 2.0, 3.0], 5);
     /// # });
     /// ```
-    pub fn write(&mut self, data: &[Element], dst_offset: usize) where Element: CRepr {
+    pub fn write(&mut self, data: &[Element], dst_offset: usize)
+    where
+        Element: CRepr,
+    {
         let offset = dst_offset * std::mem::size_of::<Element>();
         let bytes = unsafe {
             std::slice::from_raw_parts(data.as_ptr() as *const u8, std::mem::size_of_val(data))
         };
         self.imp.write(bytes, offset);
     }
-
 }
 impl<Element> Mappable for IndividualBuffer<Element> {
     async fn map_read(&mut self) {
@@ -315,7 +314,6 @@ impl<Element> Debug for RenderSide<Element> {
     }
 }
 
-
 /// Guards access to the underlying GPU buffer during rendering.
 ///
 /// `GPUAccess` ensures exclusive access to the GPU buffer while it's being used
@@ -327,7 +325,7 @@ impl<Element> Debug for RenderSide<Element> {
 #[derive(Debug)]
 pub struct GPUAccess<Element> {
     #[allow(dead_code)] //nop implementation does not use
-    imp: crate::multibuffer::GPUGuard<IndividualBuffer<Element>,GPUableBuffer>,
+    imp: crate::multibuffer::GPUGuard<IndividualBuffer<Element>, GPUableBuffer>,
     _phantom: PhantomData<Element>,
 }
 impl<Element> GPUAccess<Element> {
@@ -352,16 +350,16 @@ impl<Element: Send + Sync> SomeGPUAccess for GPUAccess<Element> {
     }
 }
 impl<Element> RenderSide<Element> {
-
-    pub(crate) fn erased_render_side(self) -> ErasedRenderSide where Element: Send + Sync + 'static {
+    pub(crate) fn erased_render_side(self) -> ErasedRenderSide
+    where
+        Element: Send + Sync + 'static,
+    {
         ErasedRenderSide {
             element_size: std::mem::size_of::<Element>(),
             byte_size: self.count * std::mem::size_of::<Element>(),
             imp: Arc::new(self),
         }
     }
-
-
 }
 
 /// Type-erased interface for render-side buffer operations.
@@ -378,13 +376,13 @@ pub(crate) trait SomeRenderSide: Send + Sync + Debug {
     /// of GPU operations using this buffer.
     #[allow(dead_code)] //nop implementation does not use
     unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess>;
-    
+
     /// Returns a receiver for dirty state notifications.
     ///
     /// This is used by the render system to track when buffers need to be
     /// copied from CPU to GPU memory.
     fn dirty_receiver(&self) -> DirtyReceiver;
-    
+
     /// Returns a raw pointer to the underlying GPU buffer.
     ///
     /// # Safety
@@ -419,7 +417,7 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
 ///
 /// Used internally by the binding system to pass buffers to render passes without
 /// requiring knowledge of the specific element type.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct ErasedRenderSide {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) element_size: usize,
@@ -433,9 +431,6 @@ impl ErasedRenderSide {
         self.imp.dirty_receiver()
     }
 }
-
-
-
 
 /// Error type for dynamic buffer operations.
 ///
@@ -454,10 +449,6 @@ impl Display for Error {
         std::fmt::Display::fmt(&self.0, f)
     }
 }
-
-
-
-
 
 impl<Element> Buffer<Element> {
     /// Creates a new dynamic buffer with the specified size and usage.
@@ -499,22 +490,41 @@ impl<Element> Buffer<Element> {
     /// ).expect("Failed to create buffer");
     /// # });
     /// ```
-    pub fn new(bound_device: Arc<BoundDevice>, size: usize, usage: GPUBufferUsage, debug_name: &str, initialize_with:impl Fn(usize) -> Element) -> Result<Self,Error> where Element: CRepr {
+    pub fn new(
+        bound_device: Arc<BoundDevice>,
+        size: usize,
+        usage: GPUBufferUsage,
+        debug_name: &str,
+        initialize_with: impl Fn(usize) -> Element,
+    ) -> Result<Self, Error>
+    where
+        Element: CRepr,
+    {
         let byte_size = size * std::mem::size_of::<Element>();
-        assert_ne!(byte_size,0, "Zero-sized buffers are not allowed");
+        assert_ne!(byte_size, 0, "Zero-sized buffers are not allowed");
 
         let map_type = crate::bindings::buffer_access::MapType::Write; //todo: optimize for read vs write, etc.
 
-        let buffer = imp::MappableBuffer::new(bound_device.clone(), byte_size, map_type, debug_name, move |byte_array| {
-          crate::bindings::forward::r#static::buffer::initialize_byte_array_with(size, byte_array, initialize_with)
-        })?;
+        let buffer = imp::MappableBuffer::new(
+            bound_device.clone(),
+            byte_size,
+            map_type,
+            debug_name,
+            move |byte_array| {
+                crate::bindings::forward::r#static::buffer::initialize_byte_array_with(
+                    size,
+                    byte_array,
+                    initialize_with,
+                )
+            },
+        )?;
 
         let individual_buffer = IndividualBuffer {
             imp: buffer,
             _marker: SendPhantom::new(),
             count: size,
         };
-        let gpu_buffer = imp::GPUableBuffer::new(bound_device,byte_size, usage,debug_name);
+        let gpu_buffer = imp::GPUableBuffer::new(bound_device, byte_size, usage, debug_name);
 
         Ok(Self {
             shared: Arc::new(Shared {
@@ -550,14 +560,16 @@ impl<Element> Buffer<Element> {
     /// let device = engine.bound_device();
     /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
-    /// 
+    ///
     /// // Update buffer contents
     /// write_guard.write(&[1.0, 2.0, 3.0], 0);
-    /// 
+    ///
     /// // Guard automatically marks buffer as dirty when dropped
     /// # });
     /// ```
-    pub async fn access_write(&self) -> CPUWriteGuard<IndividualBuffer<Element>, imp::GPUableBuffer> {
+    pub async fn access_write(
+        &self,
+    ) -> CPUWriteGuard<IndividualBuffer<Element>, imp::GPUableBuffer> {
         self.shared.multibuffer.access_write().await
     }
 
@@ -578,8 +590,6 @@ impl<Element> Buffer<Element> {
             debug_name: self.debug_name.clone(),
         }
     }
-
-
 }
 
 /// Marker trait for types with C-compatible memory representation.
@@ -616,9 +626,7 @@ impl<Element> Buffer<Element> {
 ///
 /// This trait is already implemented for all primitive numeric types that
 /// are commonly used in GPU programming.
-pub unsafe trait CRepr {
-
-}
+pub unsafe trait CRepr {}
 
 unsafe impl CRepr for u64 {}
 unsafe impl CRepr for u32 {}
