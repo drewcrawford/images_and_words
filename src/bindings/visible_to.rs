@@ -53,6 +53,7 @@
 /// let normal_map_usage = TextureUsage::VertexAndFragmentShaderSample;
 /// ```
 #[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextureUsage {
     /// The texture will be read directly (without sampling) in the fragment shader.
     ///
