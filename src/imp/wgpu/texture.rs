@@ -266,7 +266,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
     fn get_descriptor(debug_name: &str, width: u16, height: u16, visible_to: TextureUsage, mipmaps: bool) -> TextureDescriptor {
         let mip_level_count = if mipmaps {
             // 3
-            width.max(height).ilog2() as u32 + 1
+            width.max(height).ilog2() + 1
         } else {
             1
         };

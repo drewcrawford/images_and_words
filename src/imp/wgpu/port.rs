@@ -152,7 +152,7 @@ fn prepare_pass_descriptor(
         .0
         .device
         .create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(&descriptor.vertex_shader.label),
+            label: Some(descriptor.vertex_shader.label),
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
                 &descriptor.vertex_shader.wgsl_code,
             )),
@@ -162,7 +162,7 @@ fn prepare_pass_descriptor(
     let mut vertex_buffers = Vec::new();
     let all_vertex_attributes = StableAddressVec::with_capactiy(5);
 
-    for (_b,buffer) in &descriptor.bind_style.binds {
+    for buffer in descriptor.bind_style.binds.values() {
         match &buffer.target {
             BindTarget::StaticBuffer(_) | BindTarget::DynamicBuffer(_) | BindTarget::Camera | BindTarget::FrameCounter | BindTarget::DynamicTexture(_) | BindTarget::StaticTexture(..) | BindTarget::Sampler(_)  => {}
             BindTarget::VB(layout,_)  | BindTarget::DynamicVB(layout,_) => {
@@ -350,7 +350,7 @@ pub fn prepare_bind_group(
                 BindingResource::Buffer(BufferBinding {
                     buffer: &buf.buffer,
                     offset: 0,
-                    size: Some(NonZero::new(buf.buffer.size() as u64).unwrap()),
+                    size: Some(NonZero::new(buf.buffer.size()).unwrap()),
                 })
             }
             BindTarget::Camera => {
@@ -373,7 +373,7 @@ pub fn prepare_bind_group(
                     base_array_layer: 0,
                     array_layer_count: None,
                 }));
-                BindingResource::TextureView(&view)
+                BindingResource::TextureView(view)
             }
             BindTarget::DynamicTexture(texture) => {
                 //safety: keep the guard alive
@@ -389,7 +389,7 @@ pub fn prepare_bind_group(
                     base_array_layer: 0,
                     array_layer_count: None,
                 }));
-                BindingResource::TextureView(&view)
+                BindingResource::TextureView(view)
             }
             BindTarget::Sampler(sampler) => {
                 match sampler {
@@ -404,7 +404,7 @@ pub fn prepare_bind_group(
 
         let entry = BindGroupEntry {
             binding: *pass_index,
-            resource: resource,
+            resource,
         };
         entries.push(entry);
     }
@@ -461,7 +461,7 @@ impl Port {
             pass_descriptors: Vec::new(),
             view,
             camera,
-            port_reporter_send: port_reporter_send,
+            port_reporter_send,
             frame: 0,
         })
     }
@@ -726,9 +726,7 @@ impl Port {
             callback_guard.mark_gpu_complete();
         });
         device.0.queue.submit(std::iter::once(encoded));
-        frame.map(|f| {
-            f.present();
-        });
+        if let Some(f) = frame { f.present(); }
         self.frame += 1;
         frame_guard_for_callback.mark_cpu_complete();
         // FrameGuard will be dropped here, triggering statistics update
