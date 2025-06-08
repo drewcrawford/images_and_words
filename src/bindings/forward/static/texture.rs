@@ -14,6 +14,7 @@
 //! # Examples
 //!
 //! ```
+//! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! # use images_and_words::bindings::forward::r#static::texture::Texture;
 //! use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
 //! use images_and_words::images::projection::WorldCoord;
@@ -109,6 +110,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// # Examples
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
     /// use images_and_words::images::projection::WorldCoord;
@@ -176,6 +178,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// # Examples
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::software::texture::Texture as SoftwareTexture;
     /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
@@ -274,6 +277,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// # Examples
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
     /// use images_and_words::images::projection::WorldCoord;

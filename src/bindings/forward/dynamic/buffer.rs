@@ -33,6 +33,7 @@
 //! # Example
 //!
 //! ```
+//! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! use std::sync::Arc;
 //! use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
 //! use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -159,6 +160,7 @@ impl<Element> Debug for Shared<Element> {
 /// # Example
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 /// use std::sync::Arc;
 /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
 /// use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -236,6 +238,7 @@ impl<Element> IndividualBuffer<Element> {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
@@ -472,6 +475,7 @@ impl<Element> Buffer<Element> {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// use std::sync::Arc;
     /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -551,6 +555,7 @@ impl<Element> Buffer<Element> {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
@@ -611,6 +616,7 @@ impl<Element> Buffer<Element> {
 /// # Implementing for Custom Types
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 /// #[repr(C)]
 /// struct Vertex {
 ///     position: [f32; 3],

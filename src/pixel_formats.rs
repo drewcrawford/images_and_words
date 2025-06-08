@@ -34,6 +34,7 @@
 //! # Examples
 //!
 //! ```
+//! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 //!
 //! // Create a red pixel
@@ -41,6 +42,7 @@
 //! ```
 //!
 //! ```
+//! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB, Float4};
 //!
 //! // Convert from linear float to sRGB
@@ -413,6 +415,7 @@ impl From<Unorm4> for PixelBGRA {
 /// # Examples
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 /// use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 /// use images_and_words::bindings::forward::r#static::texture::Texture;
 /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
@@ -591,6 +594,7 @@ impl From<Float4> for BGRA8UnormPixelSRGB {
 /// # Examples
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 /// use images_and_words::pixel_formats::{Float4, BGRA8UnormPixelSRGB};
 ///
 /// // Create a linear color

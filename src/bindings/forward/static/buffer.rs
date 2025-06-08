@@ -24,6 +24,7 @@
 //! # Example
 //!
 //! ```
+//! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! # use images_and_words::bindings::forward::r#static::buffer::Buffer;
 //! # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 //! # use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -93,6 +94,7 @@ use std::sync::Arc;
 /// # Example
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 /// # use images_and_words::bindings::forward::r#static::buffer::Buffer;
 /// # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -210,6 +212,7 @@ impl<Element> Buffer<Element> {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use images_and_words::bindings::forward::r#static::buffer::Buffer;
     /// # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
     /// # use images_and_words::bindings::visible_to::GPUBufferUsage;

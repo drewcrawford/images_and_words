@@ -11,6 +11,7 @@
 //! Ports are typically created through an [`Engine`] rather than directly:
 //!
 //! ```
+//! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! # use images_and_words::images::{Engine, view::View};
 //! # use images_and_words::images::projection::WorldCoord;
 //! # test_executors::sleep_on(async {
@@ -180,6 +181,7 @@ impl From<imp::Error> for Error {
 /// # Example
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 /// # use images_and_words::images::{Engine, view::View};
 /// # use images_and_words::images::projection::WorldCoord;
 /// # test_executors::sleep_on(async {
@@ -404,6 +406,7 @@ impl Port {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use std::sync::Arc;
     /// # use images_and_words::images::{Engine, view::View, port::Port};
     /// # use images_and_words::images::projection::WorldCoord;
@@ -447,6 +450,7 @@ impl Port {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use images_and_words::images::{Engine, view::View};
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::render_pass::{PassDescriptor, DrawCommand};
@@ -558,6 +562,7 @@ impl Port {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use images_and_words::images::{Engine, view::View};
     /// # use images_and_words::images::projection::WorldCoord;
     /// # test_executors::sleep_on(async {

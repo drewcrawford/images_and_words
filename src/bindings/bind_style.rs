@@ -16,6 +16,7 @@
 //! # Example
 //!
 //! ```
+//! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! use images_and_words::bindings::forward::r#static::buffer::Buffer;
 //! use images_and_words::pixel_formats::{BGRA8UNormSRGB};
 //! # test_executors::sleep_on(async {
@@ -391,6 +392,7 @@ pub enum Stage {
 /// # Example
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 ///
 /// use images_and_words::bindings::bind_style::{BindStyle, BindSlot, Stage};
 /// use images_and_words::bindings::visible_to::TextureUsage;

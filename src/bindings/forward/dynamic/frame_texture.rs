@@ -23,6 +23,7 @@ updated from the CPU side during runtime.
 # Usage Pattern
 
 ```
+# if cfg!(not(feature="backend_wgpu")) { return; }
 # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 # use images_and_words::bindings::software::texture::Texel;
@@ -188,6 +189,7 @@ impl ErasedTextureRenderSide {
 /// # Example
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 /// # use images_and_words::bindings::BindStyle;
 /// # use images_and_words::bindings::bind_style::{BindSlot, Stage};
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
@@ -261,6 +263,7 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// # Example
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 /// # use images_and_words::bindings::software::texture::Texel;
@@ -375,6 +378,7 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// # Example
 ///
 /// ```
+/// # if cfg!(not(feature="backend_wgpu")) { return; }
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 /// # use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
 /// # use images_and_words::bindings::software::texture::Texel;
@@ -448,6 +452,7 @@ impl<Format> IndividualTexture<Format> {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::{IndividualTexture, FrameTexture};
     /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
     /// # use images_and_words::bindings::software::texture::Texel;
@@ -511,6 +516,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
     /// # use images_and_words::pixel_formats::{R32Float};
     /// # use images_and_words::bindings::software::texture::Texel;
@@ -587,6 +593,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
     /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
     /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};

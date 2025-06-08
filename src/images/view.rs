@@ -12,6 +12,7 @@
 //! ## Creating a test view
 //!
 //! ```
+//! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! # #[cfg(feature = "testing")]
 //! # {
 //! use images_and_words::images::view::View;
@@ -35,6 +36,7 @@
 //! ## Using a view with an engine
 //!
 //! ```
+//! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! # #[cfg(feature = "testing")]
 //! # test_executors::sleep_on(async {
 //! use images_and_words::images::{Engine, view::View};
@@ -218,6 +220,7 @@ impl View {
     /// # Example
     ///
     /// ```no_run
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # #[cfg(feature = "app_window")]
     /// # {
     /// use images_and_words::images::view::View;
@@ -250,6 +253,7 @@ impl View {
     /// # Example
     ///
     /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # #[cfg(feature = "testing")]
     /// # {
     /// use images_and_words::images::view::View;

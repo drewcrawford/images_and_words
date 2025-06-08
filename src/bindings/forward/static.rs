@@ -55,6 +55,7 @@ Use **Texture** when you need:
 ## Examples
 
 ```
+# if cfg!(not(feature="backend_wgpu")) { return; }
 # use images_and_words::bindings::forward::r#static;
 # use images_and_words::bindings::visible_to::{GPUBufferUsage, TextureUsage};
 # use images_and_words::bindings::software::texture::Texel;

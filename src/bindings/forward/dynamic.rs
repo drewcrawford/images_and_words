@@ -67,6 +67,7 @@ ensures the GPU sees consistent data.
 ## Examples
 
 ```
+# if cfg!(not(feature="backend_wgpu")) { return; }
 # use images_and_words::bindings::forward::dynamic;
 # use images_and_words::bindings::visible_to::{GPUBufferUsage, TextureUsage, CPUStrategy};
 # use images_and_words::bindings::software::texture::Texel;
