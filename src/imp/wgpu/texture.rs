@@ -3,7 +3,7 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::resource_tracking::GPUGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
-use crate::bindings::visible_to::{TextureUsage, TextureConfig};
+use crate::bindings::visible_to::{TextureConfig, TextureUsage};
 use crate::imp::{CopyInfo, Error, MappableBuffer};
 use crate::multibuffer::sealed::GPUMultibuffer;
 use crate::pixel_formats::pixel_as_bytes;
@@ -173,8 +173,13 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         config: TextureConfig<'_>,
         initializer: I,
     ) -> Result<Self, Error> {
-        let descriptor =
-            Self::get_descriptor(config.debug_name, config.width, config.height, config.visible_to, config.mipmaps);
+        let descriptor = Self::get_descriptor(
+            config.debug_name,
+            config.width,
+            config.height,
+            config.visible_to,
+            config.mipmaps,
+        );
         //todo: could optimize probably?
         let pixels = config.width as usize * config.height as usize;
         let mut src_buf = Vec::with_capacity(pixels);
@@ -321,7 +326,13 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         bound_device: &crate::images::BoundDevice,
         config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
-        let descriptor = Self::get_descriptor(config.debug_name, config.width, config.height, config.visible_to, config.mipmaps);
+        let descriptor = Self::get_descriptor(
+            config.debug_name,
+            config.width,
+            config.height,
+            config.visible_to,
+            config.mipmaps,
+        );
         let texture = bound_device.0.device.create_texture(&descriptor);
         Ok(Self {
             format: PhantomData,

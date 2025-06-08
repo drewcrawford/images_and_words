@@ -26,7 +26,7 @@ unsafe impl CRepr for TestData {}
 ///
 /// This test should FAIL if the bug exists where buffer writes take seconds instead of milliseconds.
 #[test_executors::async_test]
-#[cfg(feature="backend_wgpu")]
+#[cfg(feature = "backend_wgpu")]
 async fn test_buffer_write_performance_issue() {
     // Create a view for testing (bypasses surface requirement)
     let view = View::for_testing();

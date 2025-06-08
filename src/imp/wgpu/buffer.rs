@@ -100,7 +100,11 @@ impl MappableBuffer {
             r.unwrap();
             s.send(());
         });
-        self.bound_device.0.device.poll(MaintainBase::Wait).expect("Poll failed");
+        self.bound_device
+            .0
+            .device
+            .poll(MaintainBase::Wait)
+            .expect("Poll failed");
         r.await;
         let range = slice.get_mapped_range();
         self.mapped = Some((range.as_ptr(), range.len()));
@@ -114,7 +118,11 @@ impl MappableBuffer {
         });
 
         // Use blocking poll to wait for map completion, avoiding VSync timing issues
-        self.bound_device.0.device.poll(MaintainBase::Wait).expect("Poll failed");
+        self.bound_device
+            .0
+            .device
+            .poll(MaintainBase::Wait)
+            .expect("Poll failed");
         r.await;
         let mut range = slice.get_mapped_range_mut();
         self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
@@ -244,7 +252,8 @@ impl GPUableBuffer {
         self.bound_device
             .0
             .device
-            .poll(MaintainBase::WaitForSubmissionIndex(submission_index)).expect("Poll failed");
+            .poll(MaintainBase::WaitForSubmissionIndex(submission_index))
+            .expect("Poll failed");
         r.await;
     }
     /**

@@ -4,7 +4,7 @@ use crate::Priority;
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;
 use crate::bindings::sampler::SamplerType;
-use crate::bindings::visible_to::{CPUStrategy, GPUBufferUsage, TextureUsage, TextureConfig};
+use crate::bindings::visible_to::{CPUStrategy, GPUBufferUsage, TextureConfig, TextureUsage};
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::PassDescriptor;

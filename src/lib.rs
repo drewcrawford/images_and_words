@@ -34,7 +34,7 @@ some ways to improve it including GPU acceleration, but that might take a week t
 one platform.  The major #1 goal of IW is to prototytpe GPU acceleration on various platforms
 in a day or two at most.
 
-A second major design goal is that eventually, you are likely to hit a second performance wall.  
+A second major design goal is that eventually, you are likely to hit a second performance wall.
 It should be easy to reason about the performance of IW applications, and to optimize
 its primitives to meet your needs.  IW is designed to be a practical and performant target for my
 own career of applications, and I hope it can be for yours as well.

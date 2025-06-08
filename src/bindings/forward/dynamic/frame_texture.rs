@@ -101,10 +101,10 @@ use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureConfig;
 use crate::images::device::BoundDevice;
+use crate::imp;
 use crate::imp::{CopyInfo, MappableTexture};
 use crate::multibuffer::Multibuffer;
 use crate::pixel_formats::sealed::PixelFormat;
-use crate::imp;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
@@ -538,7 +538,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///     cpu_strategy: CPUStrategy::WontRead,
     ///     mipmaps: false,  // Dynamic textures typically don't use mipmaps
     /// };
-    /// 
+    ///
     /// let height_map = FrameTexture::<R32Float>::new(
     ///     &device,
     ///     config,
@@ -554,12 +554,9 @@ impl<Format: PixelFormat> FrameTexture<Format> {
         config: TextureConfig<'_>,
         initialize_with: I,
     ) -> Self {
-        let gpu = imp::GPUableTexture::new(
-            bound_device,
-            config,
-        )
-        .await
-        .unwrap();
+        let gpu = imp::GPUableTexture::new(bound_device, config)
+            .await
+            .unwrap();
         let cpu = imp::MappableTexture::new(
             bound_device,
             config.width,
@@ -568,7 +565,11 @@ impl<Format: PixelFormat> FrameTexture<Format> {
             config.priority,
             initialize_with,
         );
-        let individual_texture = IndividualTexture { cpu, width: config.width, height: config.height };
+        let individual_texture = IndividualTexture {
+            cpu,
+            width: config.width,
+            height: config.height,
+        };
 
         let multibuffer = Multibuffer::new(individual_texture, gpu, true);
         let shared = Arc::new(Shared { multibuffer });
@@ -604,7 +605,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
-/// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
+    /// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
     /// // Wait for an available buffer
     /// let mut guard = texture.dequeue().await;
     ///

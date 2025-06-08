@@ -31,7 +31,7 @@ unsafe impl CRepr for TestData {}
 /// several successful iterations, likely due to issues with dirty tracking
 /// or resource contention in the GPU pipeline.
 #[test_executors::async_test]
-#[cfg(feature="backend_wgpu")]
+#[cfg(feature = "backend_wgpu")]
 async fn test_buffer_access_hang_reproducer() {
     println!("=== Testing buffer access hang reproducer ===");
 

@@ -35,7 +35,7 @@
 //!     cpu_strategy: CPUStrategy::WontRead,
 //!     mipmaps: true,  // Enable mipmaps for static textures
 //! };
-//! 
+//!
 //! let texture = Texture::<RGBA8UNorm>::new(
 //!     &device,
 //!     config,
@@ -52,7 +52,7 @@
 
 use crate::bindings::software::texture::Texel;
 use crate::bindings::software::texture::vtexture::VTexture;
-use crate::bindings::visible_to::{TextureUsage, TextureConfig};
+use crate::bindings::visible_to::{TextureConfig, TextureUsage};
 use crate::images::device::BoundDevice;
 use crate::pixel_formats::sealed::PixelFormat;
 use crate::{Priority, imp};
@@ -120,7 +120,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// test_executors::sleep_on(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
-    /// 
+    ///
     /// // Create a gradient texture
     /// let config = TextureConfig {
     ///     width: 256,
@@ -131,7 +131,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     cpu_strategy: CPUStrategy::WontRead,  // Static textures don't need CPU access
     ///     mipmaps: false,
     /// };
-    /// 
+    ///
     /// let texture = Texture::<RGBA8UNorm>::new(
     ///     &device,
     ///     config,
@@ -148,13 +148,12 @@ impl<Format: PixelFormat> Texture<Format> {
         config: TextureConfig<'_>,
         initialize_to: Initializer,
     ) -> Result<Self, Error> {
-        let imp = imp::GPUableTexture::new_initialize(
-            device,
-            config,
-            initialize_to,
-        )
-        .await?;
-        Ok(Self { imp, width: config.width, height: config.height })
+        let imp = imp::GPUableTexture::new_initialize(device, config, initialize_to).await?;
+        Ok(Self {
+            imp,
+            width: config.width,
+            height: config.height,
+        })
     }
     /// Creates a texture by copying data from a software texture.
     ///
@@ -217,12 +216,7 @@ impl<Format: PixelFormat> Texture<Format> {
         texture: &crate::bindings::software::texture::Texture<Format>,
         config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
-        Self::new(
-            device,
-            config,
-            |texel| texture.read(texel),
-        )
-        .await
+        Self::new(device, config, |texel| texture.read(texel)).await
     }
     /// Creates a texture from an asset file.
     ///
@@ -330,11 +324,9 @@ impl<Format: PixelFormat> Texture<Format> {
             cpu_strategy: config.cpu_strategy,
             mipmaps: config.mipmaps,
         };
-        Self::new(
-            bound_device,
-            actual_config,
-            |texel| slice[texel.y as usize * width as usize + texel.x as usize].clone(),
-        )
+        Self::new(bound_device, actual_config, |texel| {
+            slice[texel.y as usize * width as usize + texel.x as usize].clone()
+        })
         .await
     }
 

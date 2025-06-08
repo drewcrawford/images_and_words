@@ -22,11 +22,7 @@ impl BoundDevice {
             memory_hints: Default::default(),
             trace: Trace::Off,
         };
-        let (device, q) = unbound_device
-            .0
-            .adapter
-            .request_device(&descriptor)
-            .await?;
+        let (device, q) = unbound_device.0.adapter.request_device(&descriptor).await?;
 
         Ok(BoundDevice { device, queue: q })
     }
