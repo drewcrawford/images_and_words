@@ -1,7 +1,19 @@
 /*! images_and_words is a GPU middleware and abstraction layer for high-performance
   graphics applications and games.
 
-Here is a quick chart to compare IW against many other solutions:
+# The pitch
+
+Suppose you want to write a game or graphics application.  You may consider:
+
+* An off-the-shelf game engine, like Unity or Unreal.  But these might be much more engine than you need,
+  be difficult to customize, have vendor lockin, make that one feature tough to optimize, etc.
+* Writing directly to a low-level API like Vulkan, Metal, or DirectX.  But these are
+  complex, verbose, and require you to solve many problems that have already been solved, let alone
+  the hassle of multiplatform support.
+
+Wouldn't it be nice to have a middle ground? And if you seriously look, those are out there.
+Here is my chart:
+
 | Strategy            | Examples             | API style   | API concepts                                                      | Synchronization concerns | Shaders                                 | Runtime size | Platform support                         | Development speed | Runtime speed                               |
 |---------------------|----------------------|-------------|--------------------------------------------------------------------|--------------------------|------------------------------------------|--------------|-------------------------------------------|-------------------|-----------------------------------------------|
 | Game engine         | Unity, Unreal, Godot | Scene-based | Scene, nodes, camera, materials                                     | Low                      | Mostly built-in; programmability varies  | Massive      | Excellent                                 | Very high         | Depends on how similar you are to optimized use cases |
@@ -9,6 +21,23 @@ Here is a quick chart to compare IW against many other solutions:
 | Layered implementations | MoltenVK, Proton, wgpu | Pass-based  | Passes, shaders, buffers, textures                                  | High                     | BYO, customizable in theory; translation causes issues | Some         | Good in theory; varies in practice        | Very low          | Excellent on native platforms; varies on translated platforms |
 | Constructed APIs    | WebGPU               | Pass-based  | Passes, shaders, buffers, textures                                  | Medium-high              | BYO, customizable, though many features stuck in committee | It’s complicated | Some browser support, some translation support | Medium-low      | Good                                          |
 | GPU middleware      | images_and_words     | Pass-based  | Passes, shaders, camera, higher-order buffers and textures, multibuffering, common patterns | Medium-low              | BYO, inherit from backends               | Some         | Good in theory; varies in practice        | Medium            | Good                                          |
+
+GPU middleware occupies a unique and overlooked niche in the ecosystem.  It provides a
+cross-platform abstraction over GPU hardware, while also allowing you to bring your own
+sound, physics, accessibility, and your entire existing codebase to the table.  These are the main
+advantages of the middleware category as a whole.
+
+Beyond the pros and cons of GPU middleware as a category, images_and_words is specifically the dream GPU API I
+wanted in a career as a high-performance graphics application developer.  Often, the motivation for
+GPU acceleration is we have some existing CPU code that we think is too slow, and we consider
+some ways to improve it including GPU acceleration, but that might take a week to prototype on
+one platform.  The major #1 goal of IW is to prototytpe GPU acceleration on various platforms
+in a day or two at most.
+
+A second major design goal is that eventually, you are likely to hit a second performance wall.  
+It should be easy to reason about the performance of IW applications, and to optimize
+its primitives to meet your needs.  IW is designed to be a practical and performant target for my
+own career of applications, and I hope it can be for yours as well.
 
 
 # Higher-order memory types
