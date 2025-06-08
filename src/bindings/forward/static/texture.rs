@@ -15,7 +15,7 @@
 //!
 //! ```
 //! # use images_and_words::bindings::forward::r#static::texture::Texture;
-//! use images_and_words::bindings::visible_to::TextureUsage;
+//! use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
 //! use images_and_words::images::projection::WorldCoord;
 //! use images_and_words::images::view::View;
 //! use images_and_words::pixel_formats::RGBA8UNorm;
@@ -25,14 +25,19 @@
 //! let device = engine.bound_device();
 //!
 //! // Create a 256x256 red texture
+//! let config = TextureConfig {
+//!     width: 256,
+//!     height: 256,
+//!     visible_to: TextureUsage::FragmentShaderSample,
+//!     debug_name: "red_texture",
+//!     priority: Priority::UserInitiated,
+//!     cpu_strategy: CPUStrategy::WontRead,
+//!     mipmaps: true,  // Enable mipmaps for static textures
+//! };
+//! 
 //! let texture = Texture::<RGBA8UNorm>::new(
 //!     &device,
-//!     256,
-//!     256,
-//!     TextureUsage::FragmentShaderSample,
-//!     true,  // enable mipmaps
-//!     "red_texture",
-//!     Priority::UserInitiated,
+//!     config,
 //!     |_texel| images_and_words::pixel_formats::Unorm4 { r: 255, g: 0, b: 0, a: 255 }  // RGBA red
 //! ).await.expect("Failed to create texture");
 //! # });
@@ -46,7 +51,7 @@
 
 use crate::bindings::software::texture::Texel;
 use crate::bindings::software::texture::vtexture::VTexture;
-use crate::bindings::visible_to::TextureUsage;
+use crate::bindings::visible_to::{TextureUsage, TextureConfig};
 use crate::images::device::BoundDevice;
 use crate::pixel_formats::sealed::PixelFormat;
 use crate::{Priority, imp};
@@ -98,19 +103,14 @@ impl<Format: PixelFormat> Texture<Format> {
     /// # Arguments
     ///
     /// * `device` - The bound GPU device to create the texture on
-    /// * `width` - Width of the texture in pixels (max 65535)
-    /// * `height` - Height of the texture in pixels (max 65535)
-    /// * `visible_to` - Specifies which shader stages can access this texture
-    /// * `mipmaps` - Whether to generate mipmaps for this texture
-    /// * `debug_name` - A name for debugging and profiling tools
-    /// * `priority` - Task priority for the async upload operation
+    /// * `config` - Texture configuration parameters (dimensions, usage, priority, etc.)
     /// * `initialize_to` - Function that computes the pixel value for each texel
     ///
     /// # Examples
     ///
     /// ```
     /// # use images_and_words::bindings::forward::r#static::texture::Texture;
-    /// use images_and_words::bindings::visible_to::TextureUsage;
+    /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
@@ -118,45 +118,41 @@ impl<Format: PixelFormat> Texture<Format> {
     /// test_executors::sleep_on(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
+    /// 
     /// // Create a gradient texture
-    ///  let texture = Texture::<RGBA8UNorm>::new(
-    ///    &device,
-    ///      256,
-    ///     256,
-    ///     TextureUsage::FragmentShaderSample,
-    ///       false,
-    ///        "gradient",
-    ///        Priority::UserInitiated,
-    ///        |texel| {
-    ///            let r = (texel.x * 255 / 256) as u8;
-    ///          let g = (texel.y * 255 / 256) as u8;
-    ///          images_and_words::pixel_formats::Unorm4 { r, g, b: 0, a: 255 }
-    ///        }
-    ///      ).await.expect("Failed to create texture");
+    /// let config = TextureConfig {
+    ///     width: 256,
+    ///     height: 256,
+    ///     visible_to: TextureUsage::FragmentShaderSample,
+    ///     debug_name: "gradient",
+    ///     priority: Priority::UserInitiated,
+    ///     cpu_strategy: CPUStrategy::WontRead,  // Static textures don't need CPU access
+    ///     mipmaps: false,
+    /// };
+    /// 
+    /// let texture = Texture::<RGBA8UNorm>::new(
+    ///     &device,
+    ///     config,
+    ///     |texel| {
+    ///         let r = (texel.x * 255 / 256) as u8;
+    ///         let g = (texel.y * 255 / 256) as u8;
+    ///         images_and_words::pixel_formats::Unorm4 { r, g, b: 0, a: 255 }
+    ///     }
+    /// ).await.expect("Failed to create texture");
     /// # });
     /// ```
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(
         device: &Arc<BoundDevice>,
-        width: u16,
-        height: u16,
-        visible_to: TextureUsage,
-        mipmaps: bool,
-        debug_name: &str,
-        priority: Priority,
+        config: TextureConfig<'_>,
         initialize_to: Initializer,
     ) -> Result<Self, Error> {
         let imp = imp::GPUableTexture::new_initialize(
             device,
-            width,
-            height,
-            visible_to,
-            mipmaps,
-            debug_name,
-            priority,
+            config,
             initialize_to,
         )
         .await?;
-        Ok(Self { imp, width, height })
+        Ok(Self { imp, width: config.width, height: config.height })
     }
     /// Creates a texture by copying data from a software texture.
     ///
@@ -182,7 +178,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// ```
     /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::software::texture::Texture as SoftwareTexture;
-    /// use images_and_words::bindings::visible_to::TextureUsage;
+    /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
@@ -197,30 +193,30 @@ impl<Format: PixelFormat> Texture<Format> {
     /// });
     ///
     /// // Upload it to the GPU
+    /// let config = TextureConfig {
+    ///     width: soft_texture.width(),
+    ///     height: soft_texture.height(),
+    ///     visible_to: TextureUsage::FragmentShaderSample,
+    ///     debug_name: "sprite",
+    ///     priority: Priority::UserInitiated,
+    ///     cpu_strategy: CPUStrategy::WontRead,
+    ///     mipmaps: false,
+    /// };
     /// let gpu_texture = Texture::from_software(
     ///     &device,
     ///     &soft_texture,
-    ///     TextureUsage::FragmentShaderSample,
-    ///     "sprite",
-    ///     Priority::UserInitiated
+    ///     config
     /// ).await.expect("Failed to create GPU texture");
     /// # });
     /// ```
     pub async fn from_software(
         device: &Arc<BoundDevice>,
         texture: &crate::bindings::software::texture::Texture<Format>,
-        visible_to: TextureUsage,
-        debug_name: &str,
-        priority: Priority,
+        config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
         Self::new(
             device,
-            texture.width(),
-            texture.height(),
-            visible_to,
-            false,
-            debug_name,
-            priority,
+            config,
             |texel| texture.read(texel),
         )
         .await
@@ -279,7 +275,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// ```
     /// # use images_and_words::bindings::forward::r#static::texture::Texture;
-    /// use images_and_words::bindings::visible_to::TextureUsage;
+    /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
@@ -296,14 +292,20 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     images_and_words::pixel_formats::Unorm4 { r: 255, g: 255, b: 255, a: 255 } // White
     /// ];
     ///
+    /// let config = TextureConfig {
+    ///     width: 2, // will be overridden by new_slice
+    ///     height: 2, // will be calculated from slice length
+    ///     visible_to: TextureUsage::FragmentShaderSample,
+    ///     debug_name: "color_grid",
+    ///     priority: Priority::UserInitiated,
+    ///     cpu_strategy: CPUStrategy::WontRead,
+    ///     mipmaps: false,
+    /// };
     /// let texture = Texture::<RGBA8UNorm>::new_slice(
     ///     &pixels,
     ///     2, // width
     ///     &device,
-    ///     TextureUsage::FragmentShaderSample,
-    ///     false,
-    ///     "color_grid",
-    ///     Priority::UserInitiated
+    ///     config
     /// ).await.expect("Failed to create texture");
     /// # });
     /// ```
@@ -311,21 +313,22 @@ impl<Format: PixelFormat> Texture<Format> {
         slice: &[Format::CPixel],
         width: u16,
         bound_device: &Arc<BoundDevice>,
-        visible_to: TextureUsage,
-        mipmaps: bool,
-        debug_name: &str,
-        priority: Priority,
+        config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
         let height = slice.len() / width as usize;
         let height_u16 = height.try_into().unwrap();
+        let actual_config = TextureConfig {
+            width,
+            height: height_u16,
+            visible_to: config.visible_to,
+            debug_name: config.debug_name,
+            priority: config.priority,
+            cpu_strategy: config.cpu_strategy,
+            mipmaps: config.mipmaps,
+        };
         Self::new(
             bound_device,
-            width,
-            height_u16,
-            visible_to,
-            mipmaps,
-            debug_name,
-            priority,
+            actual_config,
             |texel| slice[texel.y as usize * width as usize + texel.x as usize].clone(),
         )
         .await

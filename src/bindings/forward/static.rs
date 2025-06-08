@@ -93,25 +93,33 @@ let index_buffer = r#static::buffer::Buffer::new(
 ).await.expect("Failed to create index buffer");
 
 // Load textures from files
+let diffuse_config = images_and_words::bindings::visible_to::TextureConfig {
+    width: 256,
+    height: 256,
+    visible_to: TextureUsage::FragmentShaderRead,
+    debug_name: "diffuse",
+    priority: images_and_words::Priority::unit_test(),
+    cpu_strategy: images_and_words::bindings::visible_to::CPUStrategy::WontRead,
+    mipmaps: false,
+};
 let diffuse_map = r#static::texture::Texture::<RGBA8UNorm>::new(
     &device,
-    256,
-    256,
-    TextureUsage::FragmentShaderRead,
-    false, // no mipmap
-    "diffuse",
-    images_and_words::Priority::unit_test(),
+    diffuse_config,
     |_texel| images_and_words::pixel_formats::Unorm4 { r: 255, g: 255, b: 255, a: 255 } // White texture
 ).await.expect("Failed to create diffuse map");
 
+let normal_config = images_and_words::bindings::visible_to::TextureConfig {
+    width: 256,
+    height: 256,
+    visible_to: TextureUsage::FragmentShaderRead,
+    debug_name: "normal",
+    priority: images_and_words::Priority::unit_test(),
+    cpu_strategy: images_and_words::bindings::visible_to::CPUStrategy::WontRead,
+    mipmaps: false,
+};
 let normal_map = r#static::texture::Texture::<RGBA8UNorm>::new(
     &device,
-    256,
-    256,
-    TextureUsage::FragmentShaderRead,
-    false, // no mipmap
-    "normal",
-    images_and_words::Priority::unit_test(),
+    normal_config,
     |_texel| images_and_words::pixel_formats::Unorm4 { r: 128, g: 128, b: 255, a: 255 } // Default normal
 ).await.expect("Failed to create normal map");
 

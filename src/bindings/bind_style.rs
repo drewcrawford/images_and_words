@@ -402,9 +402,19 @@ pub enum Stage {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let bound_device = engine.bound_device().clone();
 /// let mut bind_style = BindStyle::new();
+/// let config = images_and_words::bindings::visible_to::TextureConfig {
+///     width: 1024,
+///     height: 1024,
+///     visible_to: TextureUsage::VertexShaderRead,
+///     debug_name: "my_texture",
+///     priority: Priority::unit_test(),
+///     cpu_strategy: images_and_words::bindings::visible_to::CPUStrategy::WontRead,
+///     mipmaps: true,
+/// };
 /// let texture = images_and_words::bindings::forward::r#static::texture::Texture::<BGRA8UNormSRGB>::new(
 /// &bound_device,
-/// 1024, 1024, TextureUsage::VertexShaderRead,true, "my_texture", Priority::unit_test(), |_| BGRA8UnormPixelSRGB { r: 255, g: 0, b: 0, a: 255 }
+/// config,
+/// |_| BGRA8UnormPixelSRGB { r: 255, g: 0, b: 0, a: 255 }
 /// ).await.expect("can't create texture");
 ///
 ///

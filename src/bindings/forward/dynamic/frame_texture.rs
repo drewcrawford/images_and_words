@@ -26,7 +26,7 @@ updated from the CPU side during runtime.
 # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 # use images_and_words::bindings::software::texture::Texel;
-# use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+# use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};
 # use images_and_words::images::projection::WorldCoord;
 # use images_and_words::images::view::View;
 # use images_and_words::Priority;
@@ -35,14 +35,19 @@ test_executors::sleep_on(async {
 let device = engine.bound_device();
 
 // Create a 256x256 RGBA texture
+let config = TextureConfig {
+    width: 256,
+    height: 256,
+    visible_to: TextureUsage::FragmentShaderSample,
+    debug_name: "my_dynamic_texture",
+    priority: Priority::UserInitiated,
+    cpu_strategy: CPUStrategy::WontRead,
+    mipmaps: false,
+};
 let mut texture = FrameTexture::<RGBA8UNorm>::new(
     &device,
-    256, 256,
-    TextureUsage::FragmentShaderSample,
-    CPUStrategy::WontRead,
-    "my_dynamic_texture",
+    config,
     |texel| Unorm4 { r: 0, g: 0, b: 0, a: 255 }, // Initialize to black
-    Priority::UserInitiated
 ).await;
 
 // Dequeue a buffer for writing
@@ -93,12 +98,12 @@ the pixel data type and GPU texture format. Common formats include:
 use crate::bindings::dirty_tracking::DirtyReceiver;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
-use crate::bindings::visible_to::{CPUStrategy, TextureUsage};
+use crate::bindings::visible_to::TextureConfig;
 use crate::images::device::BoundDevice;
 use crate::imp::{CopyInfo, MappableTexture};
 use crate::multibuffer::Multibuffer;
 use crate::pixel_formats::sealed::PixelFormat;
-use crate::{Priority, imp};
+use crate::imp;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
@@ -187,14 +192,15 @@ impl ErasedTextureRenderSide {
 /// # use images_and_words::bindings::bind_style::{BindSlot, Stage};
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
-/// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+/// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
 /// test_executors::sleep_on(async {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// let device = engine.bound_device();
-/// # let frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, 256, 256, TextureUsage::FragmentShaderSample, CPUStrategy::WontRead, "test", |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }, Priority::UserInitiated).await;
+/// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
+/// # let frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
 /// let mut bind_style = BindStyle::new();
 ///
 /// // Bind the texture to slot 0 for the fragment shader
@@ -258,14 +264,15 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 /// # use images_and_words::bindings::software::texture::Texel;
-/// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+/// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
 /// test_executors::sleep_on(async {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// let device = engine.bound_device();
-/// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, 256, 256, TextureUsage::FragmentShaderSample, CPUStrategy::WontRead, "test", |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }, Priority::UserInitiated).await;
+/// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
+/// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
 /// // Dequeue a buffer for writing
 /// let mut guard = texture.dequeue().await;
 ///
@@ -371,7 +378,7 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 /// # use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
 /// # use images_and_words::bindings::software::texture::Texel;
-/// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+/// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
@@ -380,14 +387,19 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// let device = engine.bound_device();
 ///
 /// // Create a texture for video playback
+/// let config = TextureConfig {
+///     width: 1920,
+///     height: 1080,
+///     visible_to: TextureUsage::FragmentShaderSample,
+///     debug_name: "video_frame",
+///     priority: Priority::UserInitiated,
+///     cpu_strategy: CPUStrategy::WontRead,
+///     mipmaps: false,
+/// };
 /// let mut video_texture = FrameTexture::<BGRA8UNormSRGB>::new(
 ///     &device,
-///     1920, 1080,
-///     TextureUsage::FragmentShaderSample,
-///     CPUStrategy::WontRead,
-///     "video_frame",
+///     config,
 ///     |_| BGRA8UnormPixelSRGB::ZERO, // Start with black
-///     Priority::UserInitiated
 /// ).await;
 ///
 /// // Simplified example - just write one frame instead of a loop
@@ -439,14 +451,15 @@ impl<Format> IndividualTexture<Format> {
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::{IndividualTexture, FrameTexture};
     /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
     /// # use images_and_words::bindings::software::texture::Texel;
-    /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+    /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
     /// test_executors::sleep_on(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
-    /// # let mut frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, 256, 256, TextureUsage::FragmentShaderSample, CPUStrategy::WontRead, "test", |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }, Priority::UserInitiated).await;
+    /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
+    /// # let mut frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
     /// # let mut guard = frame_texture.dequeue().await;
     /// # let texture = &mut *guard; // Get a mutable reference to IndividualTexture
     /// // Write a full row of red pixels at row 10
@@ -492,13 +505,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # Arguments
     ///
     /// * `bound_device` - The GPU device to create the texture on
-    /// * `width` - Width of the texture in pixels
-    /// * `height` - Height of the texture in pixels
-    /// * `visible_to` - How the texture will be used in shaders (sampling, reading, etc.)
-    /// * `_cpu_strategy` - Hint about CPU access patterns (currently unused but reserved)
-    /// * `debug_name` - A name for debugging and profiling tools
+    /// * `config` - Texture configuration parameters (dimensions, usage, priority, etc.)
     /// * `initialize_with` - Function to initialize each pixel's value
-    /// * `priority` - Task priority for async operations
     ///
     /// # Example
     ///
@@ -506,7 +514,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
     /// # use images_and_words::pixel_formats::{R32Float};
     /// # use images_and_words::bindings::software::texture::Texel;
-    /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+    /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
@@ -515,56 +523,53 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// let device = engine.bound_device();
     ///
     /// // Create a texture for height map data
+    /// let config = TextureConfig {
+    ///     width: 512,
+    ///     height: 512,
+    ///     visible_to: TextureUsage::VertexShaderRead,
+    ///     debug_name: "terrain_height",
+    ///     priority: Priority::UserInitiated,
+    ///     cpu_strategy: CPUStrategy::WontRead,
+    ///     mipmaps: false,  // Dynamic textures typically don't use mipmaps
+    /// };
+    /// 
     /// let height_map = FrameTexture::<R32Float>::new(
     ///     &device,
-    ///     512, 512,
-    ///     TextureUsage::VertexShaderRead,
-    ///     CPUStrategy::WontRead,
-    ///     "terrain_height",
+    ///     config,
     ///     |texel| {
     ///         // Initialize with a simple gradient
     ///         (texel.x as f32 + texel.y as f32) / 1024.0
     ///     },
-    ///     Priority::UserInitiated
     /// ).await;
     /// # });
     /// ```
     pub async fn new<I: Fn(Texel) -> Format::CPixel>(
         bound_device: &Arc<BoundDevice>,
-        width: u16,
-        height: u16,
-        visible_to: TextureUsage,
-        _cpu_strategy: CPUStrategy,
-        debug_name: &str,
+        config: TextureConfig<'_>,
         initialize_with: I,
-        priority: Priority,
     ) -> Self {
         let gpu = imp::GPUableTexture::new(
             bound_device,
-            width,
-            height,
-            visible_to,
-            debug_name,
-            priority,
+            config,
         )
         .await
         .unwrap();
         let cpu = imp::MappableTexture::new(
             bound_device,
-            width,
-            height,
-            debug_name,
-            priority,
+            config.width,
+            config.height,
+            config.debug_name,
+            config.priority,
             initialize_with,
         );
-        let individual_texture = IndividualTexture { cpu, width, height };
+        let individual_texture = IndividualTexture { cpu, width: config.width, height: config.height };
 
         let multibuffer = Multibuffer::new(individual_texture, gpu, true);
         let shared = Arc::new(Shared { multibuffer });
         Self {
             shared,
-            width,
-            height,
+            width: config.width,
+            height: config.height,
         }
     }
 
@@ -584,14 +589,15 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// ```
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
     /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
-    /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy};
+    /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
     /// test_executors::sleep_on(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
-    /// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, 256, 256, TextureUsage::FragmentShaderSample, CPUStrategy::WontRead, "test", |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }, Priority::UserInitiated).await;
+    /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
+/// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
     /// // Wait for an available buffer
     /// let mut guard = texture.dequeue().await;
     ///

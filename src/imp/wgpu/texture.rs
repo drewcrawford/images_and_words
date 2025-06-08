@@ -3,7 +3,7 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::resource_tracking::GPUGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
-use crate::bindings::visible_to::TextureUsage;
+use crate::bindings::visible_to::{TextureUsage, TextureConfig};
 use crate::imp::{CopyInfo, Error, MappableBuffer};
 use crate::multibuffer::sealed::GPUMultibuffer;
 use crate::pixel_formats::pixel_as_bytes;
@@ -170,30 +170,25 @@ unsafe impl<Format> Sync for GPUableTexture<Format> {}
 impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
     pub async fn new_initialize<I: Fn(Texel) -> Format::CPixel>(
         bound_device: &crate::images::BoundDevice,
-        width: u16,
-        height: u16,
-        visible_to: TextureUsage,
-        generate_mipmaps: bool,
-        debug_name: &str,
-        _priority: Priority,
+        config: TextureConfig<'_>,
         initializer: I,
     ) -> Result<Self, Error> {
         let descriptor =
-            Self::get_descriptor(debug_name, width, height, visible_to, generate_mipmaps);
+            Self::get_descriptor(config.debug_name, config.width, config.height, config.visible_to, config.mipmaps);
         //todo: could optimize probably?
-        let pixels = width as usize * height as usize;
+        let pixels = config.width as usize * config.height as usize;
         let mut src_buf = Vec::with_capacity(pixels);
-        for y in 0..height {
-            for x in 0..width {
+        for y in 0..config.height {
+            for x in 0..config.width {
                 src_buf.push(initializer(Texel { x, y }));
             }
         }
-        if generate_mipmaps {
+        if config.mipmaps {
             let mut current_mip_level = 1;
             //these properties are per base mip
             let mut base_mip_start = 0;
-            let mut base_mip_width = width;
-            let mut base_mip_height = height;
+            let mut base_mip_width = config.width;
+            let mut base_mip_height = config.height;
             let mut _mip_size = descriptor.mip_level_size(current_mip_level);
 
             while let Some(mip_size) = _mip_size {
@@ -324,13 +319,9 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
 
     pub async fn new(
         bound_device: &crate::images::BoundDevice,
-        width: u16,
-        height: u16,
-        visible_to: TextureUsage,
-        debug_name: &str,
-        _priority: Priority,
+        config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
-        let descriptor = Self::get_descriptor(debug_name, width, height, visible_to, false);
+        let descriptor = Self::get_descriptor(config.debug_name, config.width, config.height, config.visible_to, config.mipmaps);
         let texture = bound_device.0.device.create_texture(&descriptor);
         Ok(Self {
             format: PhantomData,

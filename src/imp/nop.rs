@@ -4,7 +4,7 @@ use crate::Priority;
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;
 use crate::bindings::sampler::SamplerType;
-use crate::bindings::visible_to::{CPUStrategy, GPUBufferUsage, TextureUsage};
+use crate::bindings::visible_to::{CPUStrategy, GPUBufferUsage, TextureUsage, TextureConfig};
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::PassDescriptor;
@@ -96,13 +96,8 @@ pub struct FrameTexture<Format>(Format);
 impl<Format> FrameTexture<Format> {
     pub async fn new<I>(
         _bound_device: &crate::images::BoundDevice,
-        _width: u16,
-        _height: u16,
-        _visible_to: TextureUsage,
-        _cpu_strategy: CPUStrategy,
-        _debug_name: &str,
+        _config: TextureConfig<'_>,
         _initialize_with: I,
-        _priority: Priority,
     ) -> (Self, Vec<FrameTextureProduct<Format>>) {
         todo!()
     }
@@ -187,22 +182,13 @@ impl<Format> Clone for GPUableTexture<Format> {
 impl<Format> GPUableTexture<Format> {
     pub async fn new(
         _bound_device: &crate::images::BoundDevice,
-        _width: u16,
-        _height: u16,
-        _visible_to: TextureUsage,
-        _debug_name: &str,
-        _priority: Priority,
+        _config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
         todo!()
     }
     pub async fn new_initialize<I>(
         _device: &crate::images::BoundDevice,
-        _width: u16,
-        _height: u16,
-        _visible_to: TextureUsage,
-        _mipmaps: bool,
-        _debug_name: &str,
-        _priority: Priority,
+        _config: TextureConfig<'_>,
         _initialize_to: I,
     ) -> Result<Self, Error> {
         todo!()

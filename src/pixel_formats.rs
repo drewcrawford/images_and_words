@@ -415,7 +415,7 @@ impl From<Unorm4> for PixelBGRA {
 /// ```
 /// use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 /// use images_and_words::bindings::forward::r#static::texture::Texture;
-/// use images_and_words::bindings::visible_to::TextureUsage;
+/// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
 /// # use images_and_words::Priority;
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
@@ -424,14 +424,18 @@ impl From<Unorm4> for PixelBGRA {
 /// # let device = engine.bound_device();
 ///
 /// // Create a texture with this format
+/// let config = TextureConfig {
+///     width: 256,
+///     height: 256,
+///     visible_to: TextureUsage::FragmentShaderSample,
+///     debug_name: "my_texture",
+///     priority: Priority::UserInitiated,
+///     cpu_strategy: CPUStrategy::WontRead,
+///     mipmaps: false,
+/// };
 /// let texture = Texture::<RGBA8UNorm>::new(
 ///     &device,
-///     256,
-///     256,
-///     TextureUsage::FragmentShaderSample,
-///     false,
-///     "my_texture",
-///     Priority::UserInitiated,
+///     config,
 ///     |_| Unorm4 { r: 255, g: 128, b: 0, a: 255 }
 /// ).await.expect("Failed to create texture");
 /// # });

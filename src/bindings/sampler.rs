@@ -24,14 +24,18 @@
 //! # use images_and_words::Priority;
 //! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! # let device = engine.bound_device();
+//! # let config = images_and_words::bindings::visible_to::TextureConfig {
+//! #     width: 256,
+//! #     height: 256,
+//! #     visible_to: TextureUsage::FragmentShaderSample,
+//! #     debug_name: "sample_texture",
+//! #     priority: Priority::UserInitiated,
+//! #     cpu_strategy: images_and_words::bindings::visible_to::CPUStrategy::WontRead,
+//! #     mipmaps: true,
+//! # };
 //! # let texture: Texture<BGRA8UNormSRGB> = Texture::new(
 //! #     &device,
-//! #     256,
-//! #     256,
-//! #     TextureUsage::FragmentShaderSample,
-//! #     true,
-//! #     "sample_texture",
-//! #     Priority::UserInitiated,
+//! #     config,
 //! #     |_texel| BGRA8UnormPixelSRGB { b: 128, g: 128, r: 128, a: 255 }
 //! # ).await.expect("Failed to create texture");
 //!

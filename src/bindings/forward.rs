@@ -88,27 +88,35 @@ uniform_write.write(&[camera_matrix], 0);
 // Static texture - loaded from file
 # let width = 256;
 # let height = 256;
-let texture = forward::r#static::texture::Texture::<RGBA8UNorm>::new(
-    &device,
+let static_config = images_and_words::bindings::visible_to::TextureConfig {
     width,
     height,
-    TextureUsage::FragmentShaderRead,
-    false, // no mipmap
-    "texture",
-    images_and_words::Priority::unit_test(),
+    visible_to: TextureUsage::FragmentShaderRead,
+    debug_name: "texture",
+    priority: images_and_words::Priority::unit_test(),
+    cpu_strategy: images_and_words::bindings::visible_to::CPUStrategy::WontRead,
+    mipmaps: false,
+};
+let texture = forward::r#static::texture::Texture::<RGBA8UNorm>::new(
+    &device,
+    static_config,
     |_texel| images_and_words::pixel_formats::Unorm4 { r: 255, g: 0, b: 0, a: 255 } // Red texture
 ).await.expect("Failed to create texture");
 
 // Dynamic render target - rendered each frame
-let target = forward::dynamic::frame_texture::FrameTexture::<RGBA8UNorm>::new(
-    &device,
+let dynamic_config = images_and_words::bindings::visible_to::TextureConfig {
     width,
     height,
-    TextureUsage::FragmentShaderRead,
-    images_and_words::bindings::visible_to::CPUStrategy::WontRead,
-    "render_target",
+    visible_to: TextureUsage::FragmentShaderRead,
+    debug_name: "render_target",
+    priority: images_and_words::Priority::unit_test(),
+    cpu_strategy: images_and_words::bindings::visible_to::CPUStrategy::WontRead,
+    mipmaps: false,
+};
+let target = forward::dynamic::frame_texture::FrameTexture::<RGBA8UNorm>::new(
+    &device,
+    dynamic_config,
     |_texel| images_and_words::pixel_formats::Unorm4 { r: 0, g: 0, b: 0, a: 255 }, // Black background
-    images_and_words::Priority::unit_test()
 ).await;
 # });
 ```

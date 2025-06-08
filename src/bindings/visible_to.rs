@@ -175,3 +175,64 @@ pub enum CPUStrategy {
     /// optimal performance.
     WontRead,
 }
+
+/// Configuration parameters for texture creation.
+///
+/// This struct groups together commonly used parameters for texture creation
+/// to reduce the number of function arguments and improve API ergonomics.
+///
+/// # Examples
+///
+/// ```
+/// use images_and_words::bindings::visible_to::{TextureConfig, TextureUsage, CPUStrategy};
+/// use images_and_words::Priority;
+///
+/// // For a static texture
+/// let static_config = TextureConfig {
+///     width: 1024,
+///     height: 768,
+///     visible_to: TextureUsage::FragmentShaderSample,
+///     debug_name: "diffuse_texture",
+///     priority: Priority::unit_test(),
+///     cpu_strategy: CPUStrategy::WontRead,  // Static textures don't need CPU access
+///     mipmaps: true,  // Static textures can have mipmaps
+/// };
+///
+/// // For a dynamic texture
+/// let dynamic_config = TextureConfig {
+///     width: 1024,
+///     height: 768,
+///     visible_to: TextureUsage::FragmentShaderSample,
+///     debug_name: "video_frame",
+///     priority: Priority::unit_test(),
+///     cpu_strategy: CPUStrategy::ReadsFrequently,  // Dynamic textures may need CPU access
+///     mipmaps: false,  // Dynamic textures typically don't use mipmaps
+/// };
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct TextureConfig<'a> {
+    /// Width of the texture in pixels.
+    pub width: u16,
+    
+    /// Height of the texture in pixels.
+    pub height: u16,
+    
+    /// Declares how the texture will be accessed by shaders.
+    pub visible_to: TextureUsage,
+    
+    /// Debug name for the texture (used in graphics debugging tools).
+    pub debug_name: &'a str,
+    
+    /// Priority for resource allocation and scheduling.
+    pub priority: crate::Priority,
+    
+    /// CPU access pattern hint.
+    /// - For static textures: typically `CPUStrategy::WontRead`
+    /// - For dynamic textures: depends on usage pattern
+    pub cpu_strategy: CPUStrategy,
+    
+    /// Whether to generate mipmaps.
+    /// - For static textures: user choice based on usage
+    /// - For dynamic textures: typically `false` since content changes frequently
+    pub mipmaps: bool,
+}

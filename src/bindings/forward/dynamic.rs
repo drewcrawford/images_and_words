@@ -114,15 +114,19 @@ particle_write.write(&active_particles, 0);
 // Render target for post-processing
 # let width = 1920;
 # let height = 1080;
-let framebuffer = dynamic::frame_texture::FrameTexture::<RGBA8UNorm>::new(
-    &device,
+let config = images_and_words::bindings::visible_to::TextureConfig {
     width,
     height,
-    TextureUsage::FragmentShaderRead,
-    CPUStrategy::WontRead,
-    "framebuffer",
+    visible_to: TextureUsage::FragmentShaderRead,
+    debug_name: "framebuffer",
+    priority: images_and_words::Priority::unit_test(),
+    cpu_strategy: CPUStrategy::WontRead,
+    mipmaps: false,
+};
+let framebuffer = dynamic::frame_texture::FrameTexture::<RGBA8UNorm>::new(
+    &device,
+    config,
     |_texel| images_and_words::pixel_formats::Unorm4 { r: 0, g: 0, b: 0, a: 255 }, // Black background
-    images_and_words::Priority::unit_test()
 ).await;
 # });
 ```
