@@ -35,4 +35,3 @@ backend_wgpu = ["dep:wgpu"]
 testing = []
 
 [patch.crates-io]
-continue = {path = "../continuation"}

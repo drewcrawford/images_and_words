@@ -309,12 +309,13 @@ impl<Format: PixelFormat> Texture<Format> {
     /// ```
     pub async fn new_slice(
         slice: &[Format::CPixel],
-        width: u16,
         bound_device: &Arc<BoundDevice>,
         config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
-        let height = slice.len() / width as usize;
+        let height = slice.len() / config.width as usize;
+        let width = config.width;
         let height_u16 = height.try_into().unwrap();
+        assert_eq!(slice.len(), (width as usize) * (height as usize), "Slice length must match width * height");
         let actual_config = TextureConfig {
             width,
             height: height_u16,
