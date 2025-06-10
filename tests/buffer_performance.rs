@@ -1,11 +1,5 @@
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-use images_and_words::bindings::visible_to::GPUBufferUsage;
-use images_and_words::images::Engine;
-use images_and_words::images::projection::WorldCoord;
-use images_and_words::images::view::View;
+use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]

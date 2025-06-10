@@ -1,14 +1,4 @@
-use images_and_words::bindings::BindStyle;
-use images_and_words::bindings::bind_style::{BindSlot, Stage};
-use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-use images_and_words::bindings::visible_to::GPUBufferUsage;
-use images_and_words::images::Engine;
-use images_and_words::images::projection::WorldCoord;
-use images_and_words::images::render_pass::{DrawCommand, PassDescriptor};
-use images_and_words::images::shader::{FragmentShader, VertexShader};
-use images_and_words::images::view::View;
-use std::sync::Arc;
-use std::time::Duration;
+use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]

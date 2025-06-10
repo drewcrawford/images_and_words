@@ -301,7 +301,6 @@ impl<Format: PixelFormat> Texture<Format> {
     /// };
     /// let texture = Texture::<RGBA8UNorm>::new_slice(
     ///     &pixels,
-    ///     2, // width
     ///     &device,
     ///     config
     /// ).await.expect("Failed to create texture");
