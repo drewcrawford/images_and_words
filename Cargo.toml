@@ -20,12 +20,11 @@ raw-window-handle = "0.6"
 continue = {version = "0.1"}
 half = "2.6"
 portable_async_sleep = "0.1.0"
-await_values = {path = "../await_values"}
+await_values = "0.1.0"
 # optional
 app_window = {version = "0.1.0", optional=true}
 # used for wgpu backend
 wgpu = {version = "25", optional = true}
-log = "0.4"
 
 [features]
 # Create a view based on app_window Surface
