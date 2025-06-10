@@ -1,3 +1,4 @@
+#![cfg(feature="testing")]
 use images_and_words::bindings::forward::dynamic::buffer::Buffer;
 use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 use images_and_words::bindings::visible_to::GPUBufferUsage;
