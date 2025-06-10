@@ -27,6 +27,6 @@ jobs:
 
       # same thing with --features=testing,backend_wgpu
       - run: cargo check --features=testing,backend_wgpu
-      - run: cargo clippy --no-deps--features=testing,backend_wgpu
+      - run: cargo clippy --no-deps --features=testing,backend_wgpu
       - run: cargo doc --features=testing,backend_wgpu
       - run: cargo test --features=testing,backend_wgpu
