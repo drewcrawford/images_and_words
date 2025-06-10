@@ -1,4 +1,4 @@
-#![cfg(feature="testing")]
+#![cfg(feature = "testing")]
 use images_and_words::bindings::BindStyle;
 use images_and_words::bindings::bind_style::{BindSlot, Stage};
 use images_and_words::bindings::forward::dynamic::buffer::Buffer;
