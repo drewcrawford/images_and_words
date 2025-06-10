@@ -13,16 +13,16 @@ png = "~0"
 tgar = "~1"
 some_executor = "0.4"
 vectormatrix = "0.1"
-vec_parallel = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/vec_parallel.git", features = ["some_executor"]}
-async_file = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/async_file.git"}
+vec_parallel = {version = "0.1.0", features = ["some_executor"]}
+async_file = "0.1.0"
 test_executors = "0.3"
 raw-window-handle = "0.6"
-continue = {version = "0.1.0"}
-half = "2.4.1"
-portable-async-sleep = {path = "../portable-async-sleep"}
+continue = {version = "0.1"}
+half = "2.6"
+portable_async_sleep = "0.1.0"
 await_values = {path = "../await_values"}
 # optional
-app_window = {git = "ssh://gitea@gitea.mermaid-gecko.ts.net/Metropolis/app_window.git", optional=true}
+app_window = {version = "0.1.0", optional=true}
 # used for wgpu backend
 wgpu = {version = "25", optional = true}
 log = "0.4"
