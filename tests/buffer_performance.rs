@@ -3,6 +3,7 @@ use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
+#[allow(dead_code)]
 struct TestData {
     x: f32,
     y: f32,
