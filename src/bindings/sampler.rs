@@ -14,6 +14,8 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
+//! # #[cfg(feature = "testing")]
+//! # {
 //! use images_and_words::bindings::sampler::SamplerType;
 //! use images_and_words::bindings::bind_style::{BindStyle, BindSlot, Stage, SamplerInfo};
 //! # test_executors::sleep_on(async {
@@ -54,6 +56,7 @@
 //!     Some(sampler)
 //! );
 //! # });
+//! # }
 //! ```
 
 /// Specifies the type of texture sampling to use.

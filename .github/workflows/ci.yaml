@@ -7,9 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo $PATH
+      - run: cargo fmt --check
       - run: cargo check
       - run: cargo clippy --no-deps
-      - run: cargo fmt --check
       - run: cargo doc
       - run: cargo test

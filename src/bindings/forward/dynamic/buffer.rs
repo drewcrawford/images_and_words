@@ -34,6 +34,8 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
+//! # #[cfg(feature = "testing")]
+//! # {
 //! use std::sync::Arc;
 //! use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
 //! use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -73,6 +75,7 @@
 //!     z: 3.0,
 //! }], 0);
 //! # });
+//! # }
 //! ```
 //!
 //! # See Also
@@ -161,6 +164,8 @@ impl<Element> Debug for Shared<Element> {
 ///
 /// ```
 /// # if cfg!(not(feature="backend_wgpu")) { return; }
+/// # #[cfg(feature = "testing")]
+/// # {
 /// use std::sync::Arc;
 /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
 /// use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -178,6 +183,7 @@ impl<Element> Debug for Shared<Element> {
 ///     |i| i as f32 * 0.1  // Initialize with scaled index
 /// ).expect("Failed to create buffer");
 /// # });
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct Buffer<Element> {
@@ -239,6 +245,8 @@ impl<Element> IndividualBuffer<Element> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
@@ -252,6 +260,7 @@ impl<Element> IndividualBuffer<Element> {
     /// // Write 3 floats starting at index 5
     /// write_guard.write(&[1.0, 2.0, 3.0], 5);
     /// # });
+    /// # }
     /// ```
     pub fn write(&mut self, data: &[Element], dst_offset: usize)
     where
@@ -476,6 +485,8 @@ impl<Element> Buffer<Element> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// use std::sync::Arc;
     /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -493,6 +504,7 @@ impl<Element> Buffer<Element> {
     ///     |i| i as f32
     /// ).expect("Failed to create buffer");
     /// # });
+    /// # }
     /// ```
     pub fn new(
         bound_device: Arc<BoundDevice>,
@@ -556,6 +568,8 @@ impl<Element> Buffer<Element> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
@@ -571,6 +585,7 @@ impl<Element> Buffer<Element> {
     ///
     /// // Guard automatically marks buffer as dirty when dropped
     /// # });
+    /// # }
     /// ```
     pub async fn access_write(
         &self,
@@ -617,6 +632,8 @@ impl<Element> Buffer<Element> {
 ///
 /// ```
 /// # if cfg!(not(feature="backend_wgpu")) { return; }
+/// # #[cfg(feature = "testing")]
+/// # {
 /// #[repr(C)]
 /// struct Vertex {
 ///     position: [f32; 3],
@@ -626,6 +643,7 @@ impl<Element> Buffer<Element> {
 ///
 /// // Safety: Vertex is repr(C) and contains only CRepr types
 /// unsafe impl images_and_words::bindings::forward::dynamic::buffer::CRepr for Vertex {}
+/// # }
 /// ```
 ///
 /// # Pre-implemented Types

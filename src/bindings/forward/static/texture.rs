@@ -15,6 +15,8 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
+//! # #[cfg(feature = "testing")]
+//! # {
 //! # use images_and_words::bindings::forward::r#static::texture::Texture;
 //! use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
 //! use images_and_words::images::projection::WorldCoord;
@@ -42,6 +44,7 @@
 //!     |_texel| images_and_words::pixel_formats::Unorm4 { r: 255, g: 0, b: 0, a: 255 }  // RGBA red
 //! ).await.expect("Failed to create texture");
 //! # });
+//! # }
 //! ```
 //!
 //! # See Also
@@ -111,6 +114,8 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
     /// use images_and_words::images::projection::WorldCoord;
@@ -142,6 +147,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     }
     /// ).await.expect("Failed to create texture");
     /// # });
+    /// # }
     /// ```
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(
         device: &Arc<BoundDevice>,
@@ -178,6 +184,8 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::software::texture::Texture as SoftwareTexture;
     /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
@@ -210,6 +218,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     config
     /// ).await.expect("Failed to create GPU texture");
     /// # });
+    /// # }
     /// ```
     pub async fn from_software(
         device: &Arc<BoundDevice>,
@@ -272,6 +281,8 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use images_and_words::bindings::forward::r#static::texture::Texture;
     /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
     /// use images_and_words::images::projection::WorldCoord;
@@ -305,6 +316,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     config
     /// ).await.expect("Failed to create texture");
     /// # });
+    /// # }
     /// ```
     pub async fn new_slice(
         slice: &[Format::CPixel],

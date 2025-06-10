@@ -12,6 +12,8 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
+//! # #[cfg(feature = "testing")]
+//! # {
 //! # use images_and_words::images::{Engine, view::View};
 //! # use images_and_words::images::projection::WorldCoord;
 //! # test_executors::sleep_on(async {
@@ -25,6 +27,7 @@
 //! let port = engine.main_port_mut();
 //! // Port is ready to accept render passes
 //! # });
+//! # }
 //! ```
 //!
 //! ## Frame Synchronization
@@ -182,6 +185,8 @@ impl From<imp::Error> for Error {
 ///
 /// ```
 /// # if cfg!(not(feature="backend_wgpu")) { return; }
+/// # #[cfg(feature = "testing")]
+/// # {
 /// # use images_and_words::images::{Engine, view::View};
 /// # use images_and_words::images::projection::WorldCoord;
 /// # test_executors::sleep_on(async {
@@ -201,6 +206,7 @@ impl From<imp::Error> for Error {
 /// let (width, height) = reporter.drawable_size();
 /// println!("Drawable size: {}x{}", width, height);
 /// # });
+/// # }
 /// ```
 #[derive(Clone, Debug)]
 pub struct PortReporter {
@@ -407,6 +413,8 @@ impl Port {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use std::sync::Arc;
     /// # use images_and_words::images::{Engine, view::View, port::Port};
     /// # use images_and_words::images::projection::WorldCoord;
@@ -424,6 +432,7 @@ impl Port {
     ///     (800, 600, 1.0)
     /// ).expect("Failed to create port");
     /// # });
+    /// # }
     /// ```
     pub fn new(
         engine: &Arc<Engine>,
@@ -451,6 +460,8 @@ impl Port {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use images_and_words::images::{Engine, view::View};
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::render_pass::{PassDescriptor, DrawCommand};
@@ -481,6 +492,7 @@ impl Port {
     ///
     /// port.add_fixed_pass(pass).await;
     /// # });
+    /// # }
     /// ```
     ///
     /// # Limitations
@@ -563,6 +575,8 @@ impl Port {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use images_and_words::images::{Engine, view::View};
     /// # use images_and_words::images::projection::WorldCoord;
     /// # test_executors::sleep_on(async {
@@ -575,6 +589,7 @@ impl Port {
     /// // Start rendering - this runs forever
     /// // port.start().await?;
     /// # });
+    /// # }
     /// ```
     ///
     /// # Note

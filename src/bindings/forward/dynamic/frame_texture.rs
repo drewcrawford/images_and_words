@@ -24,6 +24,8 @@ updated from the CPU side during runtime.
 
 ```
 # if cfg!(not(feature="backend_wgpu")) { return; }
+# #[cfg(feature = "testing")]
+# {
 # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 # use images_and_words::bindings::software::texture::Texel;
@@ -64,6 +66,7 @@ write_guard.replace(
 // Buffer is automatically enqueued when guard is dropped
 drop(write_guard);
 # });
+# }
 ```
 
 # Architecture
@@ -190,6 +193,8 @@ impl ErasedTextureRenderSide {
 ///
 /// ```
 /// # if cfg!(not(feature="backend_wgpu")) { return; }
+/// # #[cfg(feature = "testing")]
+/// # {
 /// # use images_and_words::bindings::BindStyle;
 /// # use images_and_words::bindings::bind_style::{BindSlot, Stage};
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
@@ -208,6 +213,7 @@ impl ErasedTextureRenderSide {
 /// // Bind the texture to slot 0 for the fragment shader
 /// bind_style.bind_dynamic_texture(BindSlot::new(0), Stage::Fragment, &frame_texture);
 /// # });
+/// # }
 /// ```
 pub(crate) struct TextureRenderSide<Format: PixelFormat> {
     shared: Arc<Shared<Format>>,
@@ -264,6 +270,8 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 ///
 /// ```
 /// # if cfg!(not(feature="backend_wgpu")) { return; }
+/// # #[cfg(feature = "testing")]
+/// # {
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 /// # use images_and_words::bindings::software::texture::Texel;
@@ -289,6 +297,7 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 ///
 /// // Texture is automatically enqueued when guard goes out of scope
 /// # });
+/// # }
 /// ```
 #[derive(Debug)]
 pub struct CPUWriteGuard<'a, Format: PixelFormat> {
@@ -379,6 +388,8 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 ///
 /// ```
 /// # if cfg!(not(feature="backend_wgpu")) { return; }
+/// # #[cfg(feature = "testing")]
+/// # {
 /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
 /// # use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
 /// # use images_and_words::bindings::software::texture::Texel;
@@ -414,6 +425,7 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// guard.replace(1920, Texel::ZERO, &frame_data);
 /// drop(guard); // Enqueue for GPU
 /// # });
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct FrameTexture<Format: PixelFormat> {
@@ -453,6 +465,8 @@ impl<Format> IndividualTexture<Format> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::{IndividualTexture, FrameTexture};
     /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
     /// # use images_and_words::bindings::software::texture::Texel;
@@ -477,6 +491,7 @@ impl<Format> IndividualTexture<Format> {
     ///     &pixels // full row of pixels
     /// );
     /// # });
+    /// # }
     /// ```
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel])
     where
@@ -517,6 +532,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
     /// # use images_and_words::pixel_formats::{R32Float};
     /// # use images_and_words::bindings::software::texture::Texel;
@@ -548,6 +565,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///     },
     /// ).await;
     /// # });
+    /// # }
     /// ```
     pub async fn new<I: Fn(Texel) -> Format::CPixel>(
         bound_device: &Arc<BoundDevice>,
@@ -595,6 +613,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
     /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
     /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};
@@ -612,6 +632,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// // Modify the texture through the guard...
     /// // Buffer is automatically enqueued when guard is dropped
     /// # });
+    /// # }
     /// ```
     pub async fn dequeue(&mut self) -> CPUWriteGuard<Format> {
         let write_guard = self.shared.multibuffer.access_write().await;

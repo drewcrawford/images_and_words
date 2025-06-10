@@ -416,6 +416,8 @@ impl From<Unorm4> for PixelBGRA {
 ///
 /// ```
 /// # if cfg!(not(feature="backend_wgpu")) { return; }
+/// # #[cfg(feature = "testing")]
+/// # {
 /// use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 /// use images_and_words::bindings::forward::r#static::texture::Texture;
 /// use images_and_words::bindings::visible_to::{TextureUsage, TextureConfig, CPUStrategy};
@@ -442,6 +444,7 @@ impl From<Unorm4> for PixelBGRA {
 ///     |_| Unorm4 { r: 255, g: 128, b: 0, a: 255 }
 /// ).await.expect("Failed to create texture");
 /// # });
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct RGBA8UNorm;

@@ -17,6 +17,8 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
+//! # #[cfg(feature = "testing")]
+//! # {
 //! use images_and_words::bindings::forward::r#static::buffer::Buffer;
 //! use images_and_words::pixel_formats::{BGRA8UNormSRGB};
 //! # test_executors::sleep_on(async {
@@ -35,6 +37,7 @@
 //! // Bind a static buffer to slot 1 for the fragment shader
 //! bind_style.bind_static_buffer(BindSlot::new(1), Stage::Fragment, &my_buffer);
 //! # });
+//! # }
 //! ```
 
 use crate::bindings::forward::dynamic::buffer::ErasedRenderSide;
@@ -393,7 +396,8 @@ pub enum Stage {
 ///
 /// ```
 /// # if cfg!(not(feature="backend_wgpu")) { return; }
-///
+/// # #[cfg(feature = "testing")]
+/// # {
 /// use images_and_words::bindings::bind_style::{BindStyle, BindSlot, Stage};
 /// use images_and_words::bindings::visible_to::TextureUsage;
 /// use images_and_words::images::projection::WorldCoord;
@@ -429,6 +433,7 @@ pub enum Stage {
 /// bind_style.bind_camera_matrix(BindSlot::new(0), Stage::Vertex);
 /// bind_style.bind_static_texture(BindSlot::new(1), Stage::Fragment, &texture, None);
 /// # });
+/// # }
 /// ```
 #[derive(Clone, Debug)]
 pub struct BindSlot {

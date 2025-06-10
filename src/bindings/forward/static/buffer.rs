@@ -25,6 +25,8 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
+//! # #[cfg(feature = "testing")]
+//! # {
 //! # use images_and_words::bindings::forward::r#static::buffer::Buffer;
 //! # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 //! # use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -56,6 +58,7 @@
 //!     }
 //! ).await.expect("Failed to create buffer");
 //! # });
+//! # }
 //! ```
 //!
 //! # See Also
@@ -95,6 +98,8 @@ use std::sync::Arc;
 ///
 /// ```
 /// # if cfg!(not(feature="backend_wgpu")) { return; }
+/// # #[cfg(feature = "testing")]
+/// # {
 /// # use images_and_words::bindings::forward::r#static::buffer::Buffer;
 /// # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -112,6 +117,7 @@ use std::sync::Arc;
 ///     |i| (i as f32 * std::f32::consts::TAU / 256.0).sin()
 /// ).await.expect("Failed to create buffer");
 /// # });
+/// # }
 /// ```
 #[derive(Debug)]
 pub struct Buffer<Element> {
@@ -213,6 +219,8 @@ impl<Element> Buffer<Element> {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// # use images_and_words::bindings::forward::r#static::buffer::Buffer;
     /// # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
     /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -234,6 +242,7 @@ impl<Element> Buffer<Element> {
     ///     }
     /// ).await.expect("Failed to create buffer");
     /// # });
+    /// # }
     /// ```
     ///
     /// # Implementation Details

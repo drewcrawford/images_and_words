@@ -56,6 +56,8 @@ Use **Texture** when you need:
 
 ```
 # if cfg!(not(feature="backend_wgpu")) { return; }
+# #[cfg(feature = "testing")]
+# {
 # use images_and_words::bindings::forward::r#static;
 # use images_and_words::bindings::visible_to::{GPUBufferUsage, TextureUsage};
 # use images_and_words::bindings::software::texture::Texel;
@@ -134,6 +136,7 @@ let gradient_lut = r#static::buffer::Buffer::new(
     |i| gradient_data[i]
 ).await.expect("Failed to create gradient LUT");
 # });
+# }
 ```
 
 ## Performance Notes

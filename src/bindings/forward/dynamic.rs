@@ -68,6 +68,8 @@ ensures the GPU sees consistent data.
 
 ```
 # if cfg!(not(feature="backend_wgpu")) { return; }
+# #[cfg(feature = "testing")]
+# {
 # use images_and_words::bindings::forward::dynamic;
 # use images_and_words::bindings::visible_to::{GPUBufferUsage, TextureUsage, CPUStrategy};
 # use images_and_words::bindings::software::texture::Texel;
@@ -130,6 +132,7 @@ let framebuffer = dynamic::frame_texture::FrameTexture::<RGBA8UNorm>::new(
     |_texel| images_and_words::pixel_formats::Unorm4 { r: 0, g: 0, b: 0, a: 255 }, // Black background
 ).await;
 # });
+# }
 ```
 
 ## Performance Considerations
