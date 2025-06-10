@@ -315,7 +315,7 @@ impl<Format: PixelFormat> Texture<Format> {
         let height = slice.len() / config.width as usize;
         let width = config.width;
         let height_u16 = height.try_into().unwrap();
-        assert_eq!(slice.len(), (width as usize) * (height as usize), "Slice length must match width * height");
+        assert_eq!(slice.len(), (width as usize) * height, "Slice length must match width * height");
         let actual_config = TextureConfig {
             width,
             height: height_u16,
