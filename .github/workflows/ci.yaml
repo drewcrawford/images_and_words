@@ -1,32 +1,38 @@
-# simple v1
 on: [push]
 env:
   RUSTFLAGS: "-D warnings"
+
 jobs:
   ci:
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - ""                              # no features
+          - "testing"                       # testing only
+          - "testing,app_window"           # testing + app_window
+          - "testing,backend_wgpu"         # testing + backend_wgpu
+
     steps:
       - uses: actions/checkout@v4
-      - run: cargo fmt --check
-      - run: cargo check
-      - run: cargo clippy --no-deps
-      - run: cargo doc
-      - run: cargo test
 
-      # same thing with --features=testing
-      - run: cargo check --features=testing
-      - run: cargo clippy --no-deps --features=testing
-      - run: cargo doc --features=testing
-      - run: cargo test --no-default-features --features=testing
+      - name: |
+          CI for features: ${{ matrix.features || 'none' }}
+        # expose the raw comma-separated list in FEATURE_FLAGS
+        env:
+          FEATURE_FLAGS: ${{ matrix.features }}
+        run: |
+          # if FEATURE_FLAGS is non-empty, prepend "--features="
+          if [ -n "$FEATURE_FLAGS" ]; then
+            FLAGS="--features=$FEATURE_FLAGS"
+          else
+            FLAGS=""
+          fi
 
-      # same thing with --features=testing,app_window
-      - run: cargo check --features=testing,app_window
-      - run: cargo clippy --no-deps --features=testing,app_window
-      - run: cargo test --features=testing,app_window
-      - run: cargo doc --features=testing,app_window
-
-      # same thing with --features=testing,backend_wgpu
-      - run: cargo check --features=testing,backend_wgpu
-      - run: cargo clippy --no-deps --features=testing,backend_wgpu
-      - run: cargo doc --features=testing,backend_wgpu
-      - run: cargo test --features=testing,backend_wgpu
+          cargo fmt --check
+          cargo check    $FLAGS
+          cargo clippy --no-deps $FLAGS
+          cargo doc      $FLAGS
+          cargo test     $FLAGS
