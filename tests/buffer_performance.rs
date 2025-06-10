@@ -1,4 +1,3 @@
-
 use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 
 #[repr(C)]
