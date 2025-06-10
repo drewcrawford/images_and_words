@@ -12,3 +12,10 @@ jobs:
       - run: cargo clippy --no-deps
       - run: cargo doc
       - run: cargo test
+
+      # same thing with --features=testing
+      - run: cargo check --features=testing
+      - run: cargo clippy --no-deps --features=testing
+      - run: cargo test --features=testing
+      - run: cargo doc--features=testing
+      - run: cargo test --no-default-features --features=testing
