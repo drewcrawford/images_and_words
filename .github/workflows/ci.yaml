@@ -16,6 +16,17 @@ jobs:
       # same thing with --features=testing
       - run: cargo check --features=testing
       - run: cargo clippy --no-deps --features=testing
-      - run: cargo test --features=testing
-      - run: cargo doc--features=testing
+      - run: cargo doc --features=testing
       - run: cargo test --no-default-features --features=testing
+
+      # same thing with --features=testing,app_window
+      - run: cargo check --features=testing,app_window
+      - run: cargo clippy --no-deps --features=testing,app_window
+      - run: cargo test --features=testing,app_window
+      - run: cargo doc --features=testing,app_window
+
+      # same thing with --features=testing,backend_wgpu
+      - run: cargo check --features=testing,backend_wgpu
+      - run: cargo clippy --no-deps--features=testing,backend_wgpu
+      - run: cargo doc --features=testing,backend_wgpu
+      - run: cargo test --features=testing,backend_wgpu
