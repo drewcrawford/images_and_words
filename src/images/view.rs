@@ -144,8 +144,10 @@ impl View {
                     }
                 };
             self.imp = Some(
-                unsafe{crate::imp::View::from_surface(_entry_point, _window_handle, _display_handle)}
-                    .await?,
+                unsafe {
+                    crate::imp::View::from_surface(_entry_point, _window_handle, _display_handle)
+                }
+                .await?,
             );
             Ok(())
         }

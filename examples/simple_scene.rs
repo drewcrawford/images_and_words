@@ -53,7 +53,7 @@ use images_and_words::images::shader::{FragmentShader, VertexShader};
 use images_and_words::images::view::View;
 use std::sync::Arc;
 
-// Note: In this simplified example, we generate vertex data procedurally in the 
+// Note: In this simplified example, we generate vertex data procedurally in the
 // vertex shader rather than using vertex buffers. This demonstrates the basic
 // rendering pipeline without the complexity of vertex buffer management.
 //
@@ -122,7 +122,7 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 // Triangle vertex data is now generated procedurally in the vertex shader.
 // The shader creates a triangle with:
 // - Bottom-left vertex: red color at (-0.5, -0.5, 0.0)
-// - Bottom-right vertex: green color at (0.5, -0.5, 0.0)  
+// - Bottom-right vertex: green color at (0.5, -0.5, 0.0)
 // - Top vertex: blue color at (0.0, 0.5, 0.0)
 //
 // The GPU will interpolate colors between vertices, creating a smooth gradient.
@@ -145,13 +145,12 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 /// while maintaining the async execution model needed for the middleware.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting simple scene example...");
-    
-    #[cfg(feature="app_window")] {
+
+    #[cfg(feature = "app_window")]
+    {
         // App Window Mode: Create actual window with proper threading
         app_window::application::main(|| {
-            test_executors::sleep_on(async {
-                run_app_window_example().await
-            });
+            test_executors::sleep_on(async { run_app_window_example().await });
         });
         Ok(())
     }
@@ -181,35 +180,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// - **Engine**: Core rendering coordinator that manages GPU resources
 /// - **WorldCoord**: 3D coordinate system for camera positioning
 #[cfg(feature = "app_window")]
-async fn run_app_window_example()  {
-    use app_window::window::Window;
+async fn run_app_window_example() {
     use app_window::coordinates::{Position, Size};
-    
+    use app_window::window::Window;
+
     // Step 1: Create a window using app_window
     println!("Creating window...");
     let mut window = Window::new(
-        Position::default(),        // Default position (centered)
-        Size::new(800.0, 600.0),   // 800x600 resolution
-        "images_and_words - Simple Scene Example".to_string()
-    ).await;
-    
+        Position::default(),     // Default position (centered)
+        Size::new(800.0, 600.0), // 800x600 resolution
+        "images_and_words - Simple Scene Example".to_string(),
+    )
+    .await;
+
     // Step 2: Extract the rendering surface from the window
     let surface = window.surface().await;
 
     // Step 3: Create images_and_words View from the surface
     println!("Creating view from surface...");
     let view = View::from_surface(surface).expect("View creation failed");
-    
+
     // Step 4: Create the graphics engine with initial camera position
     println!("Creating graphics engine...");
     let initial_camera_position = WorldCoord::new(0.0, 0.0, 2.0); // 2 units back from origin
     let engine_arc = Engine::rendering_to(view, initial_camera_position)
         .await
         .expect("Engine creation failed");
-    
+
     // Step 5: Execute the main rendering loop
     let _ = run_rendering_with_engine_arc(engine_arc).await;
-    
+
     // Step 6: Cleanup - keep window alive until rendering completes
     println!("Keeping window alive during rendering...");
     drop(window); // Explicitly drop when we're done
@@ -235,7 +235,7 @@ async fn run_app_window_example()  {
 async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
     // Step 1: Create a virtual view for testing (no actual window)
     let view = View::for_testing();
-    
+
     // Step 2: Create the graphics engine (same as windowed mode)
     println!("Creating graphics engine...");
     let initial_camera_position = WorldCoord::new(0.0, 0.0, 2.0);
@@ -247,7 +247,6 @@ async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
     // Note: Engine is returned as Arc<Engine> to handle internal references
     run_rendering_with_engine_arc(engine).await
 }
-
 
 /// Core rendering pipeline demonstration.
 ///
@@ -277,7 +276,9 @@ async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
 /// - Uses `force_render()` for demonstration (normally event-driven)
 /// - 16ms frame timing targets 60fps
 /// - 300 frame limit prevents infinite loops
-async fn run_rendering_with_engine_arc(engine: Arc<Engine>) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_rendering_with_engine_arc(
+    engine: Arc<Engine>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Get the bound GPU device (could be used for creating buffers/textures)
     let _device = engine.bound_device();
 
@@ -289,7 +290,7 @@ async fn run_rendering_with_engine_arc(engine: Arc<Engine>) -> Result<(), Box<dy
     // Step 2: Set up resource binding style (empty for this simple example)
     println!("Setting up resource bindings...");
     let bind_style = BindStyle::new();
-    
+
     // Note: This example uses procedural vertex generation in shaders.
     // For real applications with vertex buffers, you would:
     // 1. Create vertex/index buffers: Buffer::new(device, data, usage, name, initial_fn)
@@ -300,13 +301,13 @@ async fn run_rendering_with_engine_arc(engine: Arc<Engine>) -> Result<(), Box<dy
     // Step 3: Create render pass descriptor with complete pipeline configuration
     println!("Creating render pass...");
     let pass_descriptor = PassDescriptor::new(
-        "triangle_pass".to_string(),    // Debug name
-        vertex_shader,                  // Vertex stage
-        fragment_shader,                // Fragment stage  
-        bind_style,                     // Resource bindings
-        DrawCommand::TriangleList(3),   // Draw 3 vertices as triangle list
-        false,                          // Depth testing disabled
-        false,                          // Alpha blending disabled
+        "triangle_pass".to_string(),  // Debug name
+        vertex_shader,                // Vertex stage
+        fragment_shader,              // Fragment stage
+        bind_style,                   // Resource bindings
+        DrawCommand::TriangleList(3), // Draw 3 vertices as triangle list
+        false,                        // Depth testing disabled
+        false,                        // Alpha blending disabled
     );
 
     // Step 4: Register render pass with engine's main port
@@ -317,15 +318,15 @@ async fn run_rendering_with_engine_arc(engine: Arc<Engine>) -> Result<(), Box<dy
     // Step 5: Execute main rendering loop with frame timing
     println!("Starting render loop...");
     println!("Rendering a colorful triangle for demonstration...");
-    
+
     let mut frame_count = 0;
     let max_frames = 300; // 5 seconds at 60fps for demonstration
-    
+
     while frame_count < max_frames {
         // Render one frame (force_render bypasses dirty checking)
         port.force_render().await;
         frame_count += 1;
-        
+
         // Progress reporting every second
         if frame_count % 60 == 0 {
             println!("Rendered {} frames", frame_count);
@@ -334,7 +335,7 @@ async fn run_rendering_with_engine_arc(engine: Arc<Engine>) -> Result<(), Box<dy
         // Frame rate limiting: target ~60fps (16.67ms per frame)
         portable_async_sleep::async_sleep(std::time::Duration::from_millis(16)).await;
     }
-    
+
     println!("Rendering complete! Rendered {} frames total.", frame_count);
     Ok(())
 }
