@@ -49,3 +49,4 @@ testing = []
 
 
 [patch.crates-io]
+app_window = {path = "e:\\app_window"}

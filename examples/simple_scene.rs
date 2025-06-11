@@ -150,7 +150,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         // App Window Mode: Create actual window with proper threading
         app_window::application::main(|| {
-            test_executors::sleep_on(async { run_app_window_example().await });
+            app_window::application::submit_to_main_thread(|| { app_window::executor::already_on_main_thread_submit(run_app_window_example())})
         });
         Ok(())
     }
@@ -192,6 +192,7 @@ async fn run_app_window_example() {
         "images_and_words - Simple Scene Example".to_string(),
     )
     .await;
+    println!("Window created!");
 
     // Step 2: Extract the rendering surface from the window
     let surface = window.surface().await;
