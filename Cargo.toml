@@ -2,8 +2,14 @@
 name = "images_and_words"
 version = "0.1.0"
 edition = "2024"
-
-
+authors = ["Drew Crawford <drew@sealedabstract.com>"]
+description = "GPU middleware and abstraction layer for high-performance graphics applications and games"
+repository = "https://github.com/drewcrawford/images_and_words"
+homepage = "https://sealedabstract.com/code/images_and_words"
+license = "Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0"
+keywords = ["gpu", "middleware", "graphics", "rendering","wgpu"]
+categories = ["game-development","graphics","rendering::engine","rust-patterns"]
+exclude = [".*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -36,5 +42,7 @@ app_window = ["dep:app_window"]
 backend_wgpu = ["dep:wgpu"]
 # Enable testing APIs for integration tests
 testing = []
+
+
 
 [patch.crates-io]
