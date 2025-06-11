@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Static GPU buffer implementation for immutable data.
 //!
 //! This module provides the [`Buffer`] type for managing GPU buffers that contain

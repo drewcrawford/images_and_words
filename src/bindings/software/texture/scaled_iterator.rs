@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::bindings::software::texture::scaled_row_cell::ScaledRowCell;
 
 /**An iterator over the [ScaledRowCell] coordinates.

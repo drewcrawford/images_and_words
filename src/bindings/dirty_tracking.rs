@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 /*!
 This module implements a "dirty tracking" system that can
 allow waiting on an aggregation of resources for a dirty signal.

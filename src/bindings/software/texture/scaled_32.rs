@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 /*!
 Utilities for working with texture coordinates that use floating point
 sub-texel precision.

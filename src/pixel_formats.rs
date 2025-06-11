@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Type-safe pixel format definitions for GPU textures.
 //!
 //! This module provides compile-time type-safe pixel format definitions used throughout

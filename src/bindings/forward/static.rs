@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 /*! Immutable forward resources optimized for write-once, read-many patterns.
 
 # Overview

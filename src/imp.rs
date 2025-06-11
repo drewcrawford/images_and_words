@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //at the moment we only support wgpu
 
 pub use crate::send_phantom::SendPhantom;

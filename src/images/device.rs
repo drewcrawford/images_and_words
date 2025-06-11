@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //!Cross-platform IMAGE device wrappers
 //!
 //! On vulkan, image device and compute device are potentially distinct

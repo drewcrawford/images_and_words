@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Builder pattern for texture creation to reduce parameter count.
 
 use std::sync::Arc;

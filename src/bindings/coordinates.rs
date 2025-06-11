@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Coordinate system types for the images_and_words graphics middleware.
 //!
 //! This module defines coordinate types used throughout the graphics pipeline

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! GPU rendering engine and graphics pipeline components.
 //!
 //! This module provides the core rendering infrastructure for GPU-accelerated graphics

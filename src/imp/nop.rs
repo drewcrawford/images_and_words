@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::Priority;
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::WriteFrequency;

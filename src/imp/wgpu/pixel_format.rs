@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::pixel_formats::{
     BGRA8UNormSRGB, R8UNorm, R16Float, R32Float, R32SInt, RGBA8UNorm, RGBA8UnormSRGB, RGBA16Unorm,
     RGBA32Float, RGFloat,

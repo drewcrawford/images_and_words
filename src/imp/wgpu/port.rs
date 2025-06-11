@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::bindings::bind_style::BindTarget;
 use crate::bindings::forward::dynamic::buffer::{CRepr, SomeGPUAccess};
 use crate::bindings::sampler::SamplerType;

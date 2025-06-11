@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 /*! Dynamic textures with CPU-to-GPU multibuffering.
 
 This module provides [`FrameTexture`], a dynamic texture type that supports efficient CPU-to-GPU

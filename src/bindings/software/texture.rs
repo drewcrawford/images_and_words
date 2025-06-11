@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 /*! Software texture implementation for CPU-based image processing.
 
 This module provides a software implementation of textures that runs entirely on the CPU.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Ports control rendering to a single surface with render passes and frame pacing.
 //!
 //! A [`Port`] represents a rendering target (like a window or offscreen surface) that manages:

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Vertex buffer layout descriptions for GPU rendering.
 //!
 //! This module provides types for describing the structure and layout of vertex data

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::entry_point::{EntryPoint, EntryPointError};
 use crate::images::device::BoundDevice;
 use crate::images::device::{BindError, PickError, UnboundDevice};

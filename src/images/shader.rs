@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Shader types for GPU programming.
 //!
 //! This module provides types for vertex and fragment shaders using WGSL (WebGPU Shading Language).

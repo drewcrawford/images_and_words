@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Forward static textures for GPU rendering.
 //!
 //! This module provides [`Texture`], a GPU-resident texture type that is immutable after creation.

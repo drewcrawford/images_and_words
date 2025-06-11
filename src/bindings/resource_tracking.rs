@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Resource tracking for CPU/GPU synchronization
 //!
 //! This module provides thread-safe tracking of resource usage across CPU and GPU,

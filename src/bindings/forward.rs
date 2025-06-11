@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 /*! Resources that pass data in the 'forward' direction, that is, CPU=>GPU.
 
 # Overview
