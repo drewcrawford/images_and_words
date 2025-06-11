@@ -150,9 +150,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // App Window Mode: Create actual window with proper threading
         app_window::application::main(|| {
             test_executors::sleep_on(async {
-                app_window::application::on_main_thread(||{
-                    app_window::wgpu::wgpu_spawn(run_app_window_example());
-                }).await;
+                run_app_window_example().await
             });
         });
         Ok(())
@@ -210,7 +208,7 @@ async fn run_app_window_example()  {
         .expect("Engine creation failed");
     
     // Step 5: Execute the main rendering loop
-    let result = run_rendering_with_engine_arc(engine_arc).await;
+    let _ = run_rendering_with_engine_arc(engine_arc).await;
     
     // Step 6: Cleanup - keep window alive until rendering completes
     println!("Keeping window alive during rendering...");
@@ -250,14 +248,6 @@ async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
     run_rendering_with_engine_arc(engine).await
 }
 
-
-/// Helper function for converting Engine to Arc<Engine>.
-///
-/// This wrapper exists because Engine::rendering_to() returns Arc<Engine>
-/// but some legacy code paths expect Engine directly.
-async fn run_rendering_with_engine(engine: Engine) -> Result<(), Box<dyn std::error::Error>> {
-    run_rendering_with_engine_arc(Arc::new(engine)).await
-}
 
 /// Core rendering pipeline demonstration.
 ///

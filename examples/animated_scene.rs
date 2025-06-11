@@ -187,9 +187,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // App Window Mode: Create actual window with proper threading
         app_window::application::main(|| {
             test_executors::sleep_on(async {
-                app_window::application::on_main_thread(||{
-                    app_window::wgpu::wgpu_spawn(run_app_window_example());
-                }).await;
+                run_app_window_example().await
             });
         });
         Ok(())
