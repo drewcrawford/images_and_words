@@ -2,6 +2,8 @@
 /*! images_and_words is a GPU middleware and abstraction layer for high-performance
   graphics applications and games.
 
+![logo](../../../art/logo.png)
+
 # The pitch
 
 Suppose you want to write a game or graphics application.  You may consider:

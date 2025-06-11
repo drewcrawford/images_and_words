@@ -10,6 +10,7 @@ license = "Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0"
 keywords = ["gpu", "middleware", "graphics", "rendering","wgpu"]
 categories = ["game-development","graphics","rendering::engine","rust-patterns"]
 exclude = [".*"]
+rust-version = "1.85.1"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
