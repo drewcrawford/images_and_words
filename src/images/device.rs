@@ -86,6 +86,4 @@ impl BoundDevice {
             .map_err(BindError)?;
         Ok(Self(bind))
     }
-
-
 }

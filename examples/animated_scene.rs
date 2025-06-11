@@ -186,7 +186,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "app_window")]
     {
         app_window::application::main(|| {
-            app_window::application::submit_to_main_thread(|| { app_window::executor::already_on_main_thread_submit(run_app_window_example())})
+            app_window::application::submit_to_main_thread(|| {
+                app_window::executor::already_on_main_thread_submit(run_app_window_example())
+            })
         });
         Ok(())
     }

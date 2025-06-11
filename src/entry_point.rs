@@ -24,5 +24,4 @@ impl EntryPoint {
             .map(EntryPoint)
             .map_err(EntryPointError)
     }
-
 }
