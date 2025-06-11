@@ -24,8 +24,5 @@ impl EntryPoint {
             .map(EntryPoint)
             .map_err(EntryPointError)
     }
-    #[cfg(target_os = "windows")]
-    pub fn as_vulkan(&self) -> &super::vulkan::entry_point::EntryPoint {
-        &self.0
-    }
+
 }

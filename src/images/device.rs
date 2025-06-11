@@ -12,14 +12,6 @@ use crate::imp;
 ///Cross-platform unbound device, images edition
 pub(crate) struct UnboundDevice(pub(crate) crate::imp::UnboundDevice);
 impl UnboundDevice {
-    ///Creates a device for unit testing.
-    #[cfg(target_os = "windows")] //seems unused on macos?
-    #[cfg(test)]
-    pub fn for_unit_testing(entry_point: &EntryPoint) -> Result<UnboundDevice, PickError> {
-        imp_unbound::UnboundDevice::for_unit_testing(entry_point)
-            .map(|d| UnboundDevice(d))
-            .map_err(|e| PickError(e))
-    }
     ///Pick a device for the associated surface
     pub async fn pick(view: &View, entry_point: &EntryPoint) -> Result<UnboundDevice, PickError> {
         crate::imp::UnboundDevice::pick(view, entry_point)
@@ -95,14 +87,5 @@ impl BoundDevice {
         Ok(Self(bind))
     }
 
-    #[cfg(target_os = "windows")] //seems unused on macos?
-    #[cfg(test)]
-    ///Convenience method that binds [UnboundDevice::for_unit_testing()] with a distinct entrypoint.
-    pub(crate) fn for_unit_testing(pool: &ReleasePool) -> Result<Arc<Self>, EitherError> {
-        let entry_point = Arc::new(EntryPoint::new_with_images()?);
-        let unbound_device = UnboundDevice::for_unit_testing(&entry_point)?;
-        let imp_device = imp_bound::BoundDevice::bind(unbound_device, entry_point, pool)
-            .map_err(|e| BindError(e))?;
-        Ok(Self::from_arc(imp_device))
-    }
+
 }

@@ -225,7 +225,7 @@ async fn run_app_window_example() {
         .await
         .expect("Engine creation failed");
 
-    let result = run_animated_rendering_with_engine_arc(engine_arc).await;
+    run_animated_rendering_with_engine_arc(engine_arc).await;
 
     println!("Keeping window alive during rendering...");
     drop(window);
