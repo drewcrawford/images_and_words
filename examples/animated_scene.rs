@@ -193,11 +193,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 
-    #[cfg(not(feature = "app_window"))]
+    #[cfg(all(not(feature = "app_window"), any(test, feature = "testing")))]
     {
         // Testing Mode: Use virtual surface for headless testing
         println!("app_window feature not enabled, using test view...");
         test_executors::sleep_on(run_testing_example())
+    }
+
+    #[cfg(all(not(feature = "app_window"), not(any(test, feature = "testing"))))]
+    {
+        println!(
+            "This example requires either the 'app_window' or 'testing' feature to be enabled."
+        );
+        println!("Run with: cargo run --example animated_scene --features=backend_wgpu,app_window");
+        println!(
+            "Or for testing: cargo run --example animated_scene --features=backend_wgpu,testing"
+        );
+        Ok(())
     }
 }
 
@@ -233,7 +245,7 @@ async fn run_app_window_example() {
 }
 
 /// Testing Mode: Renders animated scene without creating a window.
-#[cfg(not(feature = "app_window"))]
+#[cfg(all(not(feature = "app_window"), any(test, feature = "testing")))]
 async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
     let view = View::for_testing();
 

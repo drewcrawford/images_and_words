@@ -157,11 +157,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 
-    #[cfg(not(feature = "app_window"))]
+    #[cfg(all(not(feature = "app_window"), any(test, feature = "testing")))]
     {
         // Testing Mode: Use virtual surface for headless testing
         println!("app_window feature not enabled, using test view...");
         test_executors::sleep_on(run_testing_example())
+    }
+
+    #[cfg(all(not(feature = "app_window"), not(any(test, feature = "testing"))))]
+    {
+        println!(
+            "This example requires either the 'app_window' or 'testing' feature to be enabled."
+        );
+        println!("Run with: cargo run --example simple_scene --features=backend_wgpu,app_window");
+        println!(
+            "Or for testing: cargo run --example simple_scene --features=backend_wgpu,testing"
+        );
+        Ok(())
     }
 }
 
@@ -234,7 +246,7 @@ async fn run_app_window_example() {
 ///
 /// The rendering output isn't visible but all GPU operations execute normally,
 /// making this perfect for validation and performance measurement.
-#[cfg(not(feature = "app_window"))]
+#[cfg(all(not(feature = "app_window"), any(test, feature = "testing")))]
 async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
     // Step 1: Create a virtual view for testing (no actual window)
     let view = View::for_testing();

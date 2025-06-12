@@ -1,7 +1,33 @@
+use r#continue::continuation;
+use std::pin::Pin;
+
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 #[derive(Debug)]
 pub struct View {
     pub(super) surface: Option<wgpu::Surface<'static>>,
+}
+
+async fn wgpu_exec<F, R>(f: F) -> R
+where
+    R: 'static,
+    F: Future<Output = R>,
+{
+    let (sender, fut) = continuation();
+    // Box the future, erase the lifetime
+    let f = Box::pin(f) as Pin<Box<dyn Future<Output = F::Output> + '_>>;
+    // Cast the lifetime to 'static
+    // SAFETY: this is safe because we refuse to return until the future is complete,
+    let f_static = unsafe {
+        std::mem::transmute::<
+            Pin<Box<dyn Future<Output = F::Output> + '_>>,
+            Pin<Box<dyn Future<Output = F::Output> + 'static>>,
+        >(f)
+    };
+    app_window::wgpu::wgpu_spawn(async {
+        let r = f_static.await;
+        sender.send(r);
+    });
+    fut.await
 }
 
 impl View {
@@ -20,24 +46,11 @@ impl View {
         raw_window_handle: wgpu::rwh::RawWindowHandle,
         raw_display_handle: wgpu::rwh::RawDisplayHandle,
     ) -> Result<Self, super::Error> {
-        struct Move {
-            raw_window_handle: wgpu::rwh::RawWindowHandle,
-            raw_display_handle: wgpu::rwh::RawDisplayHandle,
-            entrypoint: *const crate::entry_point::EntryPoint,
-        }
-
-        let move_me = send_cells::unsafe_send_cell::UnsafeSendCell::new(Move {
-            raw_window_handle,
-            raw_display_handle,
-            entrypoint: entrypoint as *const _,
-        });
-        app_window::application::on_main_thread(move || {
+        wgpu_exec(async {
             let target = wgpu::SurfaceTargetUnsafe::RawHandle {
-                raw_window_handle: unsafe { move_me.get() }.raw_window_handle,
-                raw_display_handle: unsafe { move_me.get() }.raw_display_handle,
+                raw_window_handle,
+                raw_display_handle,
             };
-            let entrypoint_ptr = unsafe { move_me.get() }.entrypoint;
-            let entrypoint = unsafe { &*entrypoint_ptr };
             let surface = unsafe { entrypoint.0.0.create_surface_unsafe(target)? };
             Ok(View {
                 surface: Some(surface),
