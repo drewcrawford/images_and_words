@@ -4,6 +4,10 @@ pub struct View {
     pub(super) surface: Option<wgpu::Surface<'static>>,
 }
 
+//this solution may be more portable than app_window's?
+
+//main thread platforms
+#[cfg(target_os="macos")]
 async fn wgpu_exec<F, R>(f: F) -> R
 where
     R: 'static + Unpin + Send,
@@ -18,6 +22,16 @@ where
         //try direct?
         f.await
     }
+}
+
+//non-main-thread platforms
+#[cfg(not(target_os = "macos"))]
+async fn wgpu_exec<F, R>(f: F) -> R
+where
+    R: 'static,
+    F: Future<Output = R>,
+{
+    f.await
 }
 
 impl View {
