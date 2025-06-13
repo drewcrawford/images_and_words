@@ -48,6 +48,7 @@ pub struct PreparedPass {
 fn prepare_pass_descriptor(
     bind_device: &crate::images::BoundDevice,
     descriptor: PassDescriptor,
+    enable_depth: bool,
 ) -> PreparedPass {
     let mut layouts = Vec::new();
 
@@ -227,39 +228,24 @@ fn prepare_pass_descriptor(
         conservative: false,
     };
 
-    // let depth_state = if descriptor.depth {
-    //     Some(DepthStencilState {
-    //         format: TextureFormat::Depth16Unorm,
-    //         depth_write_enabled: false,                   //??
-    //         depth_compare: CompareFunction::GreaterEqual, //?
-    //         stencil: StencilState {
-    //             front: StencilFaceState::IGNORE,
-    //             back: StencilFaceState::IGNORE,
-    //             read_mask: 0,
-    //             write_mask: 0,
-    //         },
-    //         bias: Default::default(), //?
-    //     })
-    // } else {
-    //     None
-    // };
-
     //because everything is in one render pass, we need all the depth states to match
-    //at the moment let's just assume that all passes need depth, whether they report that
-    //or not!
-
-    let depth_state = Some(DepthStencilState {
-        format: TextureFormat::Depth16Unorm,
-        depth_write_enabled: true,                 //??
-        depth_compare: CompareFunction::LessEqual, //?
-        stencil: StencilState {
-            front: StencilFaceState::IGNORE,
-            back: StencilFaceState::IGNORE,
-            read_mask: 0,
-            write_mask: 0,
-        },
-        bias: Default::default(), //?
-    });
+    //enable depth if any pass wants it
+    let depth_state = if enable_depth {
+        Some(DepthStencilState {
+            format: TextureFormat::Depth16Unorm,
+            depth_write_enabled: true,
+            depth_compare: CompareFunction::LessEqual,
+            stencil: StencilState {
+                front: StencilFaceState::IGNORE,
+                back: StencilFaceState::IGNORE,
+                read_mask: 0,
+                write_mask: 0,
+            },
+            bias: Default::default(),
+        })
+    } else {
+        None
+    };
 
     let multisample_state = MultisampleState {
         count: 1,
@@ -493,9 +479,13 @@ impl Port {
         let frame_guard = self.port_reporter_send.create_frame_guard();
         //todo: We are currently doing a lot of setup work on each frame, that ought to be moved to initialization?
         let device = self.engine.bound_device().as_ref();
+        
+        // Check if any pass descriptor wants depth - if so, enable depth for all passes
+        let enable_depth = self.pass_descriptors.iter().any(|desc| desc.depth);
+        
         let mut prepared = Vec::new();
         for descriptor in &self.pass_descriptors {
-            let pipeline = prepare_pass_descriptor(device, descriptor.clone());
+            let pipeline = prepare_pass_descriptor(device, descriptor.clone(), enable_depth);
             prepared.push(pipeline);
         }
         let unscaled_size = self.view.size_scale().await;
