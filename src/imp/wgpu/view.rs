@@ -6,7 +6,7 @@ use crate::imp::wgpu::wgpu_call_context;
 pub struct View {
     //to meet our thread requirements, we may need to send this to another thread
     //as part of its creation, or to bind it to a device
-    pub(super) surface: RefCell<Option<wgpu::Surface<'static>>>,
+    pub(super) surface: Option<wgpu::Surface<'static>>,
 }
 
 
