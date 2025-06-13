@@ -94,19 +94,19 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     // Generate triangle vertices based on vertex index
     switch vertex_index {
         case 0u: {
-            output.clip_position = vec4<f32>(-0.5, -0.5, 0.0, 1.0); // Bottom-left
+            output.clip_position = vec4<f32>(-0.5, -0.5, 0.1, 1.0); // Bottom-left
             output.color = vec4<f32>(1.0, 0.0, 0.0, 1.0); // Red
         }
         case 1u: {
-            output.clip_position = vec4<f32>(0.5, -0.5, 0.0, 1.0); // Bottom-right
+            output.clip_position = vec4<f32>(0.5, -0.5, 0.1, 1.0); // Bottom-right
             output.color = vec4<f32>(0.0, 1.0, 0.0, 1.0); // Green
         }
         case 2u: {
-            output.clip_position = vec4<f32>(0.0, 0.5, 0.0, 1.0); // Top
+            output.clip_position = vec4<f32>(0.0, 0.5, 0.1, 1.0); // Top
             output.color = vec4<f32>(0.0, 0.0, 1.0, 1.0); // Blue
         }
         default: {
-            output.clip_position = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+            output.clip_position = vec4<f32>(0.0, 0.0, 0.1, 1.0);
             output.color = vec4<f32>(1.0, 1.0, 1.0, 1.0);
         }
     }
@@ -153,6 +153,7 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 /// This layered approach ensures graphics operations happen on the correct thread
 /// while maintaining the async execution model needed for the middleware.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
     println!("Starting simple scene example...");
 
     #[cfg(feature = "app_window")]
@@ -345,7 +346,7 @@ async fn run_rendering_with_engine_arc(
     println!("Rendering a colorful triangle for demonstration...");
 
     let mut frame_count = 0;
-    let max_frames = 300; // 5 seconds at 60fps for demonstration
+    let max_frames = 10_000; // 5 seconds at 60fps for demonstration
 
     while frame_count < max_frames {
         // Render one frame (force_render bypasses dirty checking)

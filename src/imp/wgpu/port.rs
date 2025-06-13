@@ -521,19 +521,23 @@ impl Port {
                 println!("Port surface not initialized");
             }
             Some(surface) => {
-                surface.configure(
-                    &device.0.device,
-                    &wgpu::SurfaceConfiguration {
-                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                        format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                        width: scaled_size.0,
-                        height: scaled_size.1,
-                        present_mode: wgpu::PresentMode::Fifo,
-                        desired_maximum_frame_latency: 1,
-                        alpha_mode: CompositeAlphaMode::Opaque,
-                        view_formats: Vec::new(),
-                    },
-                );
+                //todo: reconfigure often?
+                if self.frame == 0 {
+                    surface.configure(
+                        &device.0.device,
+                        &wgpu::SurfaceConfiguration {
+                            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                            width: scaled_size.0,
+                            height: scaled_size.1,
+                            present_mode: wgpu::PresentMode::Fifo,
+                            desired_maximum_frame_latency: 1,
+                            alpha_mode: CompositeAlphaMode::Opaque,
+                            view_formats: Vec::new(),
+                        },
+                    );
+                }
+                
             }
         }
 
