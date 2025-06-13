@@ -12,7 +12,7 @@ use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
 use std::num::NonZero;
 use std::sync::Arc;
-use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MapMode, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
+use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, BufferBinding, BufferBindingType, BufferSize, Color, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, LoadOp, MapMode, MultisampleState, Operations, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
 use wgpu::wgt::BufferDescriptor;
 
 #[repr(C)]
@@ -643,10 +643,18 @@ impl Port {
                     .unwrap()
                     .texture
                     .create_view(&wgpu::TextureViewDescriptor::default());
+                let store_op = if self.dump_framebuffer {
+                    StoreOp::Store
+                } else {
+                    StoreOp::Discard
+                };
                 color_attachment = wgpu::RenderPassColorAttachment {
                     view: &wgpu_view,
                     resolve_target: None,
-                    ops: Default::default(),
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::TRANSPARENT),
+                        store: store_op,
+                    },
                 };
             }
         };
@@ -656,6 +664,12 @@ impl Port {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("wgpu port"),
             });
+
+        let depth_extra_usage = if self.dump_framebuffer {
+            wgpu::TextureUsages::COPY_SRC
+        } else {
+            wgpu::TextureUsages::empty()
+        };
 
         let depth_texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
@@ -668,7 +682,7 @@ impl Port {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth16Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | depth_extra_usage,
             view_formats: &[],
         });
 
@@ -696,12 +710,17 @@ impl Port {
             frame_guards.push(camera_gpu_access) //safety
         };
 
+        let depth_store = if self.dump_framebuffer {
+            StoreOp::Store
+        } else {
+            StoreOp::Discard
+        };
         let depth_stencil_attachment = if prepared.iter().any(|e| e.depth_pass) {
             Some(RenderPassDepthStencilAttachment {
                 view: &depth_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: StoreOp::Discard,
+                    store: depth_store,
                 }),
                 stencil_ops: None,
             })
@@ -764,6 +783,8 @@ impl Port {
         std::mem::drop(render_pass); //stop mutably borrowing the encoder
         let dump_buf;
         let dump_buff_bytes_per_row;
+        let depth_dump_buf;
+        let depth_dump_buff_bytes_per_row;
         if self.dump_framebuffer {
             //round up to nearest 256
             let wgpu_bytes_per_row_256 = (scaled_size.0 * 4)
@@ -804,10 +825,51 @@ impl Port {
                 },
             );
             dump_buf = Some(buf);
+
+            //copy depth texture to a buffer (2 bytes per pixel for Depth16Unorm)
+            let depth_wgpu_bytes_per_row_256 = (scaled_size.0 * 2)
+                .checked_add(255)
+                .unwrap()
+                .div_euclid(256)
+                .checked_mul(256)
+                .unwrap();
+            depth_dump_buff_bytes_per_row = Some(depth_wgpu_bytes_per_row_256);
+
+            let depth_buf = device.0.device.create_buffer(&BufferDescriptor {
+                label: "dump depth buffer".into(),
+                size: (scaled_size.1 * depth_wgpu_bytes_per_row_256) as u64,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+
+            encoder.copy_texture_to_buffer(
+                wgpu::ImageCopyTexture {
+                    texture: &depth_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::ImageCopyBuffer {
+                    buffer: &depth_buf,
+                    layout: wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(depth_wgpu_bytes_per_row_256),
+                        rows_per_image: None,
+                    },
+                },
+                wgpu::Extent3d {
+                    width: scaled_size.0,
+                    height: scaled_size.1,
+                    depth_or_array_layers: 1,
+                },
+            );
+            depth_dump_buf = Some(depth_buf);
         }
         else {
             dump_buf = None;
             dump_buff_bytes_per_row = None;
+            depth_dump_buf = None;
+            depth_dump_buff_bytes_per_row = None;
         }
 
         let encoded = encoder.finish();
@@ -863,6 +925,53 @@ impl Port {
                             .expect("Failed to write framebuffer dump");
                     }
                     move_tx.unmap(); //unmap after reading
+                },
+            );
+        }
+
+        //dump depth buffer
+        if let Some(depth_tx) = depth_dump_buf {
+            let move_depth_tx = depth_tx.clone();
+            let move_frame = self.frame;
+            depth_tx.map_async(
+                wgpu::MapMode::Read,
+                ..,
+                move |result| {
+                    if let Err(e) = result {
+                        panic!("Failed to map depth buffer: {:?}", e);
+                    } else {
+                        //safety: we can safely read the buffer now
+                        let data = move_depth_tx.slice(..).get_mapped_range();
+                        let depth_wgpu_bytes_per_row_256 = depth_dump_buff_bytes_per_row.unwrap();
+                        let mut depth_pixels = Vec::new();
+                        for y in 0..scaled_size.1 {
+                            for x in 0..scaled_size.0 {
+                                let offset = (y * depth_wgpu_bytes_per_row_256 + x * 2) as usize;
+                                //read 16-bit depth value as little-endian
+                                let depth_u16 = u16::from_le_bytes([data[offset], data[offset + 1]]);
+                                //convert 16-bit depth to 8-bit grayscale (scale from 0-65535 to 0-255)
+                                let depth_u8 = (depth_u16 as f32 / 65535.0 * 255.0) as u8;
+                                // if depth_u8 != 0 {
+                                //     //only print non-zero depth pixels
+                                //     println!("Depth pixel at ({}, {}) = {}", x, y, depth_u8);
+                                // }
+                                //create grayscale BGRA pixel
+                                let depth_pixel = tgar::PixelBGRA {
+                                    b: depth_u8,
+                                    g: depth_u8,
+                                    r: depth_u8,
+                                    a: 255,
+                                };
+                                depth_pixels.push(depth_pixel);
+                            }
+                        }
+                        //dump depth buffer to a file
+                        let depth_tgar = tgar::BGRA::new(scaled_size.0.try_into().unwrap(), scaled_size.1.try_into().unwrap(), &depth_pixels);
+                        let depth_data = depth_tgar.into_data();
+                        std::fs::write(format!("depth_{}.tga", move_frame), depth_data)
+                            .expect("Failed to write depth buffer dump");
+                    }
+                    move_depth_tx.unmap(); //unmap after reading
                 },
             );
         }
