@@ -43,7 +43,7 @@ impl UnboundDevice {
 #[derive(Debug)]
 pub struct View {}
 impl View {
-    pub async fn from_surface(
+    pub async unsafe fn from_surface(
         _entrypoint: &crate::entry_point::EntryPoint,
         _raw_window_handle: raw_window_handle::RawWindowHandle,
         _raw_display_handle: RawDisplayHandle,
