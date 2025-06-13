@@ -16,7 +16,7 @@ use std::fmt::Display;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct EntryPoint;
 impl EntryPoint {
     pub async fn new() -> Result<Self, Error> {

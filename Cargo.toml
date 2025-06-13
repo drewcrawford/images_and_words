@@ -49,4 +49,4 @@ testing = []
 
 
 [patch.crates-io]
-vec_parallel = {path = "../vec_parallel"}
+#vec_parallel = {path = "../vec_parallel"}

@@ -45,12 +45,19 @@
 // use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 // use images_and_words::bindings::forward::r#static::buffer::Buffer;
 // use images_and_words::bindings::visible_to::GPUBufferUsage;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::BindStyle;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::Engine;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::projection::WorldCoord;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::render_pass::{DrawCommand, PassDescriptor};
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::shader::{FragmentShader, VertexShader};
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::view::View;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use std::sync::Arc;
 
 // Note: In this simplified example, we generate vertex data procedurally in the
@@ -73,6 +80,7 @@ use std::sync::Arc;
 /// It creates a colorful triangle by outputting different positions and colors
 /// for vertices 0, 1, and 2. This approach avoids the need for vertex buffers
 /// in this simple demonstration.
+#[cfg(any(feature = "app_window", feature = "testing"))]
 const VERTEX_SHADER: &str = r#"
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -112,6 +120,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 /// This shader receives interpolated color values from the vertex shader
 /// and outputs the final pixel color. It simply passes through the color
 /// without any additional processing.
+#[cfg(any(feature = "app_window", feature = "testing"))]
 const FRAGMENT_SHADER: &str = r#"
 @fragment
 fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
@@ -291,6 +300,7 @@ async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
 /// - Uses `force_render()` for demonstration (normally event-driven)
 /// - 16ms frame timing targets 60fps
 /// - 300 frame limit prevents infinite loops
+#[cfg(any(feature = "app_window", feature = "testing"))]
 async fn run_rendering_with_engine_arc(
     engine: Arc<Engine>,
 ) -> Result<(), Box<dyn std::error::Error>> {

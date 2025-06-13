@@ -43,21 +43,32 @@
 //! cargo run --example animated_scene --features=backend_wgpu,testing
 //! ```
 
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::BindStyle;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::bind_style::{BindSlot, Stage};
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::visible_to::GPUBufferUsage;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::Engine;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::projection::WorldCoord;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::render_pass::{DrawCommand, PassDescriptor};
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::shader::{FragmentShader, VertexShader};
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::view::View;
+#[cfg(any(feature = "app_window", feature = "testing"))]
 use std::sync::Arc;
 
 /// Animation parameters passed to shaders each frame.
 ///
 /// This structure contains all the time-based parameters needed for animation,
 /// including the current time, frame count, and derived animation values.
+#[cfg(any(feature = "app_window", feature = "testing"))]
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct AnimationUniforms {
@@ -71,6 +82,7 @@ struct AnimationUniforms {
     cosine_time: f32,
 }
 
+#[cfg(any(feature = "app_window", feature = "testing"))]
 unsafe impl CRepr for AnimationUniforms {}
 
 /// WGSL vertex shader for animated scene with procedural geometry.
@@ -78,6 +90,7 @@ unsafe impl CRepr for AnimationUniforms {}
 /// This shader generates animated triangle vertices procedurally using the vertex index,
 /// similar to simple_scene but with dynamic animation parameters from uniform buffers.
 /// It applies multiple transformations based on real-time animation data.
+#[cfg(any(feature = "app_window", feature = "testing"))]
 const ANIMATED_VERTEX_SHADER: &str = r#"
 struct AnimationUniforms {
     time: f32,
@@ -169,6 +182,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 /// The fragment shader receives interpolated colors from the vertex shader
 /// and outputs them with basic processing. Animation effects are primarily
 /// handled in the vertex shader.
+#[cfg(any(feature = "app_window", feature = "testing"))]
 const ANIMATED_FRAGMENT_SHADER: &str = r#"
 @fragment
 fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
@@ -268,6 +282,7 @@ async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
 /// 3. **Resource Binding**: Binds dynamic uniform buffer to shader binding points
 /// 4. **Animation Loop**: Updates buffer each frame with new animation data
 /// 5. **Render Execution**: Draws animated geometry with proper timing
+#[cfg(any(feature = "app_window", feature = "testing"))]
 async fn run_animated_rendering_with_engine_arc(
     engine: Arc<Engine>,
 ) -> Result<(), Box<dyn std::error::Error>> {
