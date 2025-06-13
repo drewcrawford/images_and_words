@@ -38,6 +38,7 @@ wgpu = {version = "25", optional = true}
 [dev-dependencies]
 
 app_window = {version = "0.2.0", features=["wgpu"]}
+env_logger = {version = "0.11.8"}
 
 [features]
 # Create a view based on app_window Surface

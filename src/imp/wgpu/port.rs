@@ -12,16 +12,8 @@ use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
 use std::num::NonZero;
 use std::sync::Arc;
-use wgpu::{
-    BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
-    BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction,
-    CompositeAlphaMode, DepthStencilState, Face, FrontFace, MultisampleState,
-    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
-    RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType,
-    StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType,
-    TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode,
-};
-use crate::imp::wgpu::wgpu_call_context;
+use wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, BufferBinding, BufferBindingType, BufferSize, ColorTargetState, CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, MapMode, MultisampleState, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType, TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode};
+use wgpu::wgt::BufferDescriptor;
 
 #[repr(C)]
 pub struct CameraProjection {
@@ -38,6 +30,7 @@ pub struct Port {
     camera: Camera,
     port_reporter_send: PortReporterSend,
     frame: u32,
+    dump_framebuffer: bool, //for debugging
 }
 
 /**
@@ -488,6 +481,7 @@ impl Port {
             camera,
             port_reporter_send,
             frame: 0,
+            dump_framebuffer: std::env::var("IW_DUMP_FRAMEBUFFER").map(|e| e == "1").unwrap_or(false),
         })
     }
     pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
@@ -522,19 +516,28 @@ impl Port {
                 println!("Port surface not initialized");
             }
             Some(surface) => {
-                surface.configure(
-                    &device.0.device,
-                    &wgpu::SurfaceConfiguration {
-                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                        format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                        width: scaled_size.0,
-                        height: scaled_size.1,
-                        present_mode: wgpu::PresentMode::Fifo,
-                        desired_maximum_frame_latency: 1,
-                        alpha_mode: CompositeAlphaMode::Opaque,
-                        view_formats: Vec::new(),
-                    },
-                );
+                //todo: reconfigure often?
+                let extra_usage = if self.dump_framebuffer {
+                    wgpu::TextureUsages::COPY_SRC
+                } else {
+                    wgpu::TextureUsages::empty()
+                };
+                if self.frame == 0 {
+                    surface.configure(
+                        &device.0.device,
+                        &wgpu::SurfaceConfiguration {
+                            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | extra_usage,
+                            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                            width: scaled_size.0,
+                            height: scaled_size.1,
+                            present_mode: wgpu::PresentMode::Fifo,
+                            desired_maximum_frame_latency: 1,
+                            alpha_mode: CompositeAlphaMode::Opaque,
+                            view_formats: Vec::new(),
+                        },
+                    );
+                }
+
             }
         }
 
@@ -589,6 +592,7 @@ impl Port {
         let wgpu_view;
         let frame;
         let color_attachment;
+        let frame_texture;
         match surface {
             None => {
                 let texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
@@ -602,7 +606,7 @@ impl Port {
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
                     format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                     view_formats: &[],
                 });
                 wgpu_view = texture.create_view(&wgpu::TextureViewDescriptor {
@@ -617,6 +621,7 @@ impl Port {
                     array_layer_count: None,
                 });
                 frame = None;
+                frame_texture = texture;
                 color_attachment = wgpu::RenderPassColorAttachment {
                     view: &wgpu_view,
                     resolve_target: None,
@@ -624,11 +629,15 @@ impl Port {
                 };
             }
             Some(surface) => {
+                let surface_texture = surface
+                    .get_current_texture()
+                    .expect("Acquire swapchain texture");
+                frame_texture = surface_texture.texture.clone();
+
                 frame = Some(
-                    surface
-                        .get_current_texture()
-                        .expect("Acquire swapchain texture"),
+                    surface_texture
                 );
+
                 wgpu_view = frame
                     .as_ref()
                     .unwrap()
@@ -750,9 +759,46 @@ impl Port {
             }
             render_pass.pop_debug_group();
         }
-        // println!("encoded {passes} passes", passes = prepared.len());
 
+        // println!("encoded {passes} passes", passes = prepared.len());
         std::mem::drop(render_pass); //stop mutably borrowing the encoder
+        let dump_buf;
+        if self.dump_framebuffer {
+            //copy framebuffer to a texture
+            let buf = device.0.device.create_buffer(&BufferDescriptor {
+                label: "dump framebuffer".into(),
+                size: (scaled_size.0 * scaled_size.1 * 4) as u64, //4 bytes per pixel
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+
+            encoder.copy_texture_to_buffer(
+                wgpu::ImageCopyTexture {
+                    texture: &frame_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::ImageCopyBuffer {
+                    buffer: &buf,
+                    layout: wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(scaled_size.0 * 4),
+                        rows_per_image: None,
+                    },
+                },
+                wgpu::Extent3d {
+                    width: scaled_size.0,
+                    height: scaled_size.1,
+                    depth_or_array_layers: 1,
+                },
+            );
+            dump_buf = Some(buf);
+        }
+        else {
+            dump_buf = None;
+        }
+
         let encoded = encoder.finish();
 
         let frame_guard_for_callback = std::sync::Arc::new(frame_guard);
@@ -769,7 +815,35 @@ impl Port {
             f.present();
         }
         self.frame += 1;
+        //dump framebuffer
+        if let Some(tx) = dump_buf {
+            //map
+            let move_tx = tx.clone();
+            let move_frame = self.frame;
+            tx.map_async(
+                wgpu::MapMode::Read,
+                ..,
+                move |result| {
+                    if let Err(e) = result {
+                        panic!("Failed to map framebuffer buffer: {:?}", e);
+                    } else {
+                        //safety: we can safely read the buffer now
+                        let data = move_tx.slice(..).get_mapped_range();
+                        //dump buffer to a file
+                        let r = data.as_ref();
+                        let pixels = unsafe{std::slice::from_raw_parts(r.as_ptr() as *const tgar::PixelBGRA, r.len()/4)};
+
+                        let tgar = tgar::BGRA::new(scaled_size.0.try_into().unwrap(), scaled_size.1.try_into().unwrap(), pixels );
+                        let data = tgar.into_data();
+                        std::fs::write(format!("frame_{}.tga",move_frame), data)
+                            .expect("Failed to write framebuffer dump");
+                    }
+                    move_tx.unmap(); //unmap after reading
+                },
+            );
+        }
         frame_guard_for_callback.mark_cpu_complete();
+
         // FrameGuard will be dropped here, triggering statistics update
     }
 }
