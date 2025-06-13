@@ -21,3 +21,17 @@ pub use texture::RenderSide as TextureRenderSide;
 pub use texture::{GPUableTexture, MappableTexture};
 pub use unbound_device::UnboundDevice;
 pub use view::View;
+
+async fn wgpu_call_context<F, R>(f: F) -> R where
+    F: std::future::Future<Output = R> + Send + 'static,
+    R: Send + Unpin + 'static,
+{
+    #[cfg(feature = "app_window")]
+    {
+        app_window::wgpu::wgpu_call_context(f).await
+    }
+    #[cfg(not(feature = "app_window"))]
+    {
+        f.await
+    }
+}

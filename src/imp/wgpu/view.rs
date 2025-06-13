@@ -1,7 +1,12 @@
+use std::cell::RefCell;
+use crate::imp::wgpu::wgpu_call_context;
+
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 #[derive(Debug)]
 pub struct View {
-    pub(super) surface: Option<wgpu::Surface<'static>>,
+    //to meet our thread requirements, we may need to send this to another thread
+    //as part of its creation, or to bind it to a device
+    pub(super) surface: RefCell<Option<wgpu::Surface<'static>>>,
 }
 
 
@@ -35,7 +40,7 @@ impl View {
             //safety: see function documentation
             let surface = unsafe { entrypoint.0.0.create_surface_unsafe(target)? };
             Ok(View {
-                surface: Some(surface),
+                surface: Some(surface).into(),
             })
         })
         .await

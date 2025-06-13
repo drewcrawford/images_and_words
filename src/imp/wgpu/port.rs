@@ -21,6 +21,7 @@ use wgpu::{
     StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType,
     TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode,
 };
+use crate::imp::wgpu::wgpu_call_context;
 
 #[repr(C)]
 pub struct CameraProjection {
