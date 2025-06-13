@@ -763,11 +763,21 @@ impl Port {
         // println!("encoded {passes} passes", passes = prepared.len());
         std::mem::drop(render_pass); //stop mutably borrowing the encoder
         let dump_buf;
+        let dump_buff_bytes_per_row;
         if self.dump_framebuffer {
+            //round up to nearest 256
+            let wgpu_bytes_per_row_256 = (scaled_size.0 * 4)
+                .checked_add(255)
+                .unwrap()
+                .div_euclid(256)
+                .checked_mul(256)
+                .unwrap();
+            dump_buff_bytes_per_row = Some(wgpu_bytes_per_row_256);
+
             //copy framebuffer to a texture
             let buf = device.0.device.create_buffer(&BufferDescriptor {
                 label: "dump framebuffer".into(),
-                size: (scaled_size.0 * scaled_size.1 * 4) as u64, //4 bytes per pixel
+                size: (scaled_size.1 * wgpu_bytes_per_row_256) as u64,
                 usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
                 mapped_at_creation: false,
             });
@@ -783,7 +793,7 @@ impl Port {
                     buffer: &buf,
                     layout: wgpu::ImageDataLayout {
                         offset: 0,
-                        bytes_per_row: Some(scaled_size.0 * 4),
+                        bytes_per_row: Some(wgpu_bytes_per_row_256),
                         rows_per_image: None,
                     },
                 },
@@ -797,6 +807,7 @@ impl Port {
         }
         else {
             dump_buf = None;
+            dump_buff_bytes_per_row = None;
         }
 
         let encoded = encoder.finish();
@@ -829,11 +840,24 @@ impl Port {
                     } else {
                         //safety: we can safely read the buffer now
                         let data = move_tx.slice(..).get_mapped_range();
+                        let wgpu_bytes_per_row_256 = dump_buff_bytes_per_row.unwrap();
+                        let mut pixels = Vec::new();
+                        for y in 0..scaled_size.1 {
+                            for x in 0..scaled_size.0 {
+                                let offset =(y * wgpu_bytes_per_row_256 + x * 4) as usize;
+                                let pixel_bgra = tgar::PixelBGRA{b: data[offset], g: data[offset + 1], r: data[offset + 2], a: data[offset + 3]};
+                                let zero = tgar::PixelBGRA { b: 0, g: 0, r: 0, a: 0 };
+                                if pixel_bgra != zero {
+                                    //only print non-zero pixels
+                                    //println!("Pixel at ({}, {}) = {:?}", x, y, pixel_bgra);
+                                }
+                                pixels.push(pixel_bgra);
+                            }
+                        }
                         //dump buffer to a file
                         let r = data.as_ref();
-                        let pixels = unsafe{std::slice::from_raw_parts(r.as_ptr() as *const tgar::PixelBGRA, r.len()/4)};
 
-                        let tgar = tgar::BGRA::new(scaled_size.0.try_into().unwrap(), scaled_size.1.try_into().unwrap(), pixels );
+                        let tgar = tgar::BGRA::new(scaled_size.0.try_into().unwrap(), scaled_size.1.try_into().unwrap(), &pixels );
                         let data = tgar.into_data();
                         std::fs::write(format!("frame_{}.tga",move_frame), data)
                             .expect("Failed to write framebuffer dump");
