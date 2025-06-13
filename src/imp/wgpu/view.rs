@@ -4,35 +4,6 @@ pub struct View {
     pub(super) surface: Option<wgpu::Surface<'static>>,
 }
 
-//this solution may be more portable than app_window's?
-
-//main thread platforms
-#[cfg(target_os="macos")]
-async fn wgpu_exec<F, R>(f: F) -> R
-where
-    R: 'static + Unpin + Send,
-    F: Future<Output = R> + Send + 'static,
-{
-    #[cfg(feature = "app_window")]
-    {
-        app_window::wgpu::wgpu_call_context(f).await
-    }
-    #[cfg(not(feature = "app_window"))]
-    {
-        //try direct?
-        f.await
-    }
-}
-
-//non-main-thread platforms
-#[cfg(not(target_os = "macos"))]
-async fn wgpu_exec<F, R>(f: F) -> R
-where
-    R: 'static,
-    F: Future<Output = R>,
-{
-    f.await
-}
 
 impl View {
     /**
@@ -55,7 +26,7 @@ impl View {
             raw_display_handle,
         ));
         let entrypoint = entrypoint.clone();
-        wgpu_exec(async move {
+        app_window::wgpu::wgpu_call_context(async move {
             let target = wgpu::SurfaceTargetUnsafe::RawHandle {
                 //safety: see function documentation
                 raw_window_handle: unsafe { move_handles.get().0 },
