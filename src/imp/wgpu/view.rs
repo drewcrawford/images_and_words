@@ -9,14 +9,15 @@ where
     R: 'static + Unpin + Send,
     F: Future<Output = R> + Send + 'static,
 {
-    #[cfg(feature="app_window")] {
+    #[cfg(feature = "app_window")]
+    {
         app_window::wgpu::wgpu_call_context(f).await
     }
-    #[cfg(not(feature="app_window"))] {
+    #[cfg(not(feature = "app_window"))]
+    {
         //try direct?
         f.await
     }
-
 }
 
 impl View {
@@ -35,13 +36,16 @@ impl View {
         raw_window_handle: wgpu::rwh::RawWindowHandle,
         raw_display_handle: wgpu::rwh::RawDisplayHandle,
     ) -> Result<Self, super::Error> {
-        let move_handles = send_cells::unsafe_send_cell::UnsafeSendCell::new((raw_window_handle, raw_display_handle));
+        let move_handles = send_cells::unsafe_send_cell::UnsafeSendCell::new((
+            raw_window_handle,
+            raw_display_handle,
+        ));
         let entrypoint = entrypoint.clone();
         wgpu_exec(async move {
             let target = wgpu::SurfaceTargetUnsafe::RawHandle {
                 //safety: see function documentation
-                raw_window_handle: unsafe{move_handles.get().0},
-                raw_display_handle : unsafe{move_handles.get().1},
+                raw_window_handle: unsafe { move_handles.get().0 },
+                raw_display_handle: unsafe { move_handles.get().1 },
             };
             //safety: see function documentation
             let surface = unsafe { entrypoint.0.0.create_surface_unsafe(target)? };

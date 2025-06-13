@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct EntryPoint(pub(super) wgpu::Instance);
 impl EntryPoint {
     pub async fn new() -> Result<Self, crate::imp::wgpu::Error> {

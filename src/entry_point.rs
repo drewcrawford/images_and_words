@@ -4,7 +4,7 @@ use crate::imp;
 ///
 use std::fmt::{Debug, Formatter};
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct EntryPoint(pub(crate) crate::imp::EntryPoint);
 ///platform-independent error type
 #[derive(Debug)]
