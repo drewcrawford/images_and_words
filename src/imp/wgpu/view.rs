@@ -1,6 +1,3 @@
-use r#continue::continuation;
-use std::pin::Pin;
-
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 #[derive(Debug)]
 pub struct View {
@@ -9,25 +6,17 @@ pub struct View {
 
 async fn wgpu_exec<F, R>(f: F) -> R
 where
-    R: 'static,
-    F: Future<Output = R>,
+    R: 'static + Unpin + Send,
+    F: Future<Output = R> + Send + 'static,
 {
-    let (sender, fut) = continuation();
-    // Box the future, erase the lifetime
-    let f = Box::pin(f) as Pin<Box<dyn Future<Output = F::Output> + '_>>;
-    // Cast the lifetime to 'static
-    // SAFETY: this is safe because we refuse to return until the future is complete,
-    let f_static = unsafe {
-        std::mem::transmute::<
-            Pin<Box<dyn Future<Output = F::Output> + '_>>,
-            Pin<Box<dyn Future<Output = F::Output> + 'static>>,
-        >(f)
-    };
-    app_window::wgpu::wgpu_spawn(async {
-        let r = f_static.await;
-        sender.send(r);
-    });
-    fut.await
+    #[cfg(feature="app_window")] {
+        app_window::wgpu::wgpu_call_context(f).await
+    }
+    #[cfg(not(feature="app_window"))] {
+        //try direct?
+        f.await
+    }
+
 }
 
 impl View {
@@ -46,11 +35,15 @@ impl View {
         raw_window_handle: wgpu::rwh::RawWindowHandle,
         raw_display_handle: wgpu::rwh::RawDisplayHandle,
     ) -> Result<Self, super::Error> {
-        wgpu_exec(async {
+        let move_handles = send_cells::unsafe_send_cell::UnsafeSendCell::new((raw_window_handle, raw_display_handle));
+        let entrypoint = entrypoint.clone();
+        wgpu_exec(async move {
             let target = wgpu::SurfaceTargetUnsafe::RawHandle {
-                raw_window_handle,
-                raw_display_handle,
+                //safety: see function documentation
+                raw_window_handle: unsafe{move_handles.get().0},
+                raw_display_handle : unsafe{move_handles.get().1},
             };
+            //safety: see function documentation
             let surface = unsafe { entrypoint.0.0.create_surface_unsafe(target)? };
             Ok(View {
                 surface: Some(surface),

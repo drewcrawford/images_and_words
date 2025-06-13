@@ -1,3 +1,4 @@
+# feature matrix v1
 on: [push]
 env:
   RUSTFLAGS: "-D warnings"

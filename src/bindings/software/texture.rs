@@ -46,13 +46,13 @@ assert_eq!(value, 255u8);
 ```
 */
 
+use vec_parallel::Hint;
 use crate::Strategy;
 use crate::bindings::software::texture::scaled_32::Scaled32;
 use crate::bindings::software::texture::vtexture::VTexture;
 use crate::pixel_formats::Float4;
 use crate::pixel_formats::png_support::PngPixelFormat;
 use crate::pixel_formats::sealed::PixelFormat;
-use some_executor::hint::Hint;
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 

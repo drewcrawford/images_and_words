@@ -18,7 +18,7 @@ rust-version = "1.85.1"
 thiserror = "~2"
 png = "~0"
 tgar = "~1"
-some_executor = "0.4"
+some_executor = "0.5.1"
 vectormatrix = "0.1"
 vec_parallel = {version = "0.1.0", features = ["some_executor"]}
 async_file = "0.1.0"
@@ -29,7 +29,7 @@ half = "2.6"
 portable_async_sleep = "0.1.0"
 await_values = "0.1.0"
 # optional
-app_window = {version = "0.1.0", optional=true}
+app_window = {version = "0.2.0", optional=true}
 # used for app_window
 send_cells = {version = "0.1", optional=true}
 # used for wgpu backend
@@ -37,7 +37,7 @@ wgpu = {version = "25", optional = true}
 
 [dev-dependencies]
 
-app_window = {version = "0.1.1", features=["wgpu"]}
+app_window = {version = "0.2.0", features=["wgpu"]}
 
 [features]
 # Create a view based on app_window Surface
@@ -49,3 +49,4 @@ testing = []
 
 
 [patch.crates-io]
+vec_parallel = {path = "../vec_parallel"}
