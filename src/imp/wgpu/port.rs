@@ -633,17 +633,12 @@ impl Port {
                     .unwrap()
                     .texture
                     .create_view(&wgpu::TextureViewDescriptor::default());
-                let store_op = if self.dump_framebuffer {
-                    StoreOp::Store
-                } else {
-                    StoreOp::Discard
-                };
                 color_attachment = wgpu::RenderPassColorAttachment {
                     view: &wgpu_view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color::TRANSPARENT),
-                        store: store_op,
+                        store: StoreOp::Store,
                     },
                 };
             }
