@@ -323,7 +323,7 @@ async fn run_animated_rendering_with_engine_arc(
         vertex_shader,
         fragment_shader,
         bind_style,
-        DrawCommand::TriangleList(3), // Draw 3 vertices as triangle (like simple_scene)
+        DrawCommand::TriangleList(1), // Draw one triangle
         false,                        // No depth testing
         true,                         // Enable alpha blending for smooth color transitions
     );

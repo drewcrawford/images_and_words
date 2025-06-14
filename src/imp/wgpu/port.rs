@@ -210,12 +210,12 @@ fn prepare_pass_descriptor(
         DrawCommand::TriangleList(..) => PrimitiveTopology::TriangleList,
     };
     let vertex_count = match descriptor.draw_command {
-        DrawCommand::TriangleStrip(count) => count,
-        DrawCommand::TriangleList(triangles) => triangles * 3,
+        DrawCommand::TriangleStrip(count) => count * 3,
+        DrawCommand::TriangleList(count) => count * 3,
     };
     let instance_count = match descriptor.draw_command {
         DrawCommand::TriangleStrip(..) => 1,
-        DrawCommand::TriangleList(triangles) => triangles,
+        DrawCommand::TriangleList(..) => 1,
     };
 
     let primitive_state = PrimitiveState {

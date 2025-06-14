@@ -151,7 +151,7 @@ pub enum DrawCommand {
     /// For `n` vertices, this produces `n-2` triangles. This is memory-efficient
     /// for drawing connected surfaces like terrain meshes or quad strips.
     ///
-    /// The payload is the number of vertices (not triangles).
+    /// The payload is the number of triangles (not vertices).
     TriangleStrip(u32),
 
     /// Draws independent triangles where each group of three vertices forms a triangle.
@@ -159,6 +159,6 @@ pub enum DrawCommand {
     /// For `n` vertices, this produces `n/3` triangles. This is more flexible than
     /// strips but requires more vertices for connected surfaces.
     ///
-    /// The payload is the number of vertices (not triangles), which must be a multiple of 3.
+    /// The payload is the number of triangles (not vertices).
     TriangleList(u32),
 }

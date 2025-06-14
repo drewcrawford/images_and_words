@@ -329,7 +329,7 @@ async fn run_rendering_with_engine_arc(
         vertex_shader,                // Vertex stage
         fragment_shader,              // Fragment stage
         bind_style,                   // Resource bindings
-        DrawCommand::TriangleList(3), // Draw 3 vertices as triangle list
+        DrawCommand::TriangleList(1), // Draw one triangle
         false,                        // Depth testing disabled
         false,                        // Alpha blending disabled
     );
