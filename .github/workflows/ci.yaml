@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: "Install deps"
-        run: apt-get install libwayland-dev
+        run: sudo apt-get install libwayland-dev
         if: runner.os == 'Linux'
 
       - name: "CI"
