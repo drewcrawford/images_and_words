@@ -17,6 +17,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: "Install deps"
+        run: apt-get install libwayland-dev
+        if: runner.os == 'Linux'
 
       - name: "CI"
         # expose the raw comma-separated list in FEATURE_FLAGS
