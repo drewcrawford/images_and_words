@@ -18,13 +18,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - id: prep-features
+        shell: bash
+        run: |
+          raw="${{ matrix.features }}"
+          if [[ -z "$raw" ]]; then
+            suffix="no_features"
+          else
+            suffix="${raw//,/ _}"      # bash-style replace commas with underscores
+          fi
+          echo "key_suffix=$suffix" >> "$GITHUB_OUTPUT"
+
       - name: Cache target
         uses: actions/cache@v4
         with:
-          key: ${{ format('{0}-target-{1}',
-            runner.os,
-            (matrix.features == '' && 'no_features')
-            || replace(matrix.features, ',', '_')) }}
+          key: ${{ runner.os }}-target-${{ steps.prep-features.outputs.key_suffix }}
           path: ".target"
 
       - name: "Install deps"
