@@ -802,9 +802,9 @@ impl Port {
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
                 },
-                wgpu::ImageCopyBuffer {
+                wgpu::TexelCopyBufferInfo {
                     buffer: &buf,
-                    layout: wgpu::ImageDataLayout {
+                    layout: wgpu::TexelCopyBufferLayout {
                         offset: 0,
                         bytes_per_row: Some(wgpu_bytes_per_row_256),
                         rows_per_image: None,
@@ -841,9 +841,9 @@ impl Port {
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
                 },
-                wgpu::ImageCopyBuffer {
+                wgpu::TexelCopyBufferInfo {
                     buffer: &depth_buf,
-                    layout: wgpu::ImageDataLayout {
+                    layout: wgpu::TexelCopyBufferLayout {
                         offset: 0,
                         bytes_per_row: Some(depth_wgpu_bytes_per_row_256),
                         rows_per_image: None,
@@ -916,8 +916,6 @@ impl Port {
                     }
 
                     //dump buffer to a file
-                    let r = data.as_ref();
-
                     let tgar = tgar::BGRA::new(
                         scaled_size.0.try_into().unwrap(),
                         scaled_size.1.try_into().unwrap(),
