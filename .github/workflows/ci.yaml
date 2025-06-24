@@ -20,7 +20,7 @@ jobs:
       - name: "Install deps"
         run: sudo apt-get install libwayland-dev
         # require linux and github (non-gitea) env
-        if: runner.os == 'Linux' && env.GITHUB_ACTIONS == 'true'
+        if: runner.os == 'Linux' && !env.GITEA_ACTIONS == 'true'
 
       - name: "CI"
         # expose the raw comma-separated list in FEATURE_FLAGS
