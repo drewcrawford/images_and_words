@@ -21,8 +21,8 @@ jobs:
       - name: Cache target
         uses: actions/cache@v4
         with:
-          key: ${{ runner.os }}-target-${{ features }}
-          path: ~/.target
+          key: "${{ runner.os }}-target-${{ features }}"
+          path: "~/.target"
 
       - name: "Install deps"
         run: sudo apt-get install libwayland-dev
