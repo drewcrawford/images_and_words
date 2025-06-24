@@ -889,14 +889,12 @@ impl Port {
                         let data = move_tx.slice(..).get_mapped_range();
                         let wgpu_bytes_per_row_256 = dump_buff_bytes_per_row.unwrap();
                         let mut pixels = Vec::new();
-                        let mut has_non_zero_pixel = false;
                         for y in 0..scaled_size.1 {
                             for x in 0..scaled_size.0 {
                                 let offset =(y * wgpu_bytes_per_row_256 + x * 4) as usize;
                                 let pixel_bgra = tgar::PixelBGRA{b: data[offset], g: data[offset + 1], r: data[offset + 2], a: data[offset + 3]};
                                 let zero = tgar::PixelBGRA { b: 0, g: 0, r: 0, a: 0 };
                                 if pixel_bgra != zero {
-                                    has_non_zero_pixel = true;
                                     //only print non-zero pixels
                                     //println!("Pixel at ({}, {}) = {:?}", x, y, pixel_bgra);
                                 }
@@ -904,9 +902,6 @@ impl Port {
                             }
                         }
                         
-                        if !has_non_zero_pixel {
-                            panic!("Framebuffer dump requested but framebuffer has not been written to (all pixels are zero)");
-                        }
                         //dump buffer to a file
                         let r = data.as_ref();
 

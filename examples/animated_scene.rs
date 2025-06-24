@@ -116,19 +116,19 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     
     switch vertex_index {
         case 0u: {
-            position = vec3<f32>(-0.5, -0.5, 0.0); // Bottom-left
+            position = vec3<f32>(-0.5, -0.5, 0.1); // Bottom-left
             base_color = vec3<f32>(1.0, 0.0, 0.0); // Red
         }
         case 1u: {
-            position = vec3<f32>(0.5, -0.5, 0.0); // Bottom-right
+            position = vec3<f32>(0.5, -0.5, 0.1); // Bottom-right
             base_color = vec3<f32>(0.0, 1.0, 0.0); // Green
         }
         case 2u: {
-            position = vec3<f32>(0.0, 0.5, 0.0); // Top
+            position = vec3<f32>(0.0, 0.5, 0.1); // Top
             base_color = vec3<f32>(0.0, 0.0, 1.0); // Blue
         }
         default: {
-            position = vec3<f32>(0.0, 0.0, 0.0);
+            position = vec3<f32>(0.0, 0.0, 0.1);
             base_color = vec3<f32>(1.0, 1.0, 1.0);
         }
     }
