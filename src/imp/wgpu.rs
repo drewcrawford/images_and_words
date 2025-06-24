@@ -21,5 +21,3 @@ pub use texture::RenderSide as TextureRenderSide;
 pub use texture::{GPUableTexture, MappableTexture};
 pub use unbound_device::UnboundDevice;
 pub use view::View;
-
-

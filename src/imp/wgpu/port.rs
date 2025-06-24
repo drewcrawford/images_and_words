@@ -16,8 +16,8 @@ use wgpu::wgt::BufferDescriptor;
 use wgpu::{
     BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
     BufferBinding, BufferBindingType, BufferSize, Color, ColorTargetState, CompareFunction,
-    CompositeAlphaMode, DepthStencilState, Face, FrontFace, LoadOp, MultisampleState,
-    Operations, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
+    CompositeAlphaMode, DepthStencilState, Face, FrontFace, LoadOp, MultisampleState, Operations,
+    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
     RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType,
     StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType,
     TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode,
