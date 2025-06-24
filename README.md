@@ -6,8 +6,7 @@ images_and_words is a GPU middleware and abstraction layer for high-performance 
 
 ## Demo
 
-<video src="art/demo.mp4" autoplay loop muted></video>
-
+![demo](art/demo.gif)
 
 ## The pitch
 
