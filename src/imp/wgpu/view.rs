@@ -1,6 +1,3 @@
-use crate::imp::wgpu::wgpu_call_context;
-use std::cell::RefCell;
-
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 #[derive(Debug)]
 pub struct View {

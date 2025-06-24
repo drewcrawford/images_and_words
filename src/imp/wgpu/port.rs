@@ -16,7 +16,7 @@ use wgpu::wgt::BufferDescriptor;
 use wgpu::{
     BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
     BufferBinding, BufferBindingType, BufferSize, Color, ColorTargetState, CompareFunction,
-    CompositeAlphaMode, DepthStencilState, Face, FrontFace, LoadOp, MapMode, MultisampleState,
+    CompositeAlphaMode, DepthStencilState, Face, FrontFace, LoadOp, MultisampleState,
     Operations, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
     RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType,
     StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType,
@@ -796,7 +796,7 @@ impl Port {
             });
 
             encoder.copy_texture_to_buffer(
-                wgpu::ImageCopyTexture {
+                wgpu::TexelCopyTextureInfo {
                     texture: &frame_texture,
                     mip_level: 0,
                     origin: wgpu::Origin3d::ZERO,
@@ -835,7 +835,7 @@ impl Port {
             });
 
             encoder.copy_texture_to_buffer(
-                wgpu::ImageCopyTexture {
+                wgpu::TexelCopyTextureInfo {
                     texture: &depth_texture,
                     mip_level: 0,
                     origin: wgpu::Origin3d::ZERO,
