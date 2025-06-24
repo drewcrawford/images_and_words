@@ -157,7 +157,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     position.y += wobble_y;
     
     // 4. Breathing effect (Z-axis movement)
-    position.z += 0.2 * animation.cosine_time;
+    position.z += 0.01 * animation.cosine_time;
     
     output.clip_position = vec4<f32>(position, 1.0);
     

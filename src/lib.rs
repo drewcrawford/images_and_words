@@ -4,6 +4,10 @@
 
 ![logo](../../../art/logo.png)
 
+# Demo
+
+![demo](../../../art/demo.mp4)
+
 # The pitch
 
 Suppose you want to write a game or graphics application.  You may consider:
