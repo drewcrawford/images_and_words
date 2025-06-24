@@ -21,8 +21,10 @@ jobs:
       - name: Cache target
         uses: actions/cache@v4
         with:
-          key: ${{ runner.os }}-target-${{ matrix.features && replace(matrix.features, ',', '_') || 'no_features' }}
-          
+          key: ${{ format('{0}-target-{1}',
+            runner.os,
+            (matrix.features == '' && 'no_features')
+            || replace(matrix.features, ',', '_')) }}
           path: ".target"
 
       - name: "Install deps"
