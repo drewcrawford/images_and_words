@@ -1,5 +1,5 @@
-use std::cell::RefCell;
 use crate::imp::wgpu::wgpu_call_context;
+use std::cell::RefCell;
 
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 #[derive(Debug)]
@@ -8,7 +8,6 @@ pub struct View {
     //as part of its creation, or to bind it to a device
     pub(super) surface: Option<wgpu::Surface<'static>>,
 }
-
 
 impl View {
     /**

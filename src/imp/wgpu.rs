@@ -22,7 +22,8 @@ pub use texture::{GPUableTexture, MappableTexture};
 pub use unbound_device::UnboundDevice;
 pub use view::View;
 
-async fn wgpu_call_context<F, R>(f: F) -> R where
+async fn wgpu_call_context<F, R>(f: F) -> R
+where
     F: std::future::Future<Output = R> + Send + 'static,
     R: Send + Unpin + 'static,
 {

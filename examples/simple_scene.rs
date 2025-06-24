@@ -159,9 +159,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "app_window")]
     {
         // App Window Mode: Create actual window with proper threading
-        app_window::application::main(|| {
-            test_executors::sleep_on(run_app_window_example())
-        });
+        app_window::application::main(|| test_executors::sleep_on(run_app_window_example()));
         Ok(())
     }
 
