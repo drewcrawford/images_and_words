@@ -408,7 +408,7 @@ pub(crate) trait SomeRenderSide: Send + Sync + Debug {
 
 impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
     unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess> {
-        let mut underlying_guard = unsafe { self.shared.multibuffer.access_gpu(copy_info) };
+        let mut underlying_guard = unsafe { self.shared.multibuffer.access_gpu() };
 
         // Handle the copy if there's a dirty guard
         if let Some(dirty_guard) = underlying_guard.take_dirty_guard() {

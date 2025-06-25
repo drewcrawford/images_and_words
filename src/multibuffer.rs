@@ -16,7 +16,6 @@ use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
 use crate::bindings::resource_tracking;
 use crate::bindings::resource_tracking::ResourceTracker;
 use crate::bindings::resource_tracking::sealed::Mappable;
-use crate::imp::CopyInfo;
 use crate::multibuffer::sealed::GPUMultibuffer;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
@@ -296,7 +295,7 @@ where
     # Safety
     Caller must guarantee that the guard is live for the duration of the GPU access.
     */
-    pub(crate) unsafe fn access_gpu(&self, _copy_info: &mut CopyInfo) -> GPUGuard<T, U>
+    pub(crate) unsafe fn access_gpu(&self) -> GPUGuard<T, U>
     where
         T: Mappable,
         U: GPUMultibuffer,

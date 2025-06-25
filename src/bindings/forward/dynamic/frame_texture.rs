@@ -246,7 +246,7 @@ impl<Format: PixelFormat> Debug for TextureRenderSide<Format> {
 }
 impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
     unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
-        let mut guard = unsafe { self.shared.multibuffer.access_gpu(copy_info) };
+        let mut guard = unsafe { self.shared.multibuffer.access_gpu() };
 
         // Handle the copy if there's a dirty guard
         if let Some(dirty_guard) = guard.take_dirty_guard() {
