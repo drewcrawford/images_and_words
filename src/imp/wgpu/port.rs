@@ -354,12 +354,13 @@ fn prepare_pass_descriptor(
 Wrapper type that contains the bind group
 and all guards that are needed to keep the resources alive.
 */
+#[derive(Clone)]
 pub struct BindGroupGuard {
     bind_group: BindGroup,
     #[allow(dead_code)] // guards keep resources alive during GPU execution
-    guards: Vec<Box<dyn SomeGPUAccess>>,
+    guards: Vec<Arc<dyn SomeGPUAccess>>,
     vertex_buffers: Vec<(u32, wgpu::Buffer)>,
-    dynamic_vertex_buffers: Vec<(u32, Box<dyn SomeGPUAccess>)>,
+    dynamic_vertex_buffers: Vec<(u32, Arc<dyn SomeGPUAccess>)>,
     index_buffer: Option<wgpu::Buffer>,
 }
 
@@ -490,10 +491,16 @@ pub fn prepare_bind_group(
         None
     };
 
+    //arcify
+    let gpu_guard_buffers = gpu_guard_buffers.into_vec().into_iter().map(|e| e.into()).collect();
+    let dynamic_vertex_buffers = dynamic_vertex_buffers
+        .into_iter()
+        .map(|(b, e)| (b, e.into()))
+        .collect();
 
     BindGroupGuard {
         bind_group,
-        guards: gpu_guard_buffers.into(),
+        guards: gpu_guard_buffers,
         vertex_buffers,
         dynamic_vertex_buffers,
         index_buffer,
