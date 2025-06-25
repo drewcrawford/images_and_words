@@ -30,6 +30,43 @@ pub struct CameraProjection {
 
 unsafe impl CRepr for CameraProjection {}
 
+/**
+A render input is a pair of requested and submitted values.
+
+The *requested* value contains the latest value that the external system (e.g. a game loop) has requested to be rendered.
+The *submitted* value contains the value that has been submitted to the GPU for rendering.
+*/
+#[derive(Debug)]
+struct RenderInput<T> {
+    requested: T,
+    submitted: Option<T>,
+}
+
+impl<T> RenderInput<T> {
+    fn new(requested: T) -> Self {
+        RenderInput {
+            requested,
+            submitted: None,
+        }
+    }
+    fn update(&mut self, requested: T) {
+        self.requested = requested;
+    }
+    fn is_dirty(&self) -> bool  where 
+        T: PartialEq,
+    {
+        match &self.submitted {
+            Some(submitted) => self.requested != *submitted,
+            None => true, //if not submitted, it is dirty
+        }
+    }
+    fn mark_submitted(&mut self) where 
+        T: Clone,
+    {
+        self.submitted = Some(self.requested.clone());
+    }
+}
+
 #[derive(Debug)]
 pub struct Port {
     engine: Arc<crate::images::Engine>,
@@ -39,6 +76,7 @@ pub struct Port {
     port_reporter_send: PortReporterSend,
     frame: u32,
     dump_framebuffer: bool, //for debugging
+    scaled_size: RenderInput<Option<(u32, u32)>>,
 }
 
 /**
@@ -478,6 +516,7 @@ impl Port {
             dump_framebuffer: std::env::var("IW_DUMP_FRAMEBUFFER")
                 .map(|e| e == "1")
                 .unwrap_or(false),
+            scaled_size: RenderInput::new(None),
         })
     }
     pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
@@ -507,10 +546,11 @@ impl Port {
             .surface
             .as_ref();
 
-        let scaled_size = (
+        let current_scaled_size = (
             (unscaled_size.0 as f64 * unscaled_size.2) as u32,
             (unscaled_size.1 as f64 * unscaled_size.2) as u32,
         );
+        self.scaled_size.update(Some(current_scaled_size));
         match surface {
             None => {
                 println!("Port surface not initialized");
@@ -522,7 +562,8 @@ impl Port {
                 } else {
                     wgpu::TextureUsages::empty()
                 };
-                if self.frame == 0 {
+                if self.scaled_size.is_dirty() {
+                    let scaled_size = self.scaled_size.requested.unwrap();
                     surface.configure(
                         &device.0.device,
                         &wgpu::SurfaceConfiguration {
@@ -536,6 +577,7 @@ impl Port {
                             view_formats: Vec::new(),
                         },
                     );
+                    self.scaled_size.mark_submitted();
                 }
             }
         }
@@ -594,6 +636,7 @@ impl Port {
         let frame_texture;
         match surface {
             None => {
+                let scaled_size = self.scaled_size.requested.unwrap();
                 let texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
                     label: Some("dummy texture"),
                     size: wgpu::Extent3d {
@@ -663,6 +706,7 @@ impl Port {
             wgpu::TextureUsages::empty()
         };
 
+        let scaled_size = self.scaled_size.requested.unwrap();
         let depth_texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
             size: wgpu::Extent3d {

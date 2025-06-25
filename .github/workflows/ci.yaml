@@ -33,7 +33,7 @@ jobs:
       - name: Cache target
         uses: actions/cache@v4
         with:
-          key: ${{ runner.os }}-target-${{ steps.prep-features.outputs.key_suffix }}
+          key: images_and_words_${{ runner.os }}-target-${{ steps.prep-features.outputs.key_suffix }}
           path: "target"
 
       - name: "Install deps"
