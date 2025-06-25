@@ -224,8 +224,8 @@ impl<Format> GPUableTexture<Format> {
         todo!()
     }
 
-    pub fn as_imp(&self) -> () {
-        ()
+    pub fn as_imp(&self) {
+        
     }
 }
 
@@ -263,8 +263,8 @@ impl<Format> MappableTexture<Format> {
         todo!()
     }
 
-    pub fn as_imp(&self) -> () {
-        ()
+    pub fn as_imp(&self) {
+        
     }
 }
 
