@@ -439,6 +439,12 @@ pub(crate) struct ErasedRenderSide {
     pub(crate) byte_size: usize,
 }
 
+impl PartialEq for ErasedRenderSide {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.imp, &other.imp)
+    }
+}
+
 impl ErasedRenderSide {
     pub fn dirty_receiver(&self) -> DirtyReceiver {
         self.imp.dirty_receiver()

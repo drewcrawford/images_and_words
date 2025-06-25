@@ -411,3 +411,9 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUMultibuffer for GPUab
 pub struct RenderSide {
     pub(super) texture: wgpu::Texture,
 }
+
+impl PartialEq for RenderSide {
+    fn eq(&self, _other: &Self) -> bool {
+        todo!()
+    }
+}

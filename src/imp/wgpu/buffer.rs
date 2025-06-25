@@ -149,12 +149,18 @@ pub struct GPUableBuffer {
     storage_type: StorageType,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum StorageType {
     Uniform,
     Storage,
     Vertex,
     Index,
+}
+
+impl PartialEq for GPUableBuffer {
+    fn eq(&self, _other: &Self) -> bool {
+        todo!()
+    }
 }
 
 impl GPUableBuffer {

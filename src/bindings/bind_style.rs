@@ -55,7 +55,7 @@ use std::fmt::Debug;
 /// Resources are not immediately bound when methods are called; instead, this struct
 /// builds up a description that is later used by the rendering backend to perform
 /// the actual GPU bindings.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,PartialEq)]
 pub struct BindStyle {
     pub(crate) binds: HashMap<u32, BindInfo>,
     pub(crate) index_buffer: Option<crate::imp::GPUableBuffer>,
@@ -65,7 +65,7 @@ pub struct BindStyle {
 ///
 /// This enum represents the different types of resources that can be bound to shaders.
 /// Each variant corresponds to a specific type of GPU resource or special binding.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum BindTarget {
     /// A static buffer that doesn't change during rendering
     StaticBuffer(crate::imp::GPUableBuffer),
@@ -94,7 +94,7 @@ pub(crate) enum BindTarget {
 /// Information about a single resource binding.
 ///
 /// This struct pairs a binding target with the shader stage it should be bound to.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BindInfo {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) stage: Stage,
@@ -378,7 +378,7 @@ impl BindStyle {
 /// Resources can be made available to different stages of the graphics pipeline.
 /// This enum allows you to specify whether a resource should be accessible from
 /// the vertex shader, fragment shader, or both.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Stage {
     /// Resource will be bound to fragment (pixel) shaders.

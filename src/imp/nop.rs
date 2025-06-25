@@ -251,7 +251,7 @@ impl<Format> crate::bindings::resource_tracking::sealed::Mappable for MappableTe
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RenderSide;
 
 pub type TextureRenderSide = RenderSide;
@@ -316,7 +316,7 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GPUableBuffer;
 impl GPUableBuffer {
     pub fn new(

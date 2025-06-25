@@ -59,7 +59,7 @@
 ///     "#.to_string()
 /// );
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FragmentShader {
     //may need additional type design for future backends
     #[allow(dead_code)] //nop implementation does not use
@@ -126,7 +126,7 @@ pub struct FragmentShader {
 ///     "#.to_string()
 /// );
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VertexShader {
     //may need additional type design for future backends
     #[allow(dead_code)] //nop implementation does not use

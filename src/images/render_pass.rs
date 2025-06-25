@@ -50,7 +50,7 @@ use std::fmt::Debug;
 /// - **Bindings**: Resources (buffers, textures, etc.) made available to shaders
 /// - **Draw Command**: How vertices are assembled into primitives
 /// - **Render State**: Depth testing and alpha blending configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PassDescriptor {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) name: String,
@@ -142,7 +142,7 @@ impl PassDescriptor {
 /// // Vertices: [A, B, C, D, E, F] form triangles: [A,B,C] and [D,E,F]
 /// let draw_quad = DrawCommand::TriangleList(6);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum DrawCommand {
     /// Draws connected triangles where each vertex after the first two forms a

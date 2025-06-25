@@ -170,6 +170,12 @@ pub(crate) struct ErasedTextureRenderSide {
     imp: Arc<dyn DynRenderSide>,
 }
 
+impl PartialEq for ErasedTextureRenderSide {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.imp, &other.imp)
+    }
+}
+
 impl ErasedTextureRenderSide {
     #[allow(dead_code)] //nop implementation does not use
     pub unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {

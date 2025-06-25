@@ -54,12 +54,12 @@
 /// layout.add_field("texcoord_u", VertexFieldType::F32);
 /// layout.add_field("texcoord_v", VertexFieldType::F32);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VertexLayout {
     pub(crate) fields: Vec<VertexField>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct VertexField {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) name: &'static str,
@@ -81,7 +81,7 @@ pub(crate) struct VertexField {
 /// // Currently F32 is the only supported type
 /// let field_type = VertexFieldType::F32;
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum VertexFieldType {
     /// A 32-bit floating point value.
