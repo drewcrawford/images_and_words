@@ -3,6 +3,9 @@
 
 pub use crate::send_phantom::SendPhantom;
 
+pub trait GPUableTextureWrapper: Send + Sync {
+}
+
 #[cfg(not(feature = "backend_wgpu"))]
 mod nop;
 #[cfg(not(feature = "backend_wgpu"))]

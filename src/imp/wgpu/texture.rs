@@ -18,6 +18,7 @@ use wgpu::{
     Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase, TextureDescriptor,
     TextureDimension,
 };
+use crate::imp::GPUableTextureWrapper;
 
 impl TextureUsage {
     pub const fn wgpu_usage(&self) -> wgpu::TextureUsages {
@@ -147,11 +148,17 @@ Design note, we want to track the format in types here.  For a format-less versi
 pub struct GPUableTexture<Format> {
     format: PhantomData<Format>,
     imp: wgpu::Texture,
+    width: u32,
+    height: u32,
+    debug_name: String,
 }
 impl<Format> Debug for GPUableTexture<Format> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GPUableTexture")
             .field("imp", &self.imp)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("debug_name", &self.debug_name)
             .finish()
     }
 }
@@ -161,6 +168,9 @@ impl<Format> Clone for GPUableTexture<Format> {
         GPUableTexture {
             format: PhantomData,
             imp: self.imp.clone(),
+            width: self.width,
+            height: self.height,
+            debug_name: self.debug_name.clone(),
         }
     }
 }
@@ -291,6 +301,9 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         Ok(Self {
             format: PhantomData,
             imp: texture,
+            width: config.width as u32,
+            height: config.height as u32,
+            debug_name: config.debug_name.to_string(),
         })
     }
 
@@ -338,6 +351,9 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         Ok(Self {
             format: PhantomData,
             imp: texture,
+            width: config.width as u32,
+            height: config.height as u32,
+            debug_name: config.debug_name.to_string(),
         })
     }
 
@@ -346,6 +362,13 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             texture: self.imp.clone(),
         }
     }
+
+    pub fn as_imp(&self) -> &wgpu::Texture {
+        &self.imp
+    }
+}
+
+impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {
 }
 #[derive(Debug)]
 pub struct CopyGuard<Format, SourceGuard> {
@@ -417,3 +440,4 @@ impl PartialEq for RenderSide {
         todo!()
     }
 }
+

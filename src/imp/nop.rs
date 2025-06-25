@@ -15,6 +15,7 @@ use raw_window_handle::RawDisplayHandle;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use crate::imp::GPUableTextureWrapper;
 
 #[derive(Debug, Clone)]
 pub struct EntryPoint;
@@ -173,30 +174,62 @@ impl<Format: CratePixelFormat> Texture<Format> {
 }
 
 #[derive(Debug)]
-pub struct GPUableTexture<Format>(PhantomData<Format>);
+pub struct GPUableTexture<Format> {
+    _format: PhantomData<Format>,
+    width: u32,
+    height: u32,
+    debug_name: String,
+}
 
 impl<Format> Clone for GPUableTexture<Format> {
     fn clone(&self) -> Self {
-        GPUableTexture(PhantomData)
+        GPUableTexture {
+            _format: PhantomData,
+            width: self.width,
+            height: self.height,
+            debug_name: self.debug_name.clone(),
+        }
     }
 }
+
+//we don't actually send the format!
+unsafe impl<Format> Send for GPUableTexture<Format> {}
+unsafe impl<Format> Sync for GPUableTexture<Format> {}
+
 impl<Format> GPUableTexture<Format> {
     pub async fn new(
         _bound_device: &crate::images::BoundDevice,
-        _config: TextureConfig<'_>,
+        config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
-        todo!()
+        Ok(GPUableTexture {
+            _format: PhantomData,
+            width: config.width as u32,
+            height: config.height as u32,
+            debug_name: config.debug_name.to_string(),
+        })
     }
     pub async fn new_initialize<I>(
         _device: &crate::images::BoundDevice,
-        _config: TextureConfig<'_>,
+        config: TextureConfig<'_>,
         _initialize_to: I,
     ) -> Result<Self, Error> {
-        todo!()
+        Ok(GPUableTexture {
+            _format: PhantomData,
+            width: config.width as u32,
+            height: config.height as u32,
+            debug_name: config.debug_name.to_string(),
+        })
     }
     pub fn render_side(&self) -> RenderSide {
         todo!()
     }
+
+    pub fn as_imp(&self) -> () {
+        ()
+    }
+}
+
+impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {
 }
 
 pub struct MappableTexture<Format>(SendPhantom<Format>);
