@@ -9,13 +9,13 @@ use crate::bindings::visible_to::{CPUStrategy, GPUBufferUsage, TextureConfig, Te
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::PassDescriptor;
+use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
 use crate::pixel_formats::sealed::PixelFormat as CratePixelFormat;
 use crate::send_phantom::SendPhantom;
 use raw_window_handle::RawDisplayHandle;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use crate::imp::GPUableTextureWrapper;
 
 #[derive(Debug, Clone)]
 pub struct EntryPoint;
@@ -229,8 +229,7 @@ impl<Format> GPUableTexture<Format> {
     }
 }
 
-impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {
-}
+impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {}
 
 pub struct MappableTexture<Format>(SendPhantom<Format>);
 
@@ -263,6 +262,10 @@ impl<Format> MappableTexture<Format> {
     {
         todo!()
     }
+
+    pub fn as_imp(&self) -> () {
+        ()
+    }
 }
 
 // Implement Mappable trait for MappableTexture
@@ -283,6 +286,8 @@ impl<Format> crate::bindings::resource_tracking::sealed::Mappable for MappableTe
         todo!()
     }
 }
+
+impl<Format: Send + Sync> MappableTextureWrapper for MappableTexture<Format> {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RenderSide;

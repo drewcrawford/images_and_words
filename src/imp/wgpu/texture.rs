@@ -6,6 +6,7 @@ use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::{TextureConfig, TextureUsage};
 use crate::imp::{CopyInfo, Error, MappableBuffer};
+use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
 use crate::multibuffer::sealed::GPUMultibuffer;
 use crate::pixel_formats::pixel_as_bytes;
 use crate::pixel_formats::sealed::PixelFormat;
@@ -18,7 +19,6 @@ use wgpu::{
     Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase, TextureDescriptor,
     TextureDimension,
 };
-use crate::imp::GPUableTextureWrapper;
 
 impl TextureUsage {
     pub const fn wgpu_usage(&self) -> wgpu::TextureUsages {
@@ -130,6 +130,10 @@ impl<Format: PixelFormat> MappableTexture<Format> {
 
         self.imp.write(data_bytes, dst_offset);
     }
+
+    pub fn as_imp(&self) -> &MappableBuffer {
+        &self.imp
+    }
 }
 
 impl<Format> Debug for MappableTexture<Format> {
@@ -139,6 +143,8 @@ impl<Format> Debug for MappableTexture<Format> {
             .finish()
     }
 }
+
+impl<Format: Send + Sync> MappableTextureWrapper for MappableTexture<Format> {}
 
 /**
 A texture mappable (only) to the GPU.
@@ -368,8 +374,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
     }
 }
 
-impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {
-}
+impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {}
 #[derive(Debug)]
 pub struct CopyGuard<Format, SourceGuard> {
     #[allow(dead_code)] // guard keeps source alive during copy operation
@@ -440,4 +445,3 @@ impl PartialEq for RenderSide {
         todo!()
     }
 }
-
