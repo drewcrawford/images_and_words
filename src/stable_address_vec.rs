@@ -53,8 +53,8 @@ impl<T> StableAddressVec<T> {
     }
 }
 
-impl<T> Into<Vec<T>> for StableAddressVec<T> {
-    fn into(self) -> Vec<T> {
-        self.into_vec()
+impl<T> From<StableAddressVec<T>> for Vec<T> {
+    fn from(val: StableAddressVec<T>) -> Self {
+        val.into_vec()
     }
 }
