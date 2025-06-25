@@ -224,9 +224,7 @@ impl<Format> GPUableTexture<Format> {
         todo!()
     }
 
-    pub fn as_imp(&self) {
-        
-    }
+    pub fn as_imp(&self) {}
 }
 
 impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {}
@@ -263,9 +261,7 @@ impl<Format> MappableTexture<Format> {
         todo!()
     }
 
-    pub fn as_imp(&self) {
-        
-    }
+    pub fn as_imp(&self) {}
 }
 
 // Implement Mappable trait for MappableTexture
