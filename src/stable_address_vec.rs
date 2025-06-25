@@ -46,4 +46,15 @@ impl<T> StableAddressVec<T> {
             &(*self.vec.get())[next_len - 1]
         }
     }
+    
+    pub fn into_vec(self) -> Vec<T> {
+        //safe because we are the only ones with access to the vec, and we are consuming it
+        unsafe { (*self.vec.get()).drain(..).collect() }
+    }
+}
+
+impl <T> Into<Vec<T>> for StableAddressVec<T> {
+    fn into(self) -> Vec<T> {
+        self.into_vec()
+    }
 }

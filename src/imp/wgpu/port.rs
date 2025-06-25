@@ -357,7 +357,7 @@ and all guards that are needed to keep the resources alive.
 pub struct BindGroupGuard {
     bind_group: BindGroup,
     #[allow(dead_code)] // guards keep resources alive during GPU execution
-    guards: StableAddressVec<Box<dyn SomeGPUAccess>>,
+    guards: Vec<Box<dyn SomeGPUAccess>>,
     vertex_buffers: Vec<(u32, wgpu::Buffer)>,
     dynamic_vertex_buffers: Vec<(u32, Box<dyn SomeGPUAccess>)>,
     index_buffer: Option<wgpu::Buffer>,
@@ -490,9 +490,10 @@ pub fn prepare_bind_group(
         None
     };
 
+
     BindGroupGuard {
         bind_group,
-        guards: gpu_guard_buffers,
+        guards: gpu_guard_buffers.into(),
         vertex_buffers,
         dynamic_vertex_buffers,
         index_buffer,
