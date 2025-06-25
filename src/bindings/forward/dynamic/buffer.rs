@@ -353,7 +353,7 @@ impl<Element> GPUAccess<Element> {
 /// This trait allows different buffer types to be stored and accessed uniformly
 /// during rendering, regardless of their element type.
 #[allow(dead_code)] //nop implementation does not use
-pub(crate) trait SomeGPUAccess: Send {
+pub(crate) trait SomeGPUAccess: Send + Sync {
     fn as_imp(&self) -> &imp::GPUableBuffer;
 }
 
