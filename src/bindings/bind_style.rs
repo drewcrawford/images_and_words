@@ -55,7 +55,7 @@ use std::fmt::Debug;
 /// Resources are not immediately bound when methods are called; instead, this struct
 /// builds up a description that is later used by the rendering backend to perform
 /// the actual GPU bindings.
-#[derive(Debug, Clone,PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BindStyle {
     pub(crate) binds: HashMap<u32, BindInfo>,
     pub(crate) index_buffer: Option<crate::imp::GPUableBuffer>,

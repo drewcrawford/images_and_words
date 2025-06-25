@@ -52,7 +52,8 @@ impl<T> RenderInput<T> {
     fn update(&mut self, requested: T) {
         self.requested = requested;
     }
-    fn is_dirty(&self) -> bool  where 
+    fn is_dirty(&self) -> bool
+    where
         T: PartialEq,
     {
         match &self.submitted {
@@ -60,7 +61,8 @@ impl<T> RenderInput<T> {
             None => true, //if not submitted, it is dirty
         }
     }
-    fn mark_submitted(&mut self) where 
+    fn mark_submitted(&mut self)
+    where
         T: Clone,
     {
         self.submitted = Some(self.requested.clone());
@@ -492,7 +494,11 @@ pub fn prepare_bind_group(
     };
 
     //arcify
-    let gpu_guard_buffers = gpu_guard_buffers.into_vec().into_iter().map(|e| e.into()).collect();
+    let gpu_guard_buffers = gpu_guard_buffers
+        .into_vec()
+        .into_iter()
+        .map(|e| e.into())
+        .collect();
     let dynamic_vertex_buffers = dynamic_vertex_buffers
         .into_iter()
         .map(|(b, e)| (b, e.into()))
