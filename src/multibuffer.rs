@@ -129,14 +129,16 @@ Multibuffer type.
 */
 #[derive(Debug)]
 pub(crate) struct GPUGuard<T: Mappable, U: GPUMultibuffer> {
-    imp: Option<Result<U, U::OutGuard<resource_tracking::GPUGuard<T>>>>,
     wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
+    dirty_guard: Option<resource_tracking::GPUGuard<T>>,
+    gpu_buffer: U,
 }
 
 //drop impl for GPUGuard
 impl<T: Mappable, U: GPUMultibuffer> Drop for GPUGuard<T, U> {
     fn drop(&mut self) {
-        let _ = self.imp.take().unwrap();
+        // Drop the dirty guard if present
+        let _ = self.dirty_guard.take();
         //wake up the waiting threads
         // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
         let wakers_to_send: Vec<r#continue::Sender<()>> = {
@@ -153,19 +155,26 @@ impl<T: Mappable, U: GPUMultibuffer> Drop for GPUGuard<T, U> {
 
 impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T, U> {
     pub fn as_imp(&self) -> &U {
-        match self.imp {
-            Some(Ok(ref imp)) => imp,
-            Some(Err(ref imp)) => imp.as_ref(),
-            None => unreachable!(),
-        }
+        &self.gpu_buffer
+    }
+
+    /// Takes the dirty guard if present, indicating that a copy is needed
+    pub fn take_dirty_guard(&mut self) -> Option<resource_tracking::GPUGuard<T>> {
+        self.dirty_guard.take()
+    }
+
+    /// Returns a mutable reference to the GPU buffer
+    pub fn gpu_buffer_mut(&mut self) -> &mut U {
+        &mut self.gpu_buffer
+    }
+
+    /// Puts the dirty guard back (used to keep it alive during copy operations)
+    pub fn set_dirty_guard(&mut self, guard: resource_tracking::GPUGuard<T>) {
+        self.dirty_guard = Some(guard);
     }
 }
 
 pub(crate) mod sealed {
-
-    use crate::bindings::resource_tracking::GPUGuard;
-    use crate::bindings::resource_tracking::sealed::Mappable;
-    use crate::imp::CopyInfo;
 
     pub trait GPUMultibuffer: Clone {
         /*
@@ -183,21 +192,6 @@ pub(crate) mod sealed {
          */
         type CorrespondingMappedType;
         type OutGuard<InGuard>: AsRef<Self>;
-
-        /**
-        Safety: Caller must guarantee that the guard is live for the duration of the GPU read.
-        */
-        unsafe fn copy_from_buffer<'a, Guarded>(
-            &self,
-            source_offset: usize,
-            dest_offset: usize,
-            copy_len: usize,
-            info: &mut CopyInfo<'a>,
-            guard: GPUGuard<Guarded>,
-        ) -> Self::OutGuard<GPUGuard<Guarded>>
-        where
-            Guarded: AsRef<Self::CorrespondingMappedType>,
-            Guarded: Mappable;
     }
     /**
         Indicates that the type can be a source of a multibuffer copy operation
@@ -302,7 +296,7 @@ where
     # Safety
     Caller must guarantee that the guard is live for the duration of the GPU access.
     */
-    pub(crate) unsafe fn access_gpu(&self, copy_info: &mut CopyInfo) -> GPUGuard<T, U>
+    pub(crate) unsafe fn access_gpu(&self, _copy_info: &mut CopyInfo) -> GPUGuard<T, U>
     where
         T: Mappable,
         U: GPUMultibuffer,
@@ -313,20 +307,23 @@ where
             Ok(gpu_guard) => {
                 // Resource was in PENDING_WRITE_TO_GPU state, need to copy
                 self.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
-                let copy_guard = unsafe {
-                    self.gpu
-                        .copy_from_buffer(0, 0, gpu_guard.byte_len(), copy_info, gpu_guard)
-                };
+
+                // TODO: This copy will be pushed down to the callers
+                // Previously: copy_from_buffer(0, 0, gpu_guard.byte_len(), copy_info, gpu_guard)
+
+                // Store the dirty guard - callers will handle the copy
                 GPUGuard {
-                    imp: Some(Err(copy_guard)),
                     wake_list: self.wake_list.clone(),
+                    dirty_guard: Some(gpu_guard),
+                    gpu_buffer: self.gpu.clone(),
                 }
             }
             Err(_) => {
                 // Resource is not in PENDING_WRITE_TO_GPU state, no copy needed
                 GPUGuard {
-                    imp: Some(Ok(self.gpu.clone())),
                     wake_list: self.wake_list.clone(),
+                    dirty_guard: None,
+                    gpu_buffer: self.gpu.clone(),
                 }
             }
         }

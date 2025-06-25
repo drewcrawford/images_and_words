@@ -423,45 +423,30 @@ impl PixelFormat for crate::pixel_formats::R16Float {}
 impl<Format> crate::multibuffer::sealed::GPUMultibuffer for GPUableTexture<Format> {
     type CorrespondingMappedType = MappableTexture<Format>;
     type OutGuard<InGuard> = TextureCopyGuard<Format, InGuard>;
-
-    unsafe fn copy_from_buffer<'a, Guarded>(
-        &self,
-        _source_offset: usize,
-        _dest_offset: usize,
-        _copy_len: usize,
-        _info: &mut CopyInfo<'a>,
-        guard: crate::bindings::resource_tracking::GPUGuard<Guarded>,
-    ) -> Self::OutGuard<crate::bindings::resource_tracking::GPUGuard<Guarded>>
-    where
-        Guarded: AsRef<Self::CorrespondingMappedType>,
-        Guarded: crate::bindings::resource_tracking::sealed::Mappable,
-    {
-        TextureCopyGuard {
-            source_guard: guard,
-            gpu_texture: self.clone(),
-        }
-    }
 }
 
 impl crate::multibuffer::sealed::GPUMultibuffer for GPUableBuffer {
     type CorrespondingMappedType = MappableBuffer;
     type OutGuard<InGuard> = CopyGuard<InGuard>;
+}
 
-    unsafe fn copy_from_buffer<'a, Guarded>(
-        &self,
-        _source_offset: usize,
-        _dest_offset: usize,
-        _copy_len: usize,
-        _info: &mut CopyInfo<'a>,
-        guard: crate::bindings::resource_tracking::GPUGuard<Guarded>,
-    ) -> Self::OutGuard<crate::bindings::resource_tracking::GPUGuard<Guarded>>
-    where
-        Guarded: AsRef<Self::CorrespondingMappedType>,
-        Guarded: crate::bindings::resource_tracking::sealed::Mappable,
-    {
-        CopyGuard {
-            source_guard: guard,
-            gpu_buffer: self.clone(),
-        }
-    }
+/// Helper function to copy from a mappable buffer to a GPU buffer
+pub fn copy_mappable_to_gpuable_buffer(
+    _source: &MappableBuffer,
+    _dest: &GPUableBuffer,
+    _source_offset: usize,
+    _dest_offset: usize,
+    _copy_len: usize,
+    _copy_info: &mut CopyInfo,
+) {
+    // No-op implementation
+}
+
+/// Helper function to copy from a mappable texture to a GPU texture
+pub fn copy_mappable_to_gpuable_texture<Format: crate::pixel_formats::sealed::PixelFormat>(
+    _source: &MappableTexture<Format>,
+    _dest: &GPUableTexture<Format>,
+    _copy_info: &mut CopyInfo,
+) {
+    // No-op implementation
 }

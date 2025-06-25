@@ -246,7 +246,20 @@ impl<Format: PixelFormat> Debug for TextureRenderSide<Format> {
 }
 impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
     unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
-        let guard = unsafe { self.shared.multibuffer.access_gpu(copy_info) };
+        let mut guard = unsafe { self.shared.multibuffer.access_gpu(copy_info) };
+
+        // Handle the copy if there's a dirty guard
+        if let Some(dirty_guard) = guard.take_dirty_guard() {
+            // Get the source texture from the dirty guard
+            let source: &imp::MappableTexture<Format> = dirty_guard.as_ref();
+
+            // Perform the texture copy operation
+            imp::copy_mappable_to_gpuable_texture(source, guard.gpu_buffer_mut(), copy_info);
+
+            // Keep the dirty guard alive until the copy is complete
+            guard.set_dirty_guard(dirty_guard);
+        }
+
         let our_guard = GPUGuard { underlying: guard };
         let render_side = our_guard.underlying.as_imp().render_side();
         ErasedGPUGuard {

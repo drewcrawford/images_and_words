@@ -408,7 +408,28 @@ pub(crate) trait SomeRenderSide: Send + Sync + Debug {
 
 impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
     unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess> {
-        let underlying_guard = unsafe { self.shared.multibuffer.access_gpu(copy_info) };
+        let mut underlying_guard = unsafe { self.shared.multibuffer.access_gpu(copy_info) };
+
+        // Handle the copy if there's a dirty guard
+        if let Some(dirty_guard) = underlying_guard.take_dirty_guard() {
+            // Get the source buffer from the dirty guard
+            let source: &imp::MappableBuffer = dirty_guard.as_ref();
+
+            // Perform the copy operation
+            imp::copy_mappable_to_gpuable_buffer(
+                source,
+                underlying_guard.gpu_buffer_mut(),
+                0,
+                0,
+                dirty_guard.byte_len(),
+                copy_info,
+            );
+
+            // Keep the dirty guard alive until the copy is complete
+            // by storing it back (it will be dropped with the GPUGuard)
+            underlying_guard.set_dirty_guard(dirty_guard);
+        }
+
         Box::new(GPUAccess {
             imp: underlying_guard,
             _phantom: PhantomData::<Element>,

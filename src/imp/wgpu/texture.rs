@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::Priority;
 use crate::bindings::buffer_access::MapType;
-use crate::bindings::resource_tracking::GPUGuard;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::{TextureConfig, TextureUsage};
-use crate::imp::{CopyInfo, Error, MappableBuffer};
+use crate::imp::{Error, MappableBuffer};
 use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
 use crate::multibuffer::sealed::GPUMultibuffer;
 use crate::pixel_formats::pixel_as_bytes;
@@ -15,10 +14,7 @@ use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 use wgpu::util::{DeviceExt, TextureDataOrder};
-use wgpu::{
-    Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase, TextureDescriptor,
-    TextureDimension,
-};
+use wgpu::{Extent3d, TextureDescriptor, TextureDimension};
 
 impl TextureUsage {
     pub const fn wgpu_usage(&self) -> wgpu::TextureUsages {
@@ -390,49 +386,39 @@ impl<Format, SourceGuard> AsRef<GPUableTexture<Format>> for CopyGuard<Format, So
 impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUMultibuffer for GPUableTexture<Format> {
     type CorrespondingMappedType = MappableTexture<Format>;
     type OutGuard<InGuard> = CopyGuard<Format, InGuard>;
+}
 
-    unsafe fn copy_from_buffer<'a, Guarded>(
-        &self,
-        _source_offset: usize,
-        _dest_offset: usize,
-        _copy_len: usize,
-        info: &mut CopyInfo<'a>,
-        guard: GPUGuard<Guarded>,
-    ) -> Self::OutGuard<GPUGuard<Guarded>>
-    where
-        Guarded: AsRef<Self::CorrespondingMappedType>,
-        Guarded: Mappable,
-    {
-        let source_base = TexelCopyBufferInfoBase {
-            buffer: &guard.as_ref().imp.buffer,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(
-                    guard.as_ref().width as u32 * std::mem::size_of::<Format::CPixel>() as u32,
-                ),
-                rows_per_image: Some(guard.as_ref().height as u32),
-            },
-        };
-        let dest_base = TexelCopyTextureInfoBase {
-            texture: &self.imp,
-            mip_level: 0,
-            origin: Default::default(),
-            aspect: Default::default(),
-        };
-        info.command_encoder.copy_buffer_to_texture(
-            source_base,
-            dest_base,
-            Extent3d {
-                width: guard.as_ref().width as u32,
-                height: guard.as_ref().height as u32,
-                depth_or_array_layers: 1,
-            },
-        );
-        CopyGuard {
-            guard,
-            gpu: self.clone(),
-        }
-    }
+/// Internal helper function to copy from a mappable texture to a GPU texture
+pub(super) fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelFormat>(
+    source: &MappableTexture<Format>,
+    dest: &GPUableTexture<Format>,
+    copy_info: &mut super::CopyInfo,
+) {
+    use wgpu::{Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase};
+
+    let source_base = TexelCopyBufferInfoBase {
+        buffer: &source.imp.buffer,
+        layout: wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(source.width as u32 * std::mem::size_of::<Format::CPixel>() as u32),
+            rows_per_image: Some(source.height as u32),
+        },
+    };
+    let dest_base = TexelCopyTextureInfoBase {
+        texture: &dest.imp,
+        mip_level: 0,
+        origin: Default::default(),
+        aspect: Default::default(),
+    };
+    copy_info.command_encoder.copy_buffer_to_texture(
+        source_base,
+        dest_base,
+        Extent3d {
+            width: source.width as u32,
+            height: source.height as u32,
+            depth_or_array_layers: 1,
+        },
+    );
 }
 
 #[derive(Debug, Clone)]

@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::bindings::buffer_access::MapType;
-use crate::bindings::resource_tracking::GPUGuard;
-use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::multibuffer::sealed::GPUMultibuffer;
@@ -313,33 +311,4 @@ impl<SourceGuard> AsRef<GPUableBuffer> for CopyGuard<SourceGuard> {
 impl GPUMultibuffer for GPUableBuffer {
     type CorrespondingMappedType = MappableBuffer;
     type OutGuard<InGuard> = CopyGuard<InGuard>;
-
-    unsafe fn copy_from_buffer<'a, Guarded>(
-        &self,
-        source_offset: usize,
-        dest_offset: usize,
-        copy_len: usize,
-        info: &mut CopyInfo<'a>,
-        guard: GPUGuard<Guarded>,
-    ) -> CopyGuard<GPUGuard<Guarded>>
-    where
-        Guarded: AsRef<Self::CorrespondingMappedType>,
-        Guarded: Mappable, /* required to appear inside the GPUGuard */
-    {
-        //somehow we need to get a MappableBuffer
-        let m: &MappableBuffer = guard.as_ref();
-        unsafe {
-            self.copy_from_buffer_internal(
-                m,
-                source_offset,
-                dest_offset,
-                copy_len,
-                info.command_encoder,
-            );
-        }
-        CopyGuard {
-            source_guard: guard,
-            gpu_buffer: self.clone(),
-        }
-    }
 }
