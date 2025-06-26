@@ -93,7 +93,6 @@ use crate::imp;
 use crate::imp::{CopyInfo, GPUableBuffer, SendPhantom};
 use crate::multibuffer::CPUWriteGuard;
 use crate::multibuffer::Multibuffer;
-use crate::multibuffer::sealed::CPUMultibuffer;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::Index;
@@ -293,13 +292,6 @@ impl<Element> Mappable for IndividualBuffer<Element> {
 //see GPUMultibuffer definition for details
 impl<Element> AsRef<imp::MappableBuffer> for IndividualBuffer<Element> {
     fn as_ref(&self) -> &imp::MappableBuffer {
-        &self.imp
-    }
-}
-
-impl<Element> CPUMultibuffer for IndividualBuffer<Element> {
-    type Source = imp::MappableBuffer;
-    fn as_source(&self) -> &Self::Source {
         &self.imp
     }
 }

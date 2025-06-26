@@ -192,14 +192,6 @@ pub(crate) mod sealed {
         type CorrespondingMappedType;
         type OutGuard<InGuard>: AsRef<Self>;
     }
-    /**
-        Indicates that the type can be a source of a multibuffer copy operation
-    */
-    pub trait CPUMultibuffer {
-        type Source;
-        #[allow(dead_code)] //nop implementation does not use
-        fn as_source(&self) -> &Self::Source;
-    }
 }
 
 /**
