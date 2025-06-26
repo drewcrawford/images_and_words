@@ -141,36 +141,24 @@ where
 /// Can only be acquired when the resource is in `PENDING_WRITE_TO_GPU` state.
 /// Transitions to `GPU` state when acquired and back to `UNUSED` when dropped.
 #[derive(Debug)]
-pub struct GPUGuard<Resource>
-where
-    Resource: sealed::Mappable,
-{
+pub struct GPUGuard<Resource> {
     tracker: Arc<ResourceTrackerInternal<Resource>>,
 }
 
-impl<Resource> Deref for GPUGuard<Resource>
-where
-    Resource: sealed::Mappable,
-{
+impl<Resource> Deref for GPUGuard<Resource> {
     type Target = Resource;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.tracker.resource.get() }
     }
 }
 
-impl<Resource> DerefMut for GPUGuard<Resource>
-where
-    Resource: sealed::Mappable,
-{
+impl<Resource> DerefMut for GPUGuard<Resource> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.tracker.resource.get() }
     }
 }
 
-impl<Resource> Drop for GPUGuard<Resource>
-where
-    Resource: sealed::Mappable,
-{
+impl<Resource> Drop for GPUGuard<Resource> {
     fn drop(&mut self) {
         //println!("DEBUG: GPUGuard::drop releasing GPU resource");
         self.tracker.unuse_gpu();
