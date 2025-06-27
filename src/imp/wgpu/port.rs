@@ -84,6 +84,7 @@ pub struct Port {
     dump_framebuffer: bool, //for debugging
     scaled_size: RenderInput<Option<(u32, u32)>>,
     camera_buffer: Buffer<CameraProjection>,
+    mipmapped_sampler: wgpu::Sampler,
 }
 
 /**
@@ -744,6 +745,25 @@ impl Port {
             },
         )
         .expect("Create camera buffer");
+        let mipmapped_sampler =
+            engine
+                .bound_device()
+                .0
+                .device
+                .create_sampler(&wgpu::SamplerDescriptor {
+                    label: Some("mipmapped sampler"),
+                    address_mode_u: wgpu::AddressMode::ClampToEdge,
+                    address_mode_v: wgpu::AddressMode::ClampToEdge,
+                    address_mode_w: wgpu::AddressMode::ClampToEdge,
+                    mag_filter: wgpu::FilterMode::Linear,
+                    min_filter: wgpu::FilterMode::Linear,
+                    mipmap_filter: wgpu::FilterMode::Linear,
+                    lod_min_clamp: 0.0,
+                    lod_max_clamp: 14.0,
+                    compare: None,
+                    anisotropy_clamp: 1,
+                    border_color: None,
+                });
         Ok(Port {
             engine: engine.clone(),
             camera_buffer,
@@ -756,6 +776,7 @@ impl Port {
                 .map(|e| e == "1")
                 .unwrap_or(false),
             scaled_size: RenderInput::new(None),
+            mipmapped_sampler,
         })
     }
     pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
@@ -814,21 +835,6 @@ impl Port {
                 }
             }
         }
-
-        let mipmapped_sampler = device.0.device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("mipmapped sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 14.0,
-            compare: None,
-            anisotropy_clamp: 1,
-            border_color: None,
-        });
 
         //create per-frame resources
         let wgpu_view;
@@ -948,7 +954,7 @@ impl Port {
                 descriptor.clone(),
                 enable_depth,
                 &self.camera_buffer,
-                &mipmapped_sampler,
+                &self.mipmapped_sampler,
                 &mut copy_info,
             );
             prepared.push(pipeline);
