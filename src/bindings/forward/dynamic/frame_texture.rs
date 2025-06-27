@@ -352,6 +352,7 @@ pub(crate) struct GPUAccess {
     // Option<Box<DynGuard>> if we need to perform a copy, otherwise None (how we erase Format in this field)
     dirty_guard: Option<Box<dyn DynGuard>>,
     // Underlying GPU type, typecast to Box<dyn GPUableTextureWrapped> (how we erase Format in this field)
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) gpu_texture: Box<dyn imp::GPUableTextureWrapped>,
     // The render side for creating views (always available)
     pub(crate) render_side: imp::TextureRenderSide,
@@ -367,6 +368,7 @@ impl Debug for GPUAccess {
 }
 
 impl GPUAccess {
+    #[allow(dead_code)] //nop implementation does not use
     pub fn take_dirty_guard(&mut self) -> Option<Box<dyn DynGuard>> {
         self.dirty_guard.take()
     }
@@ -375,6 +377,7 @@ impl GPUAccess {
 /// Trait for type-erased guard that provides access to source texture for copying
 pub(crate) trait DynGuard: Debug + Send {
     /// Perform the copy from the stored source to the given destination
+    #[allow(dead_code)] //nop implementation does not use
     fn perform_copy(
         &self,
         destination: &dyn imp::GPUableTextureWrapped,

@@ -8,8 +8,10 @@ pub trait GPUableTextureWrapper: Send + Sync {}
 pub trait MappableTextureWrapper: Send + Sync {}
 
 pub(crate) trait GPUableTextureWrapped: GPUableTextureWrapper {
+    #[allow(dead_code)] //nop implementation does not use
     fn format_matches(&self, other: &dyn MappableTextureWrapped) -> bool;
     /// Perform a copy from a mappable texture to this GPU texture
+    #[allow(dead_code)] //nop implementation does not use
     fn copy_from_mappable(
         &self,
         source: &dyn MappableTextureWrapped,
@@ -18,7 +20,9 @@ pub(crate) trait GPUableTextureWrapped: GPUableTextureWrapper {
 }
 
 pub(crate) trait MappableTextureWrapped: MappableTextureWrapper + std::any::Any {
+    #[allow(dead_code)] //nop implementation does not use
     fn width(&self) -> u16;
+    #[allow(dead_code)] //nop implementation does not use
     fn height(&self) -> u16;
 }
 

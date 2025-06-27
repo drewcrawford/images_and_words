@@ -335,6 +335,7 @@ impl GPUAccess {
     pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
         &self.gpu_buffer
     }
+    #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn take_dirty_guard(
         &mut self,
     ) -> Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>> {
