@@ -193,7 +193,6 @@ pub struct Buffer<Element> {
     _phantom: PhantomData<Element>,
 }
 
-
 /// A CPU-accessible buffer instance within the multibuffer system.
 ///
 /// `IndividualBuffer` represents a single buffer that can be mapped for CPU access.
@@ -226,7 +225,8 @@ impl<Element> Index<usize> for IndividualBuffer<'_, Element> {
     type Output = Element;
     fn index(&self, index: usize) -> &Self::Output {
         let offset = index * std::mem::size_of::<Element>();
-        let bytes: &[u8] = &self.guard.deref().as_slice()[offset..offset + std::mem::size_of::<Element>()];
+        let bytes: &[u8] =
+            &self.guard.deref().as_slice()[offset..offset + std::mem::size_of::<Element>()];
         unsafe { &*(bytes.as_ptr() as *const Element) }
     }
 }
@@ -599,11 +599,9 @@ impl<Element> Buffer<Element> {
     /// # });
     /// # }
     /// ```
-    pub async fn access_write(
-        &self,
-    ) -> IndividualBuffer<'_, Element> {
+    pub async fn access_write(&self) -> IndividualBuffer<'_, Element> {
         let guard = self.shared.multibuffer.access_write().await;
-        
+
         IndividualBuffer {
             guard,
             _marker: SendPhantom::new(),
