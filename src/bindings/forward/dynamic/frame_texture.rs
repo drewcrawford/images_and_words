@@ -74,7 +74,6 @@ drop(write_guard);
 
 The module uses several internal types to manage the multibuffering system:
 
-- [`IndividualTexture`]: A single CPU-accessible texture buffer
 - `TextureRenderSide`: GPU-side handle for binding textures in render passes
 - [`CPUWriteGuard`]: RAII guard that provides write access to texture data
 - [`CPUReadGuard`]: RAII guard for reading the last submitted texture
