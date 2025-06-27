@@ -106,45 +106,13 @@ use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureConfig;
 use crate::images::device::BoundDevice;
 use crate::imp;
-use crate::imp::{CopyInfo, MappableTexture};
+use crate::imp::CopyInfo;
 use crate::multibuffer::Multibuffer;
 use crate::pixel_formats::sealed::PixelFormat;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::sync::Arc;
-
-/// A single CPU-accessible texture buffer within the multibuffer system.
-///
-/// This represents one texture in the multibuffer pool. It wraps a platform-specific
-/// mappable texture and provides methods for updating pixel data. While this type
-/// is public for use in guard types, you typically interact with it through
-/// [`CPUWriteGuard`] rather than directly.
-///
-/// # Type Parameters
-///
-/// * `Format` - The pixel format type implementing `PixelFormat`
-pub struct IndividualTexture<Format> {
-    cpu: imp::MappableTexture<Format>,
-    width: u16,
-    height: u16,
-}
-
-impl<Format> Debug for IndividualTexture<Format> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("IndividualTexture")
-            .field("cpu", &self.cpu)
-            .field("width", &self.width)
-            .field("height", &self.height)
-            .finish()
-    }
-}
-
-impl<Format> AsRef<imp::MappableTexture<Format>> for IndividualTexture<Format> {
-    fn as_ref(&self) -> &MappableTexture<Format> {
-        &self.cpu
-    }
-}
 
 trait DynRenderSide: Send + Debug + Sync {
     ///
@@ -250,8 +218,8 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 
         // Handle the copy if there's a dirty guard
         if let Some(dirty_guard) = guard.take_dirty_guard() {
-            // Get the source texture from the dirty guard
-            let source: &imp::MappableTexture<Format> = dirty_guard.as_ref();
+            // Get the source texture from the dirty guard - it's already a MappableTexture
+            let source: &imp::MappableTexture<Format> = &dirty_guard;
 
             // Perform the texture copy operation
             imp::copy_mappable_to_gpuable_texture(source, guard.gpu_buffer_mut(), copy_info);
@@ -275,7 +243,7 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// RAII guard providing write access to texture data.
 ///
 /// This guard is obtained by calling [`FrameTexture::dequeue()`] and provides mutable access
-/// to an [`IndividualTexture`] buffer. The texture data can be modified through the guard's
+/// to texture data. The texture data can be modified through the guard's
 /// methods, and changes are automatically synchronized when the guard is dropped.
 ///
 /// # Automatic Enqueue
@@ -323,21 +291,11 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 pub struct CPUWriteGuard<'a, Format: PixelFormat> {
     underlying: crate::multibuffer::CPUWriteGuard<
         'a,
-        IndividualTexture<Format>,
+        imp::MappableTexture<Format>,
         imp::GPUableTexture<Format>,
     >,
-}
-impl<'a, Format: PixelFormat> Deref for CPUWriteGuard<'a, Format> {
-    type Target = IndividualTexture<Format>;
-    fn deref(&self) -> &Self::Target {
-        self.underlying.deref()
-    }
-}
-
-impl<'a, Format: PixelFormat> DerefMut for CPUWriteGuard<'a, Format> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.underlying.deref_mut()
-    }
+    width: u16,
+    height: u16,
 }
 /// RAII guard providing read access to the last submitted texture.
 ///
@@ -358,7 +316,7 @@ pub struct CPUReadGuard<Format: PixelFormat> {
 #[derive(Debug)]
 struct GPUGuard<Format: PixelFormat> {
     underlying:
-        crate::multibuffer::GPUGuard<IndividualTexture<Format>, imp::GPUableTexture<Format>>,
+        crate::multibuffer::GPUGuard<imp::MappableTexture<Format>, imp::GPUableTexture<Format>>,
 }
 #[derive(Debug)]
 pub struct ErasedGPUGuard {
@@ -376,7 +334,7 @@ impl Deref for ErasedGPUGuard {
 
 ///Shared between FrameTexture and TextureRenderSide
 struct Shared<Format: PixelFormat> {
-    multibuffer: Multibuffer<IndividualTexture<Format>, imp::GPUableTexture<Format>>,
+    multibuffer: Multibuffer<imp::MappableTexture<Format>, imp::GPUableTexture<Format>>,
 }
 
 impl<Format: PixelFormat> Debug for Shared<Format> {
@@ -454,7 +412,7 @@ pub struct FrameTexture<Format: PixelFormat> {
     height: u16,
 }
 
-impl<Format> IndividualTexture<Format> {
+impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     /// Returns the width of the texture in pixels.
     pub fn width(&self) -> u16 {
         self.width
@@ -487,7 +445,7 @@ impl<Format> IndividualTexture<Format> {
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// # #[cfg(feature = "testing")]
     /// # {
-    /// # use images_and_words::bindings::forward::dynamic::frame_texture::{IndividualTexture, FrameTexture};
+    /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
     /// # use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
     /// # use images_and_words::bindings::software::texture::Texel;
     /// # use images_and_words::bindings::visible_to::{TextureUsage, CPUStrategy, TextureConfig};
@@ -500,12 +458,11 @@ impl<Format> IndividualTexture<Format> {
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
     /// # let mut frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
     /// # let mut guard = frame_texture.dequeue().await;
-    /// # let texture = &mut *guard; // Get a mutable reference to IndividualTexture
     /// // Write a full row of red pixels at row 10
     /// let red = Unorm4 { r: 255, g: 0, b: 0, a: 255 };
-    /// let width = texture.width();
+    /// let width = guard.width();
     /// let pixels = vec![red; width as usize];
-    /// texture.replace(
+    /// guard.replace(
     ///     width, // source width must match texture width
     ///     Texel { x: 0, y: 10 },
     ///     &pixels // full row of pixels
@@ -517,19 +474,19 @@ impl<Format> IndividualTexture<Format> {
     where
         Format: PixelFormat,
     {
-        self.cpu.replace(src_width, dst_texel, data);
+        self.underlying.replace(src_width, dst_texel, data);
     }
 }
 
-impl<Format: PixelFormat> Mappable for IndividualTexture<Format> {
+impl<Format: PixelFormat> Mappable for CPUWriteGuard<'_, Format> {
     async fn map_read(&mut self) {
-        self.cpu.map_read().await;
+        self.underlying.map_read().await;
     }
     async fn map_write(&mut self) {
-        self.cpu.map_write().await;
+        self.underlying.map_write().await;
     }
     fn unmap(&mut self) {
-        self.cpu.unmap();
+        self.underlying.unmap();
     }
     fn byte_len(&self) -> usize {
         (self.width as usize) * (self.height as usize) * std::mem::size_of::<Format::CPixel>()
@@ -603,13 +560,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
             config.priority,
             initialize_with,
         );
-        let individual_texture = IndividualTexture {
-            cpu,
-            width: config.width,
-            height: config.height,
-        };
 
-        let multibuffer = Multibuffer::new(individual_texture, gpu, true);
+        let multibuffer = Multibuffer::new(cpu, gpu, true);
         let shared = Arc::new(Shared { multibuffer });
         Self {
             shared,
@@ -658,6 +610,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
         let write_guard = self.shared.multibuffer.access_write().await;
         CPUWriteGuard {
             underlying: write_guard,
+            width: self.width,
+            height: self.height,
         }
     }
 

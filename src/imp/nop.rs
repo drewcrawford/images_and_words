@@ -229,6 +229,20 @@ impl<Format> GPUableTexture<Format> {
 
 impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {}
 
+impl<Format> crate::imp::GPUableTextureWrapped for GPUableTexture<Format> {
+    fn width(&self) -> u32 {
+        self.width
+    }
+
+    fn height(&self) -> u32 {
+        self.height
+    }
+
+    fn format_matches(&self, _other: &dyn crate::imp::MappableTextureWrapped) -> bool {
+        todo!("format_matches not implemented for nop backend")
+    }
+}
+
 pub struct MappableTexture<Format>(SendPhantom<Format>);
 
 impl<Format> std::fmt::Debug for MappableTexture<Format> {
@@ -284,6 +298,20 @@ impl<Format> crate::bindings::resource_tracking::sealed::Mappable for MappableTe
 }
 
 impl<Format: Send + Sync> MappableTextureWrapper for MappableTexture<Format> {}
+
+impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped for MappableTexture<Format> {
+    fn width(&self) -> u16 {
+        todo!("width not implemented for nop backend")
+    }
+
+    fn height(&self) -> u16 {
+        todo!("height not implemented for nop backend")
+    }
+
+    fn byte_len(&self) -> usize {
+        todo!("byte_len not implemented for nop backend")
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RenderSide;
@@ -429,6 +457,12 @@ impl PixelFormat for crate::pixel_formats::R16Float {}
 impl<Format> crate::multibuffer::sealed::GPUMultibuffer for GPUableTexture<Format> {
     type CorrespondingMappedType = MappableTexture<Format>;
     type OutGuard<InGuard> = TextureCopyGuard<Format, InGuard>;
+}
+
+impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
+    fn as_ref(&self) -> &MappableTexture<Format> {
+        self
+    }
 }
 
 impl crate::multibuffer::sealed::GPUMultibuffer for GPUableBuffer {

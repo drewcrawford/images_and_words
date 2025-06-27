@@ -4,6 +4,7 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::{TextureConfig, TextureUsage};
+use crate::imp::GPUableTextureWrapped;
 use crate::imp::{Error, MappableBuffer};
 use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
 use crate::multibuffer::sealed::GPUMultibuffer;
@@ -141,6 +142,28 @@ impl<Format> Debug for MappableTexture<Format> {
 }
 
 impl<Format: Send + Sync> MappableTextureWrapper for MappableTexture<Format> {}
+
+impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped for MappableTexture<Format> {
+    fn width(&self) -> u16 {
+        self.width
+    }
+
+    fn height(&self) -> u16 {
+        self.height
+    }
+
+    fn byte_len(&self) -> usize {
+        self.imp.byte_len()
+    }
+}
+
+impl<Format: crate::pixel_formats::sealed::PixelFormat + 'static> MappableTextureWrappedWgpu
+    for MappableTexture<Format>
+{
+    fn wgpu_format(&self) -> wgpu::TextureFormat {
+        Format::WGPU_FORMAT
+    }
+}
 
 /**
 A texture mappable (only) to the GPU.
@@ -371,6 +394,95 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
 }
 
 impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {}
+
+pub(crate) trait GPUableTextureWrappedWgpu: crate::imp::GPUableTextureWrapped {
+    fn wgpu_texture(&self) -> &wgpu::Texture;
+    fn wgpu_format(&self) -> wgpu::TextureFormat;
+    fn copy_from_mappable(
+        &self,
+        source: &dyn crate::imp::MappableTextureWrapped,
+        copy_info: &mut super::CopyInfo,
+    ) -> Result<(), String>;
+}
+
+pub(crate) trait MappableTextureWrappedWgpu: crate::imp::MappableTextureWrapped {
+    fn wgpu_format(&self) -> wgpu::TextureFormat;
+}
+
+impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextureWrapped
+    for GPUableTexture<Format>
+{
+    fn width(&self) -> u32 {
+        self.width
+    }
+
+    fn height(&self) -> u32 {
+        self.height
+    }
+
+    fn format_matches(&self, other: &dyn crate::imp::MappableTextureWrapped) -> bool {
+        // Check if dimensions match
+        if self.width != other.width() as u32 || self.height != other.height() as u32 {
+            return false;
+        }
+
+        // Try to downcast to get the wgpu format
+        // We need to use Any trait for this
+        let other_any = other as &dyn std::any::Any;
+
+        // Try to downcast to our specific MappableTextureWrappedWgpu trait object
+        // This is a bit tricky - we need to check if it implements our trait
+        // For now, we'll check if it's exactly our type with matching format
+        if let Some(_other_texture) = other_any.downcast_ref::<MappableTexture<Format>>() {
+            // If we can downcast to the exact same type, formats match
+            return true;
+        }
+
+        // If we can't downcast to the same type, formats don't match
+        false
+    }
+}
+
+impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTextureWrappedWgpu
+    for GPUableTexture<Format>
+{
+    fn wgpu_texture(&self) -> &wgpu::Texture {
+        &self.imp
+    }
+
+    fn wgpu_format(&self) -> wgpu::TextureFormat {
+        Format::WGPU_FORMAT
+    }
+
+    fn copy_from_mappable(
+        &self,
+        source: &dyn crate::imp::MappableTextureWrapped,
+        copy_info: &mut super::CopyInfo,
+    ) -> Result<(), String> {
+        // First check format compatibility
+        if !self.format_matches(source) {
+            return Err(format!(
+                "Format mismatch: GPU texture is {}x{}, but source is {}x{} or has incompatible format",
+                self.width,
+                self.height,
+                source.width(),
+                source.height()
+            ));
+        }
+
+        // Try to downcast to MappableTexture<Format>
+        let source_any = source as &dyn std::any::Any;
+
+        if let Some(source_concrete) = source_any.downcast_ref::<MappableTexture<Format>>() {
+            // Successfully downcasted - formats match and we have the concrete type
+            copy_texture_internal(source_concrete, self, copy_info);
+            Ok(())
+        } else {
+            // This shouldn't happen if format_matches returned true
+            Err("Internal error: format_matches returned true but downcast failed".to_string())
+        }
+    }
+}
 #[derive(Debug)]
 pub struct CopyGuard<Format, SourceGuard> {
     #[allow(dead_code)] // guard keeps source alive during copy operation
@@ -386,6 +498,12 @@ impl<Format, SourceGuard> AsRef<GPUableTexture<Format>> for CopyGuard<Format, So
 impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUMultibuffer for GPUableTexture<Format> {
     type CorrespondingMappedType = MappableTexture<Format>;
     type OutGuard<InGuard> = CopyGuard<Format, InGuard>;
+}
+
+impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
+    fn as_ref(&self) -> &MappableTexture<Format> {
+        self
+    }
 }
 
 /// Internal helper function to copy from a mappable texture to a GPU texture
