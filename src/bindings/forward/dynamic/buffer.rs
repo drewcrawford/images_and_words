@@ -21,7 +21,7 @@
 //! The module uses several key components:
 //!
 //! - [`Buffer`] - The main public interface for creating and accessing dynamic buffers
-//! - [`IndividualBuffer`] - CPU-side buffer that can be mapped for writing
+//! - [`CPUWriteAccess`] - CPU-side buffer that can be mapped for writing
 //! - `RenderSide` - GPU-side handle used during rendering
 //! - `Shared` - Shared state managing the multibuffer synchronization
 //!
@@ -206,13 +206,13 @@ pub struct Buffer<Element> {
 ///
 /// The buffer memory is directly accessible through indexing and the `write` method.
 /// Users must ensure they don't write out of bounds.
-pub struct IndividualBuffer<'a, Element> {
+pub struct CPUWriteAccess<'a, Element> {
     guard: CPUWriteGuard<'a, imp::MappableBuffer, imp::GPUableBuffer>,
     _marker: SendPhantom<Element>,
     count: usize,
 }
 
-impl<Element> Debug for IndividualBuffer<'_, Element> {
+impl<Element> Debug for CPUWriteAccess<'_, Element> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IndividualBuffer")
             .field("guard", &self.guard)
@@ -221,7 +221,7 @@ impl<Element> Debug for IndividualBuffer<'_, Element> {
     }
 }
 
-impl<Element> Index<usize> for IndividualBuffer<'_, Element> {
+impl<Element> Index<usize> for CPUWriteAccess<'_, Element> {
     type Output = Element;
     fn index(&self, index: usize) -> &Self::Output {
         let offset = index * std::mem::size_of::<Element>();
@@ -231,7 +231,7 @@ impl<Element> Index<usize> for IndividualBuffer<'_, Element> {
     }
 }
 
-impl<Element> IndividualBuffer<'_, Element> {
+impl<Element> CPUWriteAccess<'_, Element> {
     /// Writes data to the buffer at the given offset.
     ///
     /// # Parameters
@@ -275,7 +275,7 @@ impl<Element> IndividualBuffer<'_, Element> {
         self.guard.deref_mut().write(bytes, offset);
     }
 }
-impl<Element> Mappable for IndividualBuffer<'_, Element> {
+impl<Element> Mappable for CPUWriteAccess<'_, Element> {
     async fn map_read(&mut self) {
         self.guard.deref_mut().map_read().await;
     }
@@ -577,10 +577,10 @@ impl<Element> Buffer<Element> {
     /// # });
     /// # }
     /// ```
-    pub async fn access_write(&self) -> IndividualBuffer<'_, Element> {
+    pub async fn access_write(&self) -> CPUWriteAccess<'_, Element> {
         let guard = self.shared.multibuffer.access_write().await;
 
-        IndividualBuffer {
+        CPUWriteAccess {
             guard,
             _marker: SendPhantom::new(),
             count: self.count,
