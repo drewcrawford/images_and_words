@@ -370,189 +370,196 @@ pub struct BindGroupGuard {
     index_buffer: Option<wgpu::Buffer>,
 }
 
-pub fn prepare_bind_group(
-    bind_device: &crate::images::BoundDevice,
-    prepared: &PreparedPass,
-    camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
-    mipmapped_sampler: &wgpu::Sampler,
-    copy_info: &mut CopyInfo,
-) -> BindGroupGuard {
-    let mut entries = Vec::new();
-    let build_resources = StableAddressVec::with_capactiy(5);
+impl BindGroupGuard {
+    pub fn new(
+        bind_device: &crate::images::BoundDevice,
+        prepared: &PreparedPass,
+        camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
+        mipmapped_sampler: &wgpu::Sampler,
+        copy_info: &mut CopyInfo,
+    ) -> Self {
+        let mut entries = Vec::new();
+        let build_resources = StableAddressVec::with_capactiy(5);
 
-    let gpu_guard_buffers = StableAddressVec::with_capactiy(5);
-    let gpu_guard_textures = StableAddressVec::with_capactiy(5);
+        let gpu_guard_buffers = StableAddressVec::with_capactiy(5);
+        let gpu_guard_textures = StableAddressVec::with_capactiy(5);
 
-    for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
-        let resource = match &info.target {
-            BindTarget::DynamicBuffer(buf) => {
-                //safety: Keep the guard alive
-                let gpu_access = unsafe { buf.imp.acquire_gpu_buffer() };
+        for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
+            let resource = match &info.target {
+                BindTarget::DynamicBuffer(buf) => {
+                    //safety: Keep the guard alive
+                    let gpu_access = unsafe { buf.imp.acquire_gpu_buffer() };
 
-                // Handle the copy if there's a dirty guard
-                if let Some(dirty_guard) = &gpu_access.dirty_guard {
-                    // Get the source buffer from the dirty guard
-                    let source: &imp::MappableBuffer = &dirty_guard;
+                    // Handle the copy if there's a dirty guard
+                    if let Some(dirty_guard) = &gpu_access.dirty_guard {
+                        // Get the source buffer from the dirty guard
+                        let source: &imp::MappableBuffer = &dirty_guard;
 
-                    // Perform the copy operation
-                    imp::copy_mappable_to_gpuable_buffer(
-                        source,
-                        &gpu_access.gpu_buffer,
-                        0,
-                        0,
-                        dirty_guard.byte_len(),
-                        copy_info,
-                    );
-                }
-
-                let build_buffer = gpu_guard_buffers.push(Arc::new(gpu_access));
-                BindingResource::Buffer(BufferBinding {
-                    buffer: &build_buffer.gpu_buffer.buffer,
-                    offset: 0,
-                    size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
-                })
-            }
-            BindTarget::StaticBuffer(buf) => BindingResource::Buffer(BufferBinding {
-                buffer: &buf.buffer,
-                offset: 0,
-                size: Some(NonZero::new(buf.buffer.size()).unwrap()),
-            }),
-            BindTarget::Camera => BindingResource::Buffer(BufferBinding {
-                buffer: &camera_buffer.gpu_buffer.buffer,
-                offset: 0,
-                size: Some(NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap()),
-            }),
-            BindTarget::FrameCounter => {
-                todo!()
-            }
-            BindTarget::StaticTexture(texture_render_side, _sampler_type) => {
-                let view = build_resources.push(texture_render_side.texture.create_view(
-                    &wgpu::TextureViewDescriptor {
-                        label: None,
-                        format: None,
-                        dimension: None,
-                        usage: None,
-                        aspect: Default::default(),
-                        base_mip_level: 0,
-                        mip_level_count: None,
-                        base_array_layer: 0,
-                        array_layer_count: None,
-                    },
-                ));
-                BindingResource::TextureView(view)
-            }
-            BindTarget::DynamicTexture(texture) => {
-                //safety: keep the guard alive
-                let gpu_access = unsafe { texture.acquire_gpu_texture() };
-
-                // Handle the copy if there's a dirty guard
-                if let Some(ref dirty_guard) = gpu_access.dirty_guard {
-                    // Perform the texture copy using copy_from_mappable without hardcoding format
-                    if let Err(e) = dirty_guard.perform_copy(&*gpu_access.gpu_texture, copy_info) {
-                        panic!("Texture copy failed: {}", e);
+                        // Perform the copy operation
+                        imp::copy_mappable_to_gpuable_buffer(
+                            source,
+                            &gpu_access.gpu_buffer,
+                            0,
+                            0,
+                            dirty_guard.byte_len(),
+                            copy_info,
+                        );
                     }
+
+                    let build_buffer = gpu_guard_buffers.push(Arc::new(gpu_access));
+                    BindingResource::Buffer(BufferBinding {
+                        buffer: &build_buffer.gpu_buffer.buffer,
+                        offset: 0,
+                        size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
+                    })
                 }
-
-                // Store the guard
-                let guard = gpu_guard_textures.push(gpu_access);
-
-                // Use the render_side from GPUAccess
-                let view = build_resources.push(guard.render_side.texture.create_view(
-                    &wgpu::TextureViewDescriptor {
-                        label: None,
-                        format: None,
-                        dimension: None,
-                        usage: None,
-                        aspect: Default::default(),
-                        base_mip_level: 0,
-                        mip_level_count: None,
-                        base_array_layer: 0,
-                        array_layer_count: None,
-                    },
-                ));
-                BindingResource::TextureView(view)
-            }
-            BindTarget::Sampler(sampler) => match sampler {
-                SamplerType::Mipmapped => BindingResource::Sampler(mipmapped_sampler),
-            },
-            BindTarget::VB(..) | BindTarget::DynamicVB(..) => {
-                continue; //not considered as a binding
-            }
-        };
-
-        let entry = BindGroupEntry {
-            binding: *pass_index,
-            resource,
-        };
-        entries.push(entry);
-    }
-    let bind_group = bind_device
-        .0
-        .device
-        .create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(prepared.pass_descriptor.name()),
-            layout: &prepared.pipeline.get_bind_group_layout(0),
-            entries: entries.as_slice(),
-        });
-
-    //find vertex buffers
-    let mut vertex_buffers = Vec::new();
-    let mut dynamic_vertex_buffers = Vec::new();
-    for (b, buffer) in &prepared.pass_descriptor.bind_style().binds {
-        match &buffer.target {
-            BindTarget::StaticBuffer(_)
-            | BindTarget::DynamicBuffer(_)
-            | BindTarget::Camera
-            | BindTarget::FrameCounter
-            | BindTarget::DynamicTexture(_)
-            | BindTarget::StaticTexture(..)
-            | BindTarget::Sampler(_) => {}
-            BindTarget::VB(_layout, render_side) => {
-                let buffer = render_side.buffer.clone();
-                vertex_buffers.push((*b, buffer));
-            }
-            BindTarget::DynamicVB(_layout, render_side) => {
-                //safety: guard kept alive
-                let gpu_access = unsafe { render_side.imp.acquire_gpu_buffer() };
-
-                // Handle the copy if there's a dirty guard
-                if let Some(dirty_guard) = &gpu_access.dirty_guard {
-                    // Get the source buffer from the dirty guard
-                    let source: &imp::MappableBuffer = &dirty_guard;
-
-                    // Perform the copy operation
-                    imp::copy_mappable_to_gpuable_buffer(
-                        source,
-                        &gpu_access.gpu_buffer,
-                        0,
-                        0,
-                        dirty_guard.byte_len(),
-                        copy_info,
-                    );
+                BindTarget::StaticBuffer(buf) => BindingResource::Buffer(BufferBinding {
+                    buffer: &buf.buffer,
+                    offset: 0,
+                    size: Some(NonZero::new(buf.buffer.size()).unwrap()),
+                }),
+                BindTarget::Camera => BindingResource::Buffer(BufferBinding {
+                    buffer: &camera_buffer.gpu_buffer.buffer,
+                    offset: 0,
+                    size: Some(
+                        NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap(),
+                    ),
+                }),
+                BindTarget::FrameCounter => {
+                    todo!()
                 }
+                BindTarget::StaticTexture(texture_render_side, _sampler_type) => {
+                    let view = build_resources.push(texture_render_side.texture.create_view(
+                        &wgpu::TextureViewDescriptor {
+                            label: None,
+                            format: None,
+                            dimension: None,
+                            usage: None,
+                            aspect: Default::default(),
+                            base_mip_level: 0,
+                            mip_level_count: None,
+                            base_array_layer: 0,
+                            array_layer_count: None,
+                        },
+                    ));
+                    BindingResource::TextureView(view)
+                }
+                BindTarget::DynamicTexture(texture) => {
+                    //safety: keep the guard alive
+                    let gpu_access = unsafe { texture.acquire_gpu_texture() };
 
-                dynamic_vertex_buffers.push((*b, Arc::new(gpu_access)));
+                    // Handle the copy if there's a dirty guard
+                    if let Some(ref dirty_guard) = gpu_access.dirty_guard {
+                        // Perform the texture copy using copy_from_mappable without hardcoding format
+                        if let Err(e) =
+                            dirty_guard.perform_copy(&*gpu_access.gpu_texture, copy_info)
+                        {
+                            panic!("Texture copy failed: {}", e);
+                        }
+                    }
+
+                    // Store the guard
+                    let guard = gpu_guard_textures.push(gpu_access);
+
+                    // Use the render_side from GPUAccess
+                    let view = build_resources.push(guard.render_side.texture.create_view(
+                        &wgpu::TextureViewDescriptor {
+                            label: None,
+                            format: None,
+                            dimension: None,
+                            usage: None,
+                            aspect: Default::default(),
+                            base_mip_level: 0,
+                            mip_level_count: None,
+                            base_array_layer: 0,
+                            array_layer_count: None,
+                        },
+                    ));
+                    BindingResource::TextureView(view)
+                }
+                BindTarget::Sampler(sampler) => match sampler {
+                    SamplerType::Mipmapped => BindingResource::Sampler(mipmapped_sampler),
+                },
+                BindTarget::VB(..) | BindTarget::DynamicVB(..) => {
+                    continue; //not considered as a binding
+                }
+            };
+
+            let entry = BindGroupEntry {
+                binding: *pass_index,
+                resource,
+            };
+            entries.push(entry);
+        }
+        let bind_group = bind_device
+            .0
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(prepared.pass_descriptor.name()),
+                layout: &prepared.pipeline.get_bind_group_layout(0),
+                entries: entries.as_slice(),
+            });
+
+        //find vertex buffers
+        let mut vertex_buffers = Vec::new();
+        let mut dynamic_vertex_buffers = Vec::new();
+        for (b, buffer) in &prepared.pass_descriptor.bind_style().binds {
+            match &buffer.target {
+                BindTarget::StaticBuffer(_)
+                | BindTarget::DynamicBuffer(_)
+                | BindTarget::Camera
+                | BindTarget::FrameCounter
+                | BindTarget::DynamicTexture(_)
+                | BindTarget::StaticTexture(..)
+                | BindTarget::Sampler(_) => {}
+                BindTarget::VB(_layout, render_side) => {
+                    let buffer = render_side.buffer.clone();
+                    vertex_buffers.push((*b, buffer));
+                }
+                BindTarget::DynamicVB(_layout, render_side) => {
+                    //safety: guard kept alive
+                    let gpu_access = unsafe { render_side.imp.acquire_gpu_buffer() };
+
+                    // Handle the copy if there's a dirty guard
+                    if let Some(dirty_guard) = &gpu_access.dirty_guard {
+                        // Get the source buffer from the dirty guard
+                        let source: &imp::MappableBuffer = &dirty_guard;
+
+                        // Perform the copy operation
+                        imp::copy_mappable_to_gpuable_buffer(
+                            source,
+                            &gpu_access.gpu_buffer,
+                            0,
+                            0,
+                            dirty_guard.byte_len(),
+                            copy_info,
+                        );
+                    }
+
+                    dynamic_vertex_buffers.push((*b, Arc::new(gpu_access)));
+                }
             }
         }
-    }
 
-    let index_buffer = if let Some(buffer) = &prepared.pass_descriptor.bind_style().index_buffer {
-        let buffer = buffer.buffer.clone();
-        Some(buffer)
-    } else {
-        None
-    };
+        let index_buffer = if let Some(buffer) = &prepared.pass_descriptor.bind_style().index_buffer
+        {
+            let buffer = buffer.buffer.clone();
+            Some(buffer)
+        } else {
+            None
+        };
 
-    // Convert StableAddressVec to Vec
-    let gpu_guard_buffers = gpu_guard_buffers.into_vec();
-    // dynamic_vertex_buffers is already in the correct format
+        // Convert StableAddressVec to Vec
+        let gpu_guard_buffers = gpu_guard_buffers.into_vec();
+        // dynamic_vertex_buffers is already in the correct format
 
-    BindGroupGuard {
-        bind_group,
-        guards: gpu_guard_buffers,
-        vertex_buffers,
-        dynamic_vertex_buffers,
-        index_buffer,
+        BindGroupGuard {
+            bind_group,
+            guards: gpu_guard_buffers,
+            vertex_buffers,
+            dynamic_vertex_buffers,
+            index_buffer,
+        }
     }
 }
 
@@ -847,7 +854,7 @@ impl Port {
         };
         let mut frame_bind_groups = Vec::new();
         for prepared in &prepared {
-            let bind_group = prepare_bind_group(
+            let bind_group = BindGroupGuard::new(
                 device,
                 prepared,
                 &camera_gpu_access,
