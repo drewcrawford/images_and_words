@@ -368,30 +368,10 @@ pub struct AcquiredGuards {
     texture_copy_guards: Vec<Box<dyn crate::bindings::forward::dynamic::frame_texture::DynGuard>>,
 }
 
-/**
-Wrapper type that contains the bind group
-and all guards that are needed to keep the resources alive.
-*/
-#[derive(Clone)]
-pub struct BindGroupGuard {
-    bind_group: BindGroup,
-    #[allow(dead_code)] // guards keep resources alive during GPU execution
-    guards: Vec<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
-    vertex_buffers: Vec<(u32, wgpu::Buffer)>,
-    dynamic_vertex_buffers: Vec<(
-        u32,
-        Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
-    )>,
-    index_buffer: Option<wgpu::Buffer>,
-}
-
-impl BindGroupGuard {
+impl AcquiredGuards {
     /// Acquires GPU buffers and performs copy operations for dynamic resources.
     /// Returns guards that must be kept alive and copy guards that can be disposed after copying.
-    pub fn acquire_and_copy_guards(
-        prepared: &PreparedPass,
-        copy_info: &mut CopyInfo,
-    ) -> AcquiredGuards {
+    pub fn new(prepared: &PreparedPass, copy_info: &mut CopyInfo) -> Self {
         let mut buffer_guards = HashMap::new();
         let mut copy_guards = Vec::new();
         let mut texture_guards = HashMap::new();
@@ -474,9 +454,28 @@ impl BindGroupGuard {
             texture_copy_guards,
         }
     }
+}
 
+/**
+Wrapper type that contains the bind group
+and all guards that are needed to keep the resources alive.
+*/
+#[derive(Clone)]
+pub struct BindGroupGuard {
+    bind_group: BindGroup,
+    #[allow(dead_code)] // guards keep resources alive during GPU execution
+    guards: Vec<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
+    vertex_buffers: Vec<(u32, wgpu::Buffer)>,
+    dynamic_vertex_buffers: Vec<(
+        u32,
+        Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
+    )>,
+    index_buffer: Option<wgpu::Buffer>,
+}
+
+impl BindGroupGuard {
     /// Creates a BindGroupGuard using pre-acquired guards from acquire_and_copy_guards.
-    pub fn new_from_guards(
+    fn new_from_guards(
         bind_device: &crate::images::BoundDevice,
         prepared: &PreparedPass,
         camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
@@ -633,25 +632,26 @@ impl BindGroupGuard {
         }
     }
 
-    pub fn new(
+    fn new(
         bind_device: &crate::images::BoundDevice,
         prepared: &PreparedPass,
         camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
         mipmapped_sampler: &wgpu::Sampler,
         copy_info: &mut CopyInfo,
-    ) -> Self {
+    ) -> (Self, AcquiredGuards) {
         // First acquire guards and perform copies
-        let mut acquired_guards = Self::acquire_and_copy_guards(prepared, copy_info);
+        let mut acquired_guards = AcquiredGuards::new(prepared, copy_info);
 
         // Then create the bind group using the acquired guards
-        Self::new_from_guards(
+        let s = Self::new_from_guards(
             bind_device,
             prepared,
             camera_buffer,
             mipmapped_sampler,
             &mut acquired_guards,
             copy_info,
-        )
+        );
+        (s, acquired_guards)
     }
 }
 
@@ -949,22 +949,16 @@ impl Port {
         let mut frame_bind_groups = Vec::new();
         let mut frame_acquired_guards = Vec::new();
         for prepared in &prepared {
-            // First acquire guards and perform copies
-            let mut acquired_guards =
-                BindGroupGuard::acquire_and_copy_guards(prepared, &mut copy_info);
-
-            // Then create the bind group using the acquired guards
-            let bind_group = BindGroupGuard::new_from_guards(
+            let (bind, acquired) = BindGroupGuard::new(
                 device,
                 prepared,
                 &camera_gpu_access,
                 &mipmapped_sampler,
-                &mut acquired_guards,
                 &mut copy_info,
             );
 
-            frame_bind_groups.push(bind_group);
-            frame_acquired_guards.push(acquired_guards);
+            frame_bind_groups.push(bind);
+            frame_acquired_guards.push(acquired);
         }
         //in the second pass, we encode our render pass
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
