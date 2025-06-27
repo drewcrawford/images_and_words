@@ -130,6 +130,7 @@ impl<Format: PixelFormat> MappableTexture<Format> {
 
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) {
         assert!(src_width == self.width); //we could support this but it would involve multiple copies
+        assert!(dst_texel == Texel::ZERO); //not supported at present
         use crate::pixel_formats::pixel_as_bytes;
         let data_bytes = pixel_as_bytes(data);
         let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();

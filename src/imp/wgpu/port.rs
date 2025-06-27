@@ -106,6 +106,7 @@ pub struct Port {
     dump_framebuffer: bool, //for debugging
     scaled_size: RenderInput<Option<(u32, u32)>>,
     camera_buffer: Buffer<CameraProjection>,
+    camera: Camera,
     mipmapped_sampler: wgpu::Sampler,
 }
 
@@ -821,6 +822,7 @@ impl Port {
         Ok(Port {
             engine: engine.clone(),
             camera_buffer,
+            camera,
             pass_config: RenderInput::new(PassConfig::new()),
             prepared_passes: Vec::new(),
             view,
@@ -1024,6 +1026,34 @@ impl Port {
 
             // Mark configuration as submitted
             self.pass_config.mark_submitted();
+        }
+
+        // Update camera buffer if camera is dirty
+        let camera_dirty_receiver = self.camera.dirty_receiver();
+        if camera_dirty_receiver.is_dirty() {
+            let projection = self.camera.copy_projection_and_clear_dirty_bit();
+            let camera_projection = CameraProjection {
+                projection: [
+                    *projection.matrix().columns()[0].x(),
+                    *projection.matrix().columns()[0].y(),
+                    *projection.matrix().columns()[0].z(),
+                    *projection.matrix().columns()[0].w(),
+                    *projection.matrix().columns()[1].x(),
+                    *projection.matrix().columns()[1].y(),
+                    *projection.matrix().columns()[1].z(),
+                    *projection.matrix().columns()[1].w(),
+                    *projection.matrix().columns()[2].x(),
+                    *projection.matrix().columns()[2].y(),
+                    *projection.matrix().columns()[2].z(),
+                    *projection.matrix().columns()[2].w(),
+                    *projection.matrix().columns()[3].x(),
+                    *projection.matrix().columns()[3].y(),
+                    *projection.matrix().columns()[3].z(),
+                    *projection.matrix().columns()[3].w(),
+                ],
+            };
+            let mut write_guard = self.camera_buffer.access_write().await;
+            write_guard.write(&[camera_projection], 0);
         }
 
         // Always recreate acquired guards for all prepared passes

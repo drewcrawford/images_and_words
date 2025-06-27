@@ -101,6 +101,9 @@ impl DirtyReceiver {
             *cont = continuation.clone_shared();
         }
     }
+    pub fn is_dirty(&self) -> bool {
+        self.shared.dirty.load(Ordering::Relaxed)
+    }
 }
 
 impl PartialEq for DirtyReceiver {
