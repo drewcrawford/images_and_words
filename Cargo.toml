@@ -29,7 +29,7 @@ half = "2.6"
 portable_async_sleep = "0.1.0"
 await_values = "0.1.0"
 # optional
-app_window = {version = "0.2.0", optional=true}
+app_window = {version = "0.2.0", optional=true, features = []}
 # used for app_window
 send_cells = {version = "0.1", optional=true}
 # used for wgpu backend
@@ -43,7 +43,7 @@ env_logger = {version = "0.11.8"}
 [features]
 # Create a view based on app_window Surface
 app_window = ["dep:app_window","dep:send_cells"]
-backend_wgpu = ["dep:wgpu"]
+backend_wgpu = ["dep:wgpu", "app_window?/wgpu"]
 # Enable testing APIs for integration tests
 testing = []
 
