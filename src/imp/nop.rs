@@ -350,6 +350,12 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
     }
 }
 
+impl AsRef<MappableBuffer> for MappableBuffer {
+    fn as_ref(&self) -> &MappableBuffer {
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct GPUableBuffer;
 impl GPUableBuffer {

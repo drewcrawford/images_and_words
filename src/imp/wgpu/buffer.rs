@@ -137,6 +137,30 @@ impl MappableBuffer {
     }
 }
 
+impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
+    async fn map_read(&mut self) {
+        self.map_read().await
+    }
+
+    async fn map_write(&mut self) {
+        self.map_write().await
+    }
+
+    fn unmap(&mut self) {
+        self.unmap()
+    }
+
+    fn byte_len(&self) -> usize {
+        self.byte_len()
+    }
+}
+
+impl AsRef<MappableBuffer> for MappableBuffer {
+    fn as_ref(&self) -> &MappableBuffer {
+        self
+    }
+}
+
 /**
 A buffer that can (only) be mapped to GPU.
 */

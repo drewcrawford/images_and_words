@@ -95,7 +95,7 @@ use crate::multibuffer::CPUWriteGuard;
 use crate::multibuffer::Multibuffer;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
-use std::ops::Index;
+use std::ops::{Deref, DerefMut, Index};
 use std::sync::Arc;
 
 /// Indicates how frequently a dynamic buffer will be updated.
@@ -134,10 +134,10 @@ pub enum WriteFrequency {
 ///
 /// This struct contains the multibuffer that coordinates access between
 /// CPU writes and GPU reads, ensuring proper synchronization.
-struct Shared<Element> {
-    multibuffer: Multibuffer<IndividualBuffer<Element>, imp::GPUableBuffer>,
+struct Shared {
+    multibuffer: Multibuffer<imp::MappableBuffer, imp::GPUableBuffer>,
 }
-impl<Element> Debug for Shared<Element> {
+impl Debug for Shared {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Shared")
             .field("multibuffer", &self.multibuffer)
@@ -187,10 +187,12 @@ impl<Element> Debug for Shared<Element> {
 /// ```
 #[derive(Debug, Clone)]
 pub struct Buffer<Element> {
-    shared: Arc<Shared<Element>>,
+    shared: Arc<Shared>,
     count: usize,
     debug_name: String,
+    _phantom: PhantomData<Element>,
 }
+
 
 /// A CPU-accessible buffer instance within the multibuffer system.
 ///
@@ -205,31 +207,31 @@ pub struct Buffer<Element> {
 ///
 /// The buffer memory is directly accessible through indexing and the `write` method.
 /// Users must ensure they don't write out of bounds.
-pub struct IndividualBuffer<Element> {
-    pub(crate) imp: imp::MappableBuffer,
+pub struct IndividualBuffer<'a, Element> {
+    guard: CPUWriteGuard<'a, imp::MappableBuffer, imp::GPUableBuffer>,
     _marker: SendPhantom<Element>,
     count: usize,
 }
 
-impl<Element> Debug for IndividualBuffer<Element> {
+impl<Element> Debug for IndividualBuffer<'_, Element> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IndividualBuffer")
-            .field("imp", &self.imp)
+            .field("guard", &self.guard)
             .field("count", &self.count)
             .finish()
     }
 }
 
-impl<Element> Index<usize> for IndividualBuffer<Element> {
+impl<Element> Index<usize> for IndividualBuffer<'_, Element> {
     type Output = Element;
     fn index(&self, index: usize) -> &Self::Output {
         let offset = index * std::mem::size_of::<Element>();
-        let bytes: &[u8] = &self.imp.as_slice()[offset..offset + std::mem::size_of::<Element>()];
+        let bytes: &[u8] = &self.guard.deref().as_slice()[offset..offset + std::mem::size_of::<Element>()];
         unsafe { &*(bytes.as_ptr() as *const Element) }
     }
 }
 
-impl<Element> IndividualBuffer<Element> {
+impl<Element> IndividualBuffer<'_, Element> {
     /// Writes data to the buffer at the given offset.
     ///
     /// # Parameters
@@ -270,31 +272,24 @@ impl<Element> IndividualBuffer<Element> {
         let bytes = unsafe {
             std::slice::from_raw_parts(data.as_ptr() as *const u8, std::mem::size_of_val(data))
         };
-        self.imp.write(bytes, offset);
+        self.guard.deref_mut().write(bytes, offset);
     }
 }
-impl<Element> Mappable for IndividualBuffer<Element> {
+impl<Element> Mappable for IndividualBuffer<'_, Element> {
     async fn map_read(&mut self) {
-        self.imp.map_read().await;
+        self.guard.deref_mut().map_read().await;
     }
     async fn map_write(&mut self) {
-        self.imp.map_write().await;
+        self.guard.deref_mut().map_write().await;
     }
     fn unmap(&mut self) {
-        self.imp.unmap();
+        self.guard.deref_mut().unmap();
     }
     fn byte_len(&self) -> usize {
         self.count * std::mem::size_of::<Element>()
     }
 }
 
-//in order to support GPU copy, we also need to implement AsRef to the imp type
-//see GPUMultibuffer definition for details
-impl<Element> AsRef<imp::MappableBuffer> for IndividualBuffer<Element> {
-    fn as_ref(&self) -> &imp::MappableBuffer {
-        &self.imp
-    }
-}
 /// GPU-side handle for a dynamic buffer.
 ///
 /// `RenderSide` provides access to the buffer during GPU operations. It manages
@@ -304,10 +299,11 @@ impl<Element> AsRef<imp::MappableBuffer> for IndividualBuffer<Element> {
 /// This type is used internally by the render pass system and is not directly
 /// accessible to users.
 pub(crate) struct RenderSide<Element> {
-    shared: Arc<Shared<Element>>,
+    shared: Arc<Shared>,
     count: usize,
     #[allow(dead_code)] //nop implementation does not use
     debug_name: String,
+    _phantom: PhantomData<Element>,
 }
 
 impl<Element> Debug for RenderSide<Element> {
@@ -330,7 +326,7 @@ impl<Element> Debug for RenderSide<Element> {
 #[derive(Debug)]
 pub struct GPUAccess<Element> {
     #[allow(dead_code)] //nop implementation does not use
-    imp: crate::multibuffer::GPUGuard<IndividualBuffer<Element>, GPUableBuffer>,
+    imp: crate::multibuffer::GPUGuard<imp::MappableBuffer, GPUableBuffer>,
     _phantom: PhantomData<Element>,
 }
 impl<Element> GPUAccess<Element> {
@@ -405,7 +401,7 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
         // Handle the copy if there's a dirty guard
         if let Some(dirty_guard) = underlying_guard.take_dirty_guard() {
             // Get the source buffer from the dirty guard
-            let source: &imp::MappableBuffer = dirty_guard.as_ref();
+            let source: &imp::MappableBuffer = &dirty_guard;
 
             // Perform the copy operation
             imp::copy_mappable_to_gpuable_buffer(
@@ -541,7 +537,7 @@ impl<Element> Buffer<Element> {
 
         let map_type = crate::bindings::buffer_access::MapType::Write; //todo: optimize for read vs write, etc.
 
-        let buffer = imp::MappableBuffer::new(
+        let mappable_buffer = imp::MappableBuffer::new(
             bound_device.clone(),
             byte_size,
             map_type,
@@ -555,19 +551,15 @@ impl<Element> Buffer<Element> {
             },
         )?;
 
-        let individual_buffer = IndividualBuffer {
-            imp: buffer,
-            _marker: SendPhantom::new(),
-            count: size,
-        };
         let gpu_buffer = imp::GPUableBuffer::new(bound_device, byte_size, usage, debug_name);
 
         Ok(Self {
             shared: Arc::new(Shared {
-                multibuffer: Multibuffer::new(individual_buffer, gpu_buffer, true),
+                multibuffer: Multibuffer::new(mappable_buffer, gpu_buffer, true),
             }),
             count: size,
             debug_name: debug_name.to_string(),
+            _phantom: PhantomData,
         })
     }
     /// Acquires write access to the buffer's CPU-side data.
@@ -609,8 +601,14 @@ impl<Element> Buffer<Element> {
     /// ```
     pub async fn access_write(
         &self,
-    ) -> CPUWriteGuard<IndividualBuffer<Element>, imp::GPUableBuffer> {
-        self.shared.multibuffer.access_write().await
+    ) -> IndividualBuffer<'_, Element> {
+        let guard = self.shared.multibuffer.access_write().await;
+        
+        IndividualBuffer {
+            guard,
+            _marker: SendPhantom::new(),
+            count: self.count,
+        }
     }
 
     #[allow(dead_code)] //nop implementation does not use
@@ -628,6 +626,7 @@ impl<Element> Buffer<Element> {
             shared: self.shared.clone(),
             count: self.count,
             debug_name: self.debug_name.clone(),
+            _phantom: PhantomData,
         }
     }
 }
