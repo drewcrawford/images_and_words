@@ -96,6 +96,8 @@ pub struct PreparedPass {
     instance_count: u32,
     vertex_count: u32,
     depth_pass: bool,
+    bind_group_guard: BindGroupGuard,
+    acquired_guards: Option<AcquiredGuards>,
 }
 
 impl PreparedPass {
@@ -103,6 +105,9 @@ impl PreparedPass {
         bind_device: &crate::images::BoundDevice,
         descriptor: PassDescriptor,
         enable_depth: bool,
+        camera_buffer: &Buffer<CameraProjection>,
+        mipmapped_sampler: &wgpu::Sampler,
+        copy_info: &mut CopyInfo,
     ) -> PreparedPass {
         let mut layouts = Vec::new();
 
@@ -355,12 +360,26 @@ impl PreparedPass {
             .0
             .device
             .create_render_pipeline(&render_descriptor);
+
+        // Create the BindGroupGuard using the constructed bind_group_layout
+        let (bind_group_guard, acquired_guards) = BindGroupGuard::new(
+            bind_device,
+            descriptor.bind_style(),
+            descriptor.name(),
+            &bind_group_layout,
+            camera_buffer,
+            mipmapped_sampler,
+            copy_info,
+        );
+
         PreparedPass {
             pipeline,
             vertex_count,
             instance_count,
             depth_pass: render_descriptor.depth_stencil.is_some(),
             pass_descriptor: descriptor.clone(),
+            bind_group_guard,
+            acquired_guards: Some(acquired_guards),
         }
     }
 }
@@ -751,12 +770,6 @@ impl Port {
 
         // Check if any pass descriptor wants depth - if so, enable depth for all passes
         let enable_depth = self.pass_descriptors.iter().any(|desc| desc.depth);
-
-        let mut prepared = Vec::new();
-        for descriptor in &self.pass_descriptors {
-            let pipeline = PreparedPass::new(device, descriptor.clone(), enable_depth);
-            prepared.push(pipeline);
-        }
         let unscaled_size = self.view.size_scale().await;
         let surface = self
             .view
@@ -927,6 +940,20 @@ impl Port {
             command_encoder: &mut encoder,
         };
 
+        // Create prepared passes now that we have all required parameters
+        let mut prepared = Vec::new();
+        for descriptor in &self.pass_descriptors {
+            let pipeline = PreparedPass::new(
+                device,
+                descriptor.clone(),
+                enable_depth,
+                &self.camera_buffer,
+                &mipmapped_sampler,
+                &mut copy_info,
+            );
+            prepared.push(pipeline);
+        }
+
         let depth_store = if self.dump_framebuffer {
             StoreOp::Store
         } else {
@@ -945,26 +972,15 @@ impl Port {
             None
         };
 
-        //we're going to do two passes.  The first pass is to prepare our bind groups.
-        //note that we do this per-frame, because in dynamic cases we want to bind to a buffer only known at runtime
-        let mut copy_info = CopyInfo {
-            command_encoder: &mut encoder,
-        };
+        //we're going to extract the bind groups and acquired guards from the prepared passes
+        //so the acquired guards can be explicitly dropped
         let mut frame_bind_groups = Vec::new();
         let mut frame_acquired_guards = Vec::new();
-        for prepared in &prepared {
-            let (bind, acquired) = BindGroupGuard::new(
-                device,
-                prepared.pass_descriptor.bind_style(),
-                prepared.pass_descriptor.name(),
-                &prepared.pipeline.get_bind_group_layout(0),
-                &self.camera_buffer,
-                &mipmapped_sampler,
-                &mut copy_info,
-            );
-
-            frame_bind_groups.push(bind);
-            frame_acquired_guards.push(acquired);
+        for prepared in &mut prepared {
+            frame_bind_groups.push(prepared.bind_group_guard.clone());
+            if let Some(acquired) = prepared.acquired_guards.take() {
+                frame_acquired_guards.push(acquired);
+            }
         }
         //in the second pass, we encode our render pass
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
