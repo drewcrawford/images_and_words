@@ -67,16 +67,7 @@ impl<Format: PixelFormat> MappableTexture<Format> {
         initializer: Initializer,
     ) -> Self {
         let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
-        let unaligned_bytes_per_row = width as usize * bytes_per_pixel;
-
-        // Calculate aligned bytes per row using wgpu's alignment requirement
-        let aligned_bytes_per_row = unaligned_bytes_per_row
-            .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize - 1)
-            .unwrap()
-            .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
-            .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
-            .unwrap();
-
+        let aligned_bytes_per_row = Self::aligned_bytes_per_row(width);
         // Buffer size must account for the aligned row size
         let buffer_size = aligned_bytes_per_row * height as usize;
 
@@ -122,14 +113,10 @@ impl<Format: PixelFormat> MappableTexture<Format> {
         }
     }
 
-    pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) {
-        assert!(src_width == self.width); //we could support this but it would involve multiple copies
-        use crate::pixel_formats::pixel_as_bytes;
-        let data_bytes = pixel_as_bytes(data);
-
+    fn aligned_bytes_per_row(width: u16) -> usize {
         // Calculate destination offset based on texel position with proper alignment
         let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
-        let unaligned_bytes_per_row = self.width as usize * bytes_per_pixel;
+        let unaligned_bytes_per_row = width as usize * bytes_per_pixel;
 
         // Use the same alignment calculation as in new()
         let aligned_bytes_per_row = unaligned_bytes_per_row
@@ -138,11 +125,25 @@ impl<Format: PixelFormat> MappableTexture<Format> {
             .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
             .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
             .unwrap();
+        aligned_bytes_per_row
+    }
 
-        let dst_offset =
-            dst_texel.y as usize * aligned_bytes_per_row + dst_texel.x as usize * bytes_per_pixel;
+    pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) {
+        assert!(src_width == self.width); //we could support this but it would involve multiple copies
+        use crate::pixel_formats::pixel_as_bytes;
+        let data_bytes = pixel_as_bytes(data);
+        let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
+        let unaligned_bytes_per_row = src_width as usize * bytes_per_pixel; //this is the unaligned row size
+        let aligned_bytes_per_row = Self::aligned_bytes_per_row(self.width);
 
-        self.imp.write(data_bytes, dst_offset);
+        for y in 0..self.height {
+            //src is tightly packed
+            let src_offset = y as usize * unaligned_bytes_per_row;
+            let src_slice = &data_bytes[src_offset..src_offset + unaligned_bytes_per_row];
+            //dst is aligned
+            let dst_offset = y as usize * aligned_bytes_per_row;
+            self.imp.write(&src_slice, dst_offset);
+        }
     }
 }
 
