@@ -6,6 +6,7 @@ use crate::images::port::Port;
 use crate::images::projection::WorldCoord;
 use crate::images::view::View;
 use crate::imp;
+use crate::imp::{BackendSend, BackendSync};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
@@ -83,12 +84,6 @@ impl DerefMut for PortGuard<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.guard.as_mut().unwrap()
     }
-}
-
-fn assert_send_sync<T: Send + Sync>() {}
-#[allow(dead_code)]
-fn compile_check() {
-    assert_send_sync::<Engine>();
 }
 
 #[derive(Debug, thiserror::Error)]

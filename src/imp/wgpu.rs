@@ -22,6 +22,39 @@ pub use texture::{GPUableTexture, MappableTexture};
 pub use unbound_device::UnboundDevice;
 pub use view::View;
 
+/**
+A trait for backend-specific synchronization requirements.
+*/
+#[cfg(target_arch = "wasm32")]
+pub trait BackendSync {}
+/**
+A trait for backend-specific synchronization requirements.
+*/
+#[cfg(not(target_arch = "wasm32"))]
+pub trait BackendSync: Sync {}
+
+#[cfg(target_arch = "wasm32")]
+impl<T> BackendSync for T {}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Sync> BackendSync for T {}
+
+/**
+A trait for backend-specific synchronization requirements.
+*/
+#[cfg(target_arch = "wasm32")]
+pub trait BackendSend {}
+/**
+A trait for backend-specific synchronization requirements.
+*/
+#[cfg(not(target_arch = "wasm32"))]
+pub trait BackendSend: Send {}
+
+#[cfg(target_arch = "wasm32")]
+impl<T> BackendSend for T {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send> BackendSend for T {}
+
 /// Helper function to copy from a mappable buffer to a GPU buffer
 pub fn copy_mappable_to_gpuable_buffer(
     source: &MappableBuffer,

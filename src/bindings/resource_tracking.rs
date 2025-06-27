@@ -190,6 +190,7 @@ impl Debug for NotAvailable {
 }
 
 pub(crate) mod sealed {
+    use crate::imp::BackendSend;
     use std::future::Future;
 
     /// Trait for resources that can be mapped for CPU access
@@ -202,13 +203,13 @@ pub(crate) mod sealed {
         ///
         /// This operation is asynchronous as it may need to wait for
         /// GPU operations to complete or for data to be transferred.
-        fn map_read(&mut self) -> impl Future<Output = ()> + Send;
+        fn map_read(&mut self) -> impl Future<Output = ()> + BackendSend;
 
         /// Maps the resource for read-write CPU access
         ///
         /// This operation is asynchronous as it may need to wait for
         /// GPU operations to complete or for data to be transferred.
-        fn map_write(&mut self) -> impl Future<Output = ()> + Send;
+        fn map_write(&mut self) -> impl Future<Output = ()> + BackendSend;
 
         /// Returns the size of the resource in bytes
         fn byte_len(&self) -> usize;

@@ -27,7 +27,7 @@ impl View {
             raw_display_handle,
         ));
         let entrypoint = entrypoint.clone();
-        app_window::wgpu::wgpu_call_context(async move {
+        app_window::wgpu::wgpu_call_context_relaxed(async move {
             let target = wgpu::SurfaceTargetUnsafe::RawHandle {
                 //safety: see function documentation
                 raw_window_handle: unsafe { move_handles.get().0 },

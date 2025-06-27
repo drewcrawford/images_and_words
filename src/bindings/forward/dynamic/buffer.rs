@@ -90,7 +90,7 @@ use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp;
-use crate::imp::SendPhantom;
+use crate::imp::{BackendSend, BackendSync, SendPhantom};
 use crate::multibuffer::CPUWriteGuard;
 use crate::multibuffer::Multibuffer;
 use std::fmt::{Debug, Display, Formatter};
@@ -346,7 +346,7 @@ impl GPUAccess {
 impl<Element> RenderSide<Element> {
     pub(crate) fn erased_render_side(self) -> ErasedRenderSide
     where
-        Element: Send + Sync + 'static,
+        Element: BackendSend + BackendSync + 'static,
     {
         ErasedRenderSide {
             element_size: std::mem::size_of::<Element>(),
@@ -361,7 +361,7 @@ impl<Element> RenderSide<Element> {
 /// This trait provides a uniform interface for accessing GPU buffers during
 /// rendering, abstracting over the specific element type. It's used internally
 /// by the render pass system to manage buffers of different types.
-pub(crate) trait SomeRenderSide: Send + Sync + Debug {
+pub(crate) trait SomeRenderSide: BackendSend + BackendSync + Debug {
     /// Acquires exclusive access to the GPU buffer for rendering.
     ///
     /// # Safety
@@ -387,7 +387,7 @@ pub(crate) trait SomeRenderSide: Send + Sync + Debug {
     unsafe fn unsafe_imp(&self) -> &imp::GPUableBuffer;
 }
 
-impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
+impl<Element: BackendSend + BackendSync + 'static> SomeRenderSide for RenderSide<Element> {
     unsafe fn acquire_gpu_buffer(&self) -> GPUAccess {
         let mut underlying_guard = unsafe { self.shared.multibuffer.access_gpu() };
 

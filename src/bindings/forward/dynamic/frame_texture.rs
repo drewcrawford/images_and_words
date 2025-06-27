@@ -105,6 +105,7 @@ use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureConfig;
 use crate::images::device::BoundDevice;
 use crate::imp;
+use crate::imp::BackendSend;
 use crate::multibuffer::Multibuffer;
 use crate::pixel_formats::sealed::PixelFormat;
 use std::fmt::{Debug, Formatter};
@@ -374,7 +375,7 @@ impl GPUAccess {
 }
 
 /// Trait for type-erased guard that provides access to source texture for copying
-pub(crate) trait DynGuard: Debug + Send {
+pub(crate) trait DynGuard: Debug + BackendSend {
     /// Perform the copy from the stored source to the given destination
     #[allow(dead_code)] //nop implementation does not use
     fn perform_copy(

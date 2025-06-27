@@ -32,6 +32,11 @@ impl UnboundDevice {
     }
 }
 
+pub trait BackendSend: Send {}
+impl<T: Send> BackendSend for T {}
+pub trait BackendSync: Sync {}
+impl<T: Sync> BackendSync for T {}
+
 impl UnboundDevice {
     pub async fn pick(
         _surface: &crate::images::view::View,

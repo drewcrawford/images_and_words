@@ -217,7 +217,7 @@ impl BindStyle {
         stage: Stage,
         buffer: &crate::bindings::forward::dynamic::buffer::Buffer<Element>,
     ) where
-        Element: Send + Sync + 'static,
+        Element: BackendSend + BackendSync + 'static,
     {
         self.bind(
             slot,
@@ -344,7 +344,7 @@ impl BindStyle {
         buffer: &crate::bindings::forward::dynamic::buffer::Buffer<Element>,
         layout: VertexLayout,
     ) where
-        Element: Send + Sync + 'static,
+        Element: BackendSend + BackendSync + 'static,
     {
         self.bind(
             slot,
@@ -453,3 +453,4 @@ impl BindSlot {
 }
 
 use crate::images::vertex_layout::VertexLayout;
+use crate::imp::{BackendSend, BackendSync};

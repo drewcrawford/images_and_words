@@ -10,8 +10,9 @@ use crate::images::render_pass::{DrawCommand, PassDescriptor};
 use crate::images::vertex_layout::VertexFieldType;
 use crate::imp;
 use crate::imp::wgpu::buffer::StorageType;
-use crate::imp::{CopyInfo, Error};
+use crate::imp::{BackendSend, BackendSync, CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
+use send_cells::send_cell::SendCell;
 use std::collections::HashMap;
 use std::num::NonZero;
 use std::sync::Arc;
@@ -1040,6 +1041,9 @@ impl Port {
 
         let frame_guard_for_callback = frame_guard.clone();
         let callback_guard = frame_guard_for_callback.clone();
+        //this closure requires Send but I don't think we actually do on wgpu
+        let frame_bind_groups = SendCell::new(frame_bind_groups);
+        let frame_acquired_guards = SendCell::new(frame_acquired_guards);
         device.0.queue.on_submitted_work_done(move || {
             std::mem::drop(frame_bind_groups);
             std::mem::drop(frame_acquired_guards);
