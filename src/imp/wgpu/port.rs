@@ -383,6 +383,17 @@ impl PreparedPass {
             acquired_guards: Some(acquired_guards),
         }
     }
+
+    fn recreate_acquired_guards(
+        &mut self,
+        camera_buffer: &Buffer<CameraProjection>,
+        copy_info: &mut CopyInfo,
+    ) {
+        // Recreate only the acquired_guards field, leaving bind_group_guard unchanged
+        let new_acquired_guards =
+            AcquiredGuards::new(self.pass_descriptor.bind_style(), copy_info, camera_buffer);
+        self.acquired_guards = Some(new_acquired_guards);
+    }
 }
 
 /**
@@ -786,7 +797,6 @@ impl Port {
     pub async fn render_frame(&mut self) {
         self.port_reporter_send.begin_frame(self.frame);
         let frame_guard = self.port_reporter_send.create_frame_guard();
-        //todo: We are currently doing a lot of setup work on each frame, that ought to be moved to initialization?
         let device = self.engine.bound_device().as_ref();
 
         // Check if any pass descriptor wants depth - if so, enable depth for all passes
@@ -958,6 +968,11 @@ impl Port {
                 &mut copy_info,
             );
             prepared.push(pipeline);
+        }
+
+        // Recreate acquired guards for testing purposes
+        for prepared_pass in &mut prepared {
+            prepared_pass.recreate_acquired_guards(&self.camera_buffer, &mut copy_info);
         }
 
         let depth_store = if self.dump_framebuffer {
