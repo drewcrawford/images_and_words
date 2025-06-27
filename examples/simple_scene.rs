@@ -153,8 +153,7 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 /// This layered approach ensures graphics operations happen on the correct thread
 /// while maintaining the async execution model needed for the middleware.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-    println!("Starting simple scene example...");
+    logwise::debuginternal_sync!("Starting simple scene example...");
 
     #[cfg(feature = "app_window")]
     {
@@ -166,17 +165,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(all(not(feature = "app_window"), any(test, feature = "testing")))]
     {
         // Testing Mode: Use virtual surface for headless testing
-        println!("app_window feature not enabled, using test view...");
+        logwise::debuginternal_sync!("app_window feature not enabled, using test view...");
         test_executors::sleep_on(run_testing_example())
     }
 
     #[cfg(all(not(feature = "app_window"), not(any(test, feature = "testing"))))]
     {
-        println!(
+        logwise::debuginternal_sync!(
             "This example requires either the 'app_window' or 'testing' feature to be enabled."
         );
-        println!("Run with: cargo run --example simple_scene --features=backend_wgpu,app_window");
-        println!(
+        logwise::debuginternal_sync!(
+            "Run with: cargo run --example simple_scene --features=backend_wgpu,app_window"
+        );
+        logwise::debuginternal_sync!(
             "Or for testing: cargo run --example simple_scene --features=backend_wgpu,testing"
         );
         Ok(())
@@ -205,24 +206,24 @@ async fn run_app_window_example() {
     use app_window::window::Window;
 
     // Step 1: Create a window using app_window
-    println!("Creating window...");
+    logwise::debuginternal_sync!("Creating window...");
     let mut window = Window::new(
         Position::default(),     // Default position (centered)
         Size::new(800.0, 600.0), // 800x600 resolution
         "images_and_words - Simple Scene Example".to_string(),
     )
     .await;
-    println!("Window created!");
+    logwise::debuginternal_sync!("Window created!");
 
     // Step 2: Extract the rendering surface from the window
     let surface = window.surface().await;
 
     // Step 3: Create images_and_words View from the surface
-    println!("Creating view from surface...");
+    logwise::debuginternal_sync!("Creating view from surface...");
     let view = View::from_surface(surface).expect("View creation failed");
 
     // Step 4: Create the graphics engine with initial camera position
-    println!("Creating graphics engine...");
+    logwise::debuginternal_sync!("Creating graphics engine...");
     let initial_camera_position = WorldCoord::new(0.0, 0.0, 2.0); // 2 units back from origin
     let engine_arc = Engine::rendering_to(view, initial_camera_position)
         .await
@@ -232,7 +233,7 @@ async fn run_app_window_example() {
     let _ = run_rendering_with_engine_arc(engine_arc).await;
 
     // Step 6: Cleanup - keep window alive until rendering completes
-    println!("Keeping window alive during rendering...");
+    logwise::debuginternal_sync!("Keeping window alive during rendering...");
     drop(window); // Explicitly drop when we're done
 }
 
@@ -258,7 +259,7 @@ async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
     let view = View::for_testing();
 
     // Step 2: Create the graphics engine (same as windowed mode)
-    println!("Creating graphics engine...");
+    logwise::debuginternal_sync!("Creating graphics engine...");
     let initial_camera_position = WorldCoord::new(0.0, 0.0, 2.0);
     let engine = Engine::rendering_to(view, initial_camera_position)
         .await
@@ -305,12 +306,12 @@ async fn run_rendering_with_engine_arc(
     let _device = engine.bound_device();
 
     // Step 1: Create and compile shaders from WGSL source
-    println!("Creating shaders...");
+    logwise::debuginternal_sync!("Creating shaders...");
     let vertex_shader = VertexShader::new("simple_vertex", VERTEX_SHADER.to_string());
     let fragment_shader = FragmentShader::new("simple_fragment", FRAGMENT_SHADER.to_string());
 
     // Step 2: Set up resource binding style (empty for this simple example)
-    println!("Setting up resource bindings...");
+    logwise::debuginternal_sync!("Setting up resource bindings...");
     let bind_style = BindStyle::new();
 
     // Note: This example uses procedural vertex generation in shaders.
@@ -321,7 +322,7 @@ async fn run_rendering_with_engine_arc(
     // 4. Reference in shaders: @location(0) position: vec3<f32>
 
     // Step 3: Create render pass descriptor with complete pipeline configuration
-    println!("Creating render pass...");
+    logwise::debuginternal_sync!("Creating render pass...");
     let pass_descriptor = PassDescriptor::new(
         "triangle_pass".to_string(),  // Debug name
         vertex_shader,                // Vertex stage
@@ -333,13 +334,13 @@ async fn run_rendering_with_engine_arc(
     );
 
     // Step 4: Register render pass with engine's main port
-    println!("Adding render pass to engine...");
+    logwise::debuginternal_sync!("Adding render pass to engine...");
     let mut port = engine.main_port_mut(); // Get exclusive port access
     port.add_fixed_pass(pass_descriptor).await;
 
     // Step 5: Execute main rendering loop with frame timing
-    println!("Starting render loop...");
-    println!("Rendering a colorful triangle for demonstration...");
+    logwise::debuginternal_sync!("Starting render loop...");
+    logwise::debuginternal_sync!("Rendering a colorful triangle for demonstration...");
 
     let mut frame_count = 0;
     let max_frames = 10_000; // 5 seconds at 60fps for demonstration
@@ -351,13 +352,16 @@ async fn run_rendering_with_engine_arc(
 
         // Progress reporting every second
         if frame_count % 60 == 0 {
-            println!("Rendered {} frames", frame_count);
+            logwise::debuginternal_sync!("Rendered {frames} frames", frames = frame_count);
         }
 
         // Frame rate limiting: target ~60fps (16.67ms per frame)
         portable_async_sleep::async_sleep(std::time::Duration::from_millis(16)).await;
     }
 
-    println!("Rendering complete! Rendered {} frames total.", frame_count);
+    logwise::debuginternal_sync!(
+        "Rendering complete! Rendered {frames} frames total.",
+        frames = frame_count
+    );
     Ok(())
 }
