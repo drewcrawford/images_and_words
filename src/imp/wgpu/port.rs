@@ -384,7 +384,7 @@ impl AcquiredGuards {
     /// Acquires GPU buffers and performs copy operations for dynamic resources.
     /// Returns guards that must be kept alive and copy guards that can be disposed after copying.
     pub fn new(
-        prepared: &PreparedPass,
+        bind_style: &crate::bindings::bind_style::BindStyle,
         copy_info: &mut CopyInfo,
         camera_buffer: &Buffer<CameraProjection>,
     ) -> Self {
@@ -395,7 +395,7 @@ impl AcquiredGuards {
 
         // Handle dynamic buffers, dynamic vertex buffers, and dynamic textures in a single pass
         let mut camera_guard = None;
-        for (bind_index, info) in &prepared.pass_descriptor.bind_style().binds {
+        for (bind_index, info) in &bind_style.binds {
             match &info.target {
                 BindTarget::DynamicBuffer(buf) => {
                     // Safety: Keep the guard alive
@@ -501,7 +501,9 @@ impl BindGroupGuard {
     /// Creates a BindGroupGuard using pre-acquired guards from acquire_and_copy_guards.
     fn new_from_guards(
         bind_device: &crate::images::BoundDevice,
-        prepared: &PreparedPass,
+        bind_style: &crate::bindings::bind_style::BindStyle,
+        name: &str,
+        bind_group_layout: &wgpu::BindGroupLayout,
         mipmapped_sampler: &wgpu::Sampler,
         acquired_guards: &mut AcquiredGuards,
         _copy_info: &mut CopyInfo,
@@ -512,7 +514,7 @@ impl BindGroupGuard {
         let gpu_guard_buffers = StableAddressVec::with_capactiy(5);
         let gpu_guard_textures = StableAddressVec::with_capactiy(5);
 
-        for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
+        for (pass_index, info) in &bind_style.binds {
             let resource = match &info.target {
                 BindTarget::DynamicBuffer(buf) => {
                     // Remove the guard from the acquired guards map
@@ -607,15 +609,15 @@ impl BindGroupGuard {
             .0
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some(prepared.pass_descriptor.name()),
-                layout: &prepared.pipeline.get_bind_group_layout(0),
+                label: Some(name),
+                layout: bind_group_layout,
                 entries: entries.as_slice(),
             });
 
         //find vertex buffers
         let mut vertex_buffers = Vec::new();
         let mut dynamic_vertex_buffers = Vec::new();
-        for (b, buffer) in &prepared.pass_descriptor.bind_style().binds {
+        for (b, buffer) in &bind_style.binds {
             match &buffer.target {
                 BindTarget::StaticBuffer(_)
                 | BindTarget::DynamicBuffer(_)
@@ -639,8 +641,7 @@ impl BindGroupGuard {
             }
         }
 
-        let index_buffer = if let Some(buffer) = &prepared.pass_descriptor.bind_style().index_buffer
-        {
+        let index_buffer = if let Some(buffer) = &bind_style.index_buffer {
             let buffer = buffer.buffer.clone();
             Some(buffer)
         } else {
@@ -662,18 +663,22 @@ impl BindGroupGuard {
 
     fn new(
         bind_device: &crate::images::BoundDevice,
-        prepared: &PreparedPass,
+        bind_style: &crate::bindings::bind_style::BindStyle,
+        name: &str,
+        bind_group_layout: &wgpu::BindGroupLayout,
         camera_buffer: &Buffer<CameraProjection>,
         mipmapped_sampler: &wgpu::Sampler,
         copy_info: &mut CopyInfo,
     ) -> (Self, AcquiredGuards) {
         // First acquire guards and perform copies
-        let mut acquired_guards = AcquiredGuards::new(prepared, copy_info, camera_buffer);
+        let mut acquired_guards = AcquiredGuards::new(bind_style, copy_info, camera_buffer);
 
         // Then create the bind group using the acquired guards
         let s = Self::new_from_guards(
             bind_device,
-            prepared,
+            bind_style,
+            name,
+            bind_group_layout,
             mipmapped_sampler,
             &mut acquired_guards,
             copy_info,
@@ -950,7 +955,9 @@ impl Port {
         for prepared in &prepared {
             let (bind, acquired) = BindGroupGuard::new(
                 device,
-                prepared,
+                prepared.pass_descriptor.bind_style(),
+                prepared.pass_descriptor.name(),
+                &prepared.pipeline.get_bind_group_layout(0),
                 &self.camera_buffer,
                 &mipmapped_sampler,
                 &mut copy_info,
