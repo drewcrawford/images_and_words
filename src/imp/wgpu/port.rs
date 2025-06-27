@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::bindings::bind_style::BindTarget;
+use crate::bindings::forward::dynamic::buffer::Buffer;
 use crate::bindings::forward::dynamic::buffer::CRepr;
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::GPUBufferUsage;
@@ -26,6 +27,7 @@ use wgpu::{
 };
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct CameraProjection {
     pub projection: [f32; 16],
 }
@@ -81,6 +83,7 @@ pub struct Port {
     frame: u32,
     dump_framebuffer: bool, //for debugging
     scaled_size: RenderInput<Option<(u32, u32)>>,
+    camera_buffer: Buffer<CameraProjection>,
 }
 
 /**
@@ -374,18 +377,24 @@ pub struct AcquiredGuards {
     texture_guards: HashMap<u32, crate::bindings::forward::dynamic::frame_texture::GPUAccess>,
     // Texture copy guards that need to be kept alive during GPU operations
     texture_copy_guards: Vec<Box<dyn crate::bindings::forward::dynamic::frame_texture::DynGuard>>,
+    camera_guard: Option<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
 }
 
 impl AcquiredGuards {
     /// Acquires GPU buffers and performs copy operations for dynamic resources.
     /// Returns guards that must be kept alive and copy guards that can be disposed after copying.
-    pub fn new(prepared: &PreparedPass, copy_info: &mut CopyInfo) -> Self {
+    pub fn new(
+        prepared: &PreparedPass,
+        copy_info: &mut CopyInfo,
+        camera_buffer: &Buffer<CameraProjection>,
+    ) -> Self {
         let mut buffer_guards = HashMap::new();
         let mut copy_guards = Vec::new();
         let mut texture_guards = HashMap::new();
         let mut texture_copy_guards = Vec::new();
 
         // Handle dynamic buffers, dynamic vertex buffers, and dynamic textures in a single pass
+        let mut camera_guard = None;
         for (bind_index, info) in &prepared.pass_descriptor.bind_style().binds {
             match &info.target {
                 BindTarget::DynamicBuffer(buf) => {
@@ -411,6 +420,11 @@ impl AcquiredGuards {
 
                     buffer_guards.insert(*bind_index, Arc::new(gpu_access));
                 }
+
+                BindTarget::Camera => {
+                    todo!()
+                }
+
                 BindTarget::DynamicVB(_layout, render_side) => {
                     // Safety: guard kept alive
                     let mut gpu_access = unsafe { render_side.imp.acquire_gpu_buffer() };
@@ -451,6 +465,7 @@ impl AcquiredGuards {
 
                     texture_guards.insert(*bind_index, gpu_access);
                 }
+
                 _ => {} // Other targets handled later
             }
         }
@@ -458,6 +473,7 @@ impl AcquiredGuards {
         AcquiredGuards {
             buffer_guards,
             copy_guards,
+            camera_guard,
             texture_guards,
             texture_copy_guards,
         }
@@ -486,7 +502,6 @@ impl BindGroupGuard {
     fn new_from_guards(
         bind_device: &crate::images::BoundDevice,
         prepared: &PreparedPass,
-        camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
         mipmapped_sampler: &wgpu::Sampler,
         acquired_guards: &mut AcquiredGuards,
         _copy_info: &mut CopyInfo,
@@ -518,7 +533,12 @@ impl BindGroupGuard {
                     size: Some(NonZero::new(buf.buffer.size()).unwrap()),
                 }),
                 BindTarget::Camera => BindingResource::Buffer(BufferBinding {
-                    buffer: &camera_buffer.gpu_buffer.buffer,
+                    buffer: &acquired_guards
+                        .camera_guard
+                        .as_ref()
+                        .expect("camera")
+                        .gpu_buffer
+                        .buffer,
                     offset: 0,
                     size: Some(
                         NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap(),
@@ -643,18 +663,17 @@ impl BindGroupGuard {
     fn new(
         bind_device: &crate::images::BoundDevice,
         prepared: &PreparedPass,
-        camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
+        camera_buffer: &Buffer<CameraProjection>,
         mipmapped_sampler: &wgpu::Sampler,
         copy_info: &mut CopyInfo,
     ) -> (Self, AcquiredGuards) {
         // First acquire guards and perform copies
-        let mut acquired_guards = AcquiredGuards::new(prepared, copy_info);
+        let mut acquired_guards = AcquiredGuards::new(prepared, copy_info, camera_buffer);
 
         // Then create the bind group using the acquired guards
         let s = Self::new_from_guards(
             bind_device,
             prepared,
-            camera_buffer,
             mipmapped_sampler,
             &mut acquired_guards,
             copy_info,
@@ -665,13 +684,45 @@ impl BindGroupGuard {
 
 impl Port {
     pub(crate) fn new(
-        _engine: &Arc<crate::images::Engine>,
+        engine: &Arc<crate::images::Engine>,
         view: crate::images::view::View,
         camera: Camera,
         port_reporter_send: PortReporterSend,
     ) -> Result<Self, Error> {
+        //create camera buffer
+        let camera_buffer = Buffer::new(
+            engine.bound_device().clone(),
+            1,
+            GPUBufferUsage::VertexShaderRead,
+            "Camera",
+            |_initialize| {
+                let projection = camera.copy_projection_and_clear_dirty_bit();
+                CameraProjection {
+                    projection: [
+                        *projection.matrix().columns()[0].x(),
+                        *projection.matrix().columns()[0].y(),
+                        *projection.matrix().columns()[0].z(),
+                        *projection.matrix().columns()[0].w(),
+                        *projection.matrix().columns()[1].x(),
+                        *projection.matrix().columns()[1].y(),
+                        *projection.matrix().columns()[1].z(),
+                        *projection.matrix().columns()[1].w(),
+                        *projection.matrix().columns()[2].x(),
+                        *projection.matrix().columns()[2].y(),
+                        *projection.matrix().columns()[2].z(),
+                        *projection.matrix().columns()[2].w(),
+                        *projection.matrix().columns()[3].x(),
+                        *projection.matrix().columns()[3].y(),
+                        *projection.matrix().columns()[3].z(),
+                        *projection.matrix().columns()[3].w(),
+                    ],
+                }
+            },
+        )
+        .expect("Create camera buffer");
         Ok(Port {
-            engine: _engine.clone(),
+            engine: engine.clone(),
+            camera_buffer,
             pass_descriptors: Vec::new(),
             view,
             camera,
@@ -715,7 +766,6 @@ impl Port {
             (unscaled_size.1 as f64 * unscaled_size.2) as u32,
         );
         self.scaled_size.update(Some(current_scaled_size));
-        let mut copy_buffer_guards = Vec::new();
         match surface {
             None => {
                 println!("Port surface not initialized");
@@ -762,39 +812,7 @@ impl Port {
             border_color: None,
         });
 
-        let camera_mappable_buffer = crate::bindings::forward::dynamic::buffer::Buffer::new(
-            self.engine.bound_device().clone(),
-            1,
-            GPUBufferUsage::VertexShaderRead,
-            "Camera",
-            |_initialize| {
-                let projection = self.camera.copy_projection_and_clear_dirty_bit();
-                CameraProjection {
-                    projection: [
-                        *projection.matrix().columns()[0].x(),
-                        *projection.matrix().columns()[0].y(),
-                        *projection.matrix().columns()[0].z(),
-                        *projection.matrix().columns()[0].w(),
-                        *projection.matrix().columns()[1].x(),
-                        *projection.matrix().columns()[1].y(),
-                        *projection.matrix().columns()[1].z(),
-                        *projection.matrix().columns()[1].w(),
-                        *projection.matrix().columns()[2].x(),
-                        *projection.matrix().columns()[2].y(),
-                        *projection.matrix().columns()[2].z(),
-                        *projection.matrix().columns()[2].w(),
-                        *projection.matrix().columns()[3].x(),
-                        *projection.matrix().columns()[3].y(),
-                        *projection.matrix().columns()[3].z(),
-                        *projection.matrix().columns()[3].w(),
-                    ],
-                }
-            },
-        )
-        .expect("Create camera buffer");
-
         //create per-frame resources
-        let frame_guards = StableAddressVec::with_capactiy(10);
         let wgpu_view;
         let frame;
         let color_attachment;
@@ -904,33 +922,6 @@ impl Port {
             command_encoder: &mut encoder,
         };
 
-        let camera_render_side = camera_mappable_buffer.render_side();
-        let camera_gpu_access = unsafe {
-            use crate::bindings::forward::dynamic::buffer::SomeRenderSide;
-            let mut camera_gpu_access = camera_render_side.acquire_gpu_buffer();
-
-            // Handle the copy if there's a dirty guard
-            if let Some(dirty_guard) = camera_gpu_access.take_dirty_guard() {
-                // Get the source buffer from the dirty guard
-                let source: &imp::MappableBuffer = &dirty_guard;
-
-                // Perform the copy operation
-                imp::copy_mappable_to_gpuable_buffer(
-                    source,
-                    &camera_gpu_access.gpu_buffer,
-                    0,
-                    0,
-                    dirty_guard.byte_len(),
-                    &mut copy_info,
-                );
-                copy_buffer_guards.push(dirty_guard);
-            }
-
-            let camera_gpu_access = Arc::new(camera_gpu_access);
-            frame_guards.push(camera_gpu_access.clone()); //safety
-            camera_gpu_access
-        };
-
         let depth_store = if self.dump_framebuffer {
             StoreOp::Store
         } else {
@@ -960,7 +951,7 @@ impl Port {
             let (bind, acquired) = BindGroupGuard::new(
                 device,
                 prepared,
-                &camera_gpu_access,
+                &self.camera_buffer,
                 &mipmapped_sampler,
                 &mut copy_info,
             );
@@ -1102,7 +1093,6 @@ impl Port {
         device.0.queue.on_submitted_work_done(move || {
             //callbacks must be alive for full GPU-side render
             std::mem::drop(frame_bind_groups);
-            std::mem::drop(copy_buffer_guards);
             std::mem::drop(frame_acquired_guards);
             // println!("frame guards dropped");
             callback_guard.mark_gpu_complete();
