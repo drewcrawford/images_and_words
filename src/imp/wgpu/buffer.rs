@@ -2,7 +2,6 @@
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
-use crate::multibuffer::sealed::GPUMultibuffer;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label, MaintainBase};
@@ -331,8 +330,3 @@ impl<SourceGuard> AsRef<GPUableBuffer> for CopyGuard<SourceGuard> {
 }
 
 //I don't think we need to do anything wgpu-specific on CopyGuard's Drop here?
-
-impl GPUMultibuffer for GPUableBuffer {
-    type CorrespondingMappedType = MappableBuffer;
-    type OutGuard<InGuard> = CopyGuard<InGuard>;
-}

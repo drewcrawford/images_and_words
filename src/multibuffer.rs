@@ -16,7 +16,6 @@ use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
 use crate::bindings::resource_tracking;
 use crate::bindings::resource_tracking::ResourceTracker;
 use crate::bindings::resource_tracking::sealed::Mappable;
-use crate::multibuffer::sealed::GPUMultibuffer;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
@@ -25,7 +24,7 @@ use std::sync::{Arc, Mutex};
 pub struct CPUReadGuard<'a, Element, U>
 where
     Element: Mappable,
-    U: GPUMultibuffer,
+    U: Clone,
 {
     //option so we can take on drop
     imp: Option<crate::bindings::resource_tracking::CPUReadGuard<'a, Element>>,
@@ -35,7 +34,7 @@ where
 impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U>
 where
     Element: Mappable,
-    U: GPUMultibuffer,
+    U: Clone,
 {
     fn drop(&mut self) {
         _ = self.imp.take().expect("Dropped CPUReadGuard already");
@@ -56,7 +55,7 @@ where
 impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U>
 where
     Element: Mappable,
-    U: GPUMultibuffer,
+    U: Clone,
 {
     type Target = Element;
     fn deref(&self) -> &Self::Target {
@@ -68,7 +67,7 @@ where
 pub struct CPUWriteGuard<'a, Element, U>
 where
     Element: Mappable,
-    U: GPUMultibuffer,
+    U: Clone,
 {
     imp: Option<crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>>, //option for drop!
     buffer: &'a Multibuffer<Element, U>,
@@ -77,7 +76,7 @@ where
 impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U>
 where
     Element: Mappable,
-    U: GPUMultibuffer,
+    U: Clone,
 {
     fn drop(&mut self) {
         // Just drop the CPU guard - this will transition to PENDING_WRITE_TO_GPU automatically
@@ -103,7 +102,7 @@ where
 impl<'a, Element, U> DerefMut for CPUWriteGuard<'a, Element, U>
 where
     Element: Mappable,
-    U: GPUMultibuffer,
+    U: Clone,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.imp.as_mut().expect("No imp??")
@@ -113,7 +112,7 @@ where
 impl<'a, Element, U> Deref for CPUWriteGuard<'a, Element, U>
 where
     Element: Mappable,
-    U: GPUMultibuffer,
+    U: Clone,
 {
     type Target = Element;
     fn deref(&self) -> &Self::Target {
@@ -127,14 +126,14 @@ Represents a bindable GPU resource.
 Multibuffer type.
 */
 #[derive(Debug)]
-pub(crate) struct GPUGuard<T: Mappable, U: GPUMultibuffer> {
+pub(crate) struct GPUGuard<T: Mappable, U: Clone> {
     wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
     dirty_guard: Option<resource_tracking::GPUGuard<T>>,
     gpu_buffer: U,
 }
 
 //drop impl for GPUGuard
-impl<T: Mappable, U: GPUMultibuffer> Drop for GPUGuard<T, U> {
+impl<T: Mappable, U: Clone> Drop for GPUGuard<T, U> {
     fn drop(&mut self) {
         // Drop the dirty guard if present
         let _ = self.dirty_guard.take();
@@ -152,7 +151,7 @@ impl<T: Mappable, U: GPUMultibuffer> Drop for GPUGuard<T, U> {
     }
 }
 
-impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T, U> {
+impl<T: Mappable, U: Clone> GPUGuard<T, U> {
     pub fn as_imp(&self) -> &U {
         &self.gpu_buffer
     }
@@ -173,27 +172,6 @@ impl<T: Mappable, U: GPUMultibuffer> GPUGuard<T, U> {
     }
 }
 
-pub(crate) mod sealed {
-
-    pub trait GPUMultibuffer: Clone {
-        /*
-        So I guess the issue is
-        1.  Implementation needs e.g. imp::MappedBuffer, possibly indirectly through IndividualBuffer.
-        2.  IndividualBuffer has generics, and hard to name the type of the generics.  Really it's "for all"
-        3.  Hard to express this idea in the rust typesystem.
-
-        Meanwhile,
-        1.  imp::IndividualBuffer has no generics and is easy to name, however,
-        2.  The guard type protects IndividualBuffer, not the impl type.
-        3.  Can't pass them separately due to borrowing rules.
-
-        So my idea is, maybe we can avoid naming the IndividualBuffer type exactly?
-         */
-        type CorrespondingMappedType;
-        type OutGuard<InGuard>: AsRef<Self>;
-    }
-}
-
 /**
 
 Implements multibuffering.
@@ -206,7 +184,7 @@ Implements multibuffering.
 pub struct Multibuffer<T, U>
 where
     T: Mappable,
-    U: GPUMultibuffer,
+    U: Clone,
 {
     //right now, not really a multibuffer!
     mappable: ResourceTracker<T>,
@@ -218,7 +196,7 @@ where
 impl<T, U> Multibuffer<T, U>
 where
     T: Mappable,
-    U: GPUMultibuffer,
+    U: Clone,
 {
     pub fn new(element: T, gpu: U, initial_write_to_gpu: bool) -> Self {
         let tracker = ResourceTracker::new(element, initial_write_to_gpu);
@@ -259,7 +237,6 @@ where
     pub async fn access_write(&self) -> CPUWriteGuard<T, U>
     where
         T: Mappable,
-        U: GPUMultibuffer,
     {
         loop {
             // FIRST, insert into the list.  Think very carefully before changing this order.
@@ -290,8 +267,7 @@ where
     pub(crate) unsafe fn access_gpu(&self) -> GPUGuard<T, U>
     where
         T: Mappable,
-        U: GPUMultibuffer,
-        T: AsRef<U::CorrespondingMappedType>,
+        U: Clone,
     {
         // Try to acquire GPU resource if it's in PENDING_WRITE_TO_GPU state
         match self.mappable.gpu() {

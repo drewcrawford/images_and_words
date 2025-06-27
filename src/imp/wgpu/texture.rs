@@ -7,7 +7,6 @@ use crate::bindings::visible_to::{TextureConfig, TextureUsage};
 use crate::imp::GPUableTextureWrapped;
 use crate::imp::{Error, MappableBuffer};
 use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
-use crate::multibuffer::sealed::GPUMultibuffer;
 use crate::pixel_formats::pixel_as_bytes;
 use crate::pixel_formats::sealed::PixelFormat;
 use std::fmt::Debug;
@@ -525,11 +524,6 @@ impl<Format, SourceGuard> AsRef<GPUableTexture<Format>> for CopyGuard<Format, So
     fn as_ref(&self) -> &GPUableTexture<Format> {
         &self.gpu
     }
-}
-
-impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUMultibuffer for GPUableTexture<Format> {
-    type CorrespondingMappedType = MappableTexture<Format>;
-    type OutGuard<InGuard> = CopyGuard<Format, InGuard>;
 }
 
 impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {

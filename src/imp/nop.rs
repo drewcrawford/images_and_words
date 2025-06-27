@@ -466,21 +466,10 @@ impl PixelFormat for crate::pixel_formats::RGBA32Float {}
 impl PixelFormat for crate::pixel_formats::RGBA8UnormSRGB {}
 impl PixelFormat for crate::pixel_formats::R16Float {}
 
-// Implement GPUMultibuffer trait
-impl<Format> crate::multibuffer::sealed::GPUMultibuffer for GPUableTexture<Format> {
-    type CorrespondingMappedType = MappableTexture<Format>;
-    type OutGuard<InGuard> = TextureCopyGuard<Format, InGuard>;
-}
-
 impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
     fn as_ref(&self) -> &MappableTexture<Format> {
         self
     }
-}
-
-impl crate::multibuffer::sealed::GPUMultibuffer for GPUableBuffer {
-    type CorrespondingMappedType = MappableBuffer;
-    type OutGuard<InGuard> = CopyGuard<InGuard>;
 }
 
 /// Helper function to copy from a mappable buffer to a GPU buffer
