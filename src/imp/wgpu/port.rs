@@ -11,6 +11,7 @@ use crate::imp;
 use crate::imp::wgpu::buffer::StorageType;
 use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
+use std::collections::HashMap;
 use std::num::NonZero;
 use std::sync::Arc;
 use wgpu::wgt::BufferDescriptor;
@@ -354,6 +355,20 @@ fn prepare_pass_descriptor(
 }
 
 /**
+Guards and resources acquired during the copy phase.
+*/
+#[derive(Debug)]
+pub struct AcquiredGuards {
+    // Combined buffer and vertex buffer guards, keyed by bind index
+    buffer_guards: HashMap<u32, Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
+    copy_guards: Vec<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
+    // Texture guards, keyed by bind index
+    texture_guards: HashMap<u32, crate::bindings::forward::dynamic::frame_texture::GPUAccess>,
+    // Texture copy guards that need to be kept alive during GPU operations
+    texture_copy_guards: Vec<Box<dyn crate::bindings::forward::dynamic::frame_texture::DynGuard>>,
+}
+
+/**
 Wrapper type that contains the bind group
 and all guards that are needed to keep the resources alive.
 */
@@ -371,27 +386,26 @@ pub struct BindGroupGuard {
 }
 
 impl BindGroupGuard {
-    pub fn new(
-        bind_device: &crate::images::BoundDevice,
+    /// Acquires GPU buffers and performs copy operations for dynamic resources.
+    /// Returns guards that must be kept alive and copy guards that can be disposed after copying.
+    pub fn acquire_and_copy_guards(
         prepared: &PreparedPass,
-        camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
-        mipmapped_sampler: &wgpu::Sampler,
         copy_info: &mut CopyInfo,
-    ) -> Self {
-        let mut entries = Vec::new();
-        let build_resources = StableAddressVec::with_capactiy(5);
+    ) -> AcquiredGuards {
+        let mut buffer_guards = HashMap::new();
+        let mut copy_guards = Vec::new();
+        let mut texture_guards = HashMap::new();
+        let mut texture_copy_guards = Vec::new();
 
-        let gpu_guard_buffers = StableAddressVec::with_capactiy(5);
-        let gpu_guard_textures = StableAddressVec::with_capactiy(5);
-
-        for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
-            let resource = match &info.target {
+        // Handle dynamic buffers, dynamic vertex buffers, and dynamic textures in a single pass
+        for (bind_index, info) in &prepared.pass_descriptor.bind_style().binds {
+            match &info.target {
                 BindTarget::DynamicBuffer(buf) => {
-                    //safety: Keep the guard alive
-                    let gpu_access = unsafe { buf.imp.acquire_gpu_buffer() };
+                    // Safety: Keep the guard alive
+                    let mut gpu_access = unsafe { buf.imp.acquire_gpu_buffer() };
 
                     // Handle the copy if there's a dirty guard
-                    if let Some(dirty_guard) = &gpu_access.dirty_guard {
+                    if let Some(dirty_guard) = gpu_access.take_dirty_guard() {
                         // Get the source buffer from the dirty guard
                         let source: &imp::MappableBuffer = &dirty_guard;
 
@@ -404,11 +418,89 @@ impl BindGroupGuard {
                             dirty_guard.byte_len(),
                             copy_info,
                         );
+                        copy_guards.push(dirty_guard);
                     }
 
-                    let build_buffer = gpu_guard_buffers.push(Arc::new(gpu_access));
+                    buffer_guards.insert(*bind_index, Arc::new(gpu_access));
+                }
+                BindTarget::DynamicVB(_layout, render_side) => {
+                    // Safety: guard kept alive
+                    let mut gpu_access = unsafe { render_side.imp.acquire_gpu_buffer() };
+
+                    // Handle the copy if there's a dirty guard
+                    if let Some(dirty_guard) = gpu_access.take_dirty_guard() {
+                        // Get the source buffer from the dirty guard
+                        let source: &imp::MappableBuffer = &dirty_guard;
+
+                        // Perform the copy operation
+                        imp::copy_mappable_to_gpuable_buffer(
+                            source,
+                            &gpu_access.gpu_buffer,
+                            0,
+                            0,
+                            dirty_guard.byte_len(),
+                            copy_info,
+                        );
+                        copy_guards.push(dirty_guard);
+                    }
+
+                    buffer_guards.insert(*bind_index, Arc::new(gpu_access));
+                }
+                BindTarget::DynamicTexture(texture) => {
+                    // Safety: keep the guard alive
+                    let mut gpu_access = unsafe { texture.acquire_gpu_texture() };
+
+                    // Handle the copy if there's a dirty guard
+                    if let Some(dirty_guard) = gpu_access.take_dirty_guard() {
+                        // Perform the texture copy using copy_from_mappable without hardcoding format
+                        if let Err(e) =
+                            dirty_guard.perform_copy(&*gpu_access.gpu_texture, copy_info)
+                        {
+                            panic!("Texture copy failed: {}", e);
+                        }
+                        texture_copy_guards.push(dirty_guard);
+                    }
+
+                    texture_guards.insert(*bind_index, gpu_access);
+                }
+                _ => {} // Other targets handled later
+            }
+        }
+
+        AcquiredGuards {
+            buffer_guards,
+            copy_guards,
+            texture_guards,
+            texture_copy_guards,
+        }
+    }
+
+    /// Creates a BindGroupGuard using pre-acquired guards from acquire_and_copy_guards.
+    pub fn new_from_guards(
+        bind_device: &crate::images::BoundDevice,
+        prepared: &PreparedPass,
+        camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
+        mipmapped_sampler: &wgpu::Sampler,
+        acquired_guards: &mut AcquiredGuards,
+        _copy_info: &mut CopyInfo,
+    ) -> Self {
+        let mut entries = Vec::new();
+        let build_resources = StableAddressVec::with_capactiy(5);
+
+        let gpu_guard_buffers = StableAddressVec::with_capactiy(5);
+        let gpu_guard_textures = StableAddressVec::with_capactiy(5);
+
+        for (pass_index, info) in &prepared.pass_descriptor.bind_style().binds {
+            let resource = match &info.target {
+                BindTarget::DynamicBuffer(buf) => {
+                    // Remove the guard from the acquired guards map
+                    let build_buffer = acquired_guards
+                        .buffer_guards
+                        .remove(pass_index)
+                        .expect("Dynamic buffer guard should be in acquired_guards");
+                    let stored_guard = gpu_guard_buffers.push(build_buffer);
                     BindingResource::Buffer(BufferBinding {
-                        buffer: &build_buffer.gpu_buffer.buffer,
+                        buffer: &stored_guard.gpu_buffer.buffer,
                         offset: 0,
                         size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
                     })
@@ -444,19 +536,12 @@ impl BindGroupGuard {
                     ));
                     BindingResource::TextureView(view)
                 }
-                BindTarget::DynamicTexture(texture) => {
-                    //safety: keep the guard alive
-                    let gpu_access = unsafe { texture.acquire_gpu_texture() };
-
-                    // Handle the copy if there's a dirty guard
-                    if let Some(ref dirty_guard) = gpu_access.dirty_guard {
-                        // Perform the texture copy using copy_from_mappable without hardcoding format
-                        if let Err(e) =
-                            dirty_guard.perform_copy(&*gpu_access.gpu_texture, copy_info)
-                        {
-                            panic!("Texture copy failed: {}", e);
-                        }
-                    }
+                BindTarget::DynamicTexture(_texture) => {
+                    // Remove the guard from the acquired texture guards map
+                    let gpu_access = acquired_guards
+                        .texture_guards
+                        .remove(pass_index)
+                        .expect("Dynamic texture guard should be in acquired_guards");
 
                     // Store the guard
                     let guard = gpu_guard_textures.push(gpu_access);
@@ -516,27 +601,13 @@ impl BindGroupGuard {
                     let buffer = render_side.buffer.clone();
                     vertex_buffers.push((*b, buffer));
                 }
-                BindTarget::DynamicVB(_layout, render_side) => {
-                    //safety: guard kept alive
-                    let gpu_access = unsafe { render_side.imp.acquire_gpu_buffer() };
-
-                    // Handle the copy if there's a dirty guard
-                    if let Some(dirty_guard) = &gpu_access.dirty_guard {
-                        // Get the source buffer from the dirty guard
-                        let source: &imp::MappableBuffer = &dirty_guard;
-
-                        // Perform the copy operation
-                        imp::copy_mappable_to_gpuable_buffer(
-                            source,
-                            &gpu_access.gpu_buffer,
-                            0,
-                            0,
-                            dirty_guard.byte_len(),
-                            copy_info,
-                        );
-                    }
-
-                    dynamic_vertex_buffers.push((*b, Arc::new(gpu_access)));
+                BindTarget::DynamicVB(..) => {
+                    // Remove the guard from the acquired guards map
+                    let guard = acquired_guards
+                        .buffer_guards
+                        .remove(b)
+                        .expect("Dynamic vertex buffer guard should be in acquired_guards");
+                    dynamic_vertex_buffers.push((*b, guard));
                 }
             }
         }
@@ -560,6 +631,27 @@ impl BindGroupGuard {
             dynamic_vertex_buffers,
             index_buffer,
         }
+    }
+
+    pub fn new(
+        bind_device: &crate::images::BoundDevice,
+        prepared: &PreparedPass,
+        camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
+        mipmapped_sampler: &wgpu::Sampler,
+        copy_info: &mut CopyInfo,
+    ) -> Self {
+        // First acquire guards and perform copies
+        let mut acquired_guards = Self::acquire_and_copy_guards(prepared, copy_info);
+
+        // Then create the bind group using the acquired guards
+        Self::new_from_guards(
+            bind_device,
+            prepared,
+            camera_buffer,
+            mipmapped_sampler,
+            &mut acquired_guards,
+            copy_info,
+        )
     }
 }
 
@@ -615,6 +707,7 @@ impl Port {
             (unscaled_size.1 as f64 * unscaled_size.2) as u32,
         );
         self.scaled_size.update(Some(current_scaled_size));
+        let mut copy_buffer_guards = Vec::new();
         match surface {
             None => {
                 println!("Port surface not initialized");
@@ -806,10 +899,10 @@ impl Port {
         let camera_render_side = camera_mappable_buffer.render_side();
         let camera_gpu_access = unsafe {
             use crate::bindings::forward::dynamic::buffer::SomeRenderSide;
-            let camera_gpu_access = camera_render_side.acquire_gpu_buffer();
+            let mut camera_gpu_access = camera_render_side.acquire_gpu_buffer();
 
             // Handle the copy if there's a dirty guard
-            if let Some(dirty_guard) = &camera_gpu_access.dirty_guard {
+            if let Some(dirty_guard) = camera_gpu_access.take_dirty_guard() {
                 // Get the source buffer from the dirty guard
                 let source: &imp::MappableBuffer = &dirty_guard;
 
@@ -822,6 +915,7 @@ impl Port {
                     dirty_guard.byte_len(),
                     &mut copy_info,
                 );
+                copy_buffer_guards.push(dirty_guard);
             }
 
             let camera_gpu_access = Arc::new(camera_gpu_access);
@@ -853,15 +947,24 @@ impl Port {
             command_encoder: &mut encoder,
         };
         let mut frame_bind_groups = Vec::new();
+        let mut frame_acquired_guards = Vec::new();
         for prepared in &prepared {
-            let bind_group = BindGroupGuard::new(
+            // First acquire guards and perform copies
+            let mut acquired_guards =
+                BindGroupGuard::acquire_and_copy_guards(prepared, &mut copy_info);
+
+            // Then create the bind group using the acquired guards
+            let bind_group = BindGroupGuard::new_from_guards(
                 device,
                 prepared,
                 &camera_gpu_access,
                 &mipmapped_sampler,
+                &mut acquired_guards,
                 &mut copy_info,
             );
+
             frame_bind_groups.push(bind_group);
+            frame_acquired_guards.push(acquired_guards);
         }
         //in the second pass, we encode our render pass
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -997,6 +1100,8 @@ impl Port {
         device.0.queue.on_submitted_work_done(move || {
             //callbacks must be alive for full GPU-side render
             std::mem::drop(frame_bind_groups);
+            std::mem::drop(copy_buffer_guards);
+            std::mem::drop(frame_acquired_guards);
             // println!("frame guards dropped");
             callback_guard.mark_gpu_complete();
         });

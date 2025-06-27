@@ -348,13 +348,28 @@ impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
 /// `GPUAccess` provides access to the GPU texture with optional dirty data
 /// that needs to be copied. This type is created internally by the rendering
 /// system and maintains the texture's availability for GPU operations.
-pub struct GPUAccess {
+pub(crate) struct GPUAccess {
     // Option<Box<DynGuard>> if we need to perform a copy, otherwise None (how we erase Format in this field)
-    pub(crate) dirty_guard: Option<Box<dyn DynGuard>>,
+    dirty_guard: Option<Box<dyn DynGuard>>,
     // Underlying GPU type, typecast to Box<dyn GPUableTextureWrapped> (how we erase Format in this field)
     pub(crate) gpu_texture: Box<dyn imp::GPUableTextureWrapped>,
     // The render side for creating views (always available)
     pub(crate) render_side: imp::TextureRenderSide,
+}
+
+impl Debug for GPUAccess {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GPUAccess")
+            .field("dirty_guard", &self.dirty_guard.is_some())
+            .field("render_side", &self.render_side)
+            .finish()
+    }
+}
+
+impl GPUAccess {
+    pub fn take_dirty_guard(&mut self) -> Option<Box<dyn DynGuard>> {
+        self.dirty_guard.take()
+    }
 }
 
 /// Trait for type-erased guard that provides access to source texture for copying

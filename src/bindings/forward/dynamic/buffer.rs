@@ -324,10 +324,9 @@ impl<Element> Debug for RenderSide<Element> {
 /// The guard implements RAII - the buffer is automatically released when
 /// the guard is dropped, allowing the multibuffer system to recycle it.
 #[derive(Debug)]
-pub struct GPUAccess {
+pub(crate) struct GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
-    pub(crate) dirty_guard:
-        Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
+    dirty_guard: Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) gpu_buffer: imp::GPUableBuffer,
 }
@@ -335,6 +334,11 @@ impl GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
         &self.gpu_buffer
+    }
+    pub(crate) fn take_dirty_guard(
+        &mut self,
+    ) -> Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>> {
+        self.dirty_guard.take()
     }
 }
 
