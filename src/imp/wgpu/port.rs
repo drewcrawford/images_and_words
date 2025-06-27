@@ -1100,12 +1100,12 @@ impl Port {
         let depth_dump_buf;
         let depth_dump_buff_bytes_per_row;
         if self.dump_framebuffer {
-            //round up to nearest 256
+            //round up to nearest COPY_BYTES_PER_ROW_ALIGNMENT
             let wgpu_bytes_per_row_256 = (scaled_size.0 * 4)
-                .checked_add(255)
+                .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
                 .unwrap()
-                .div_euclid(256)
-                .checked_mul(256)
+                .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+                .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
                 .unwrap();
             dump_buff_bytes_per_row = Some(wgpu_bytes_per_row_256);
 
@@ -1142,10 +1142,10 @@ impl Port {
 
             //copy depth texture to a buffer (2 bytes per pixel for Depth16Unorm)
             let depth_wgpu_bytes_per_row_256 = (scaled_size.0 * 2)
-                .checked_add(255)
+                .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
                 .unwrap()
-                .div_euclid(256)
-                .checked_mul(256)
+                .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+                .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
                 .unwrap();
             depth_dump_buff_bytes_per_row = Some(depth_wgpu_bytes_per_row_256);
 

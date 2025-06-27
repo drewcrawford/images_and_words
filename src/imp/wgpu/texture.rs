@@ -10,7 +10,6 @@ use crate::pixel_formats::pixel_as_bytes;
 use crate::pixel_formats::sealed::PixelFormat;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
 use std::sync::Arc;
 use wgpu::util::{DeviceExt, TextureDataOrder};
 use wgpu::{Extent3d, TextureDescriptor, TextureDimension};
@@ -67,34 +66,45 @@ impl<Format: PixelFormat> MappableTexture<Format> {
         _priority: Priority,
         initializer: Initializer,
     ) -> Self {
+        let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
+        let unaligned_bytes_per_row = width as usize * bytes_per_pixel;
+
+        // Calculate aligned bytes per row using wgpu's alignment requirement
+        let aligned_bytes_per_row = unaligned_bytes_per_row
+            .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize - 1)
+            .unwrap()
+            .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
+            .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
+            .unwrap();
+
+        // Buffer size must account for the aligned row size
+        let buffer_size = aligned_bytes_per_row * height as usize;
+
         let buffer = MappableBuffer::new(
             bound_device.clone(),
-            width as usize * height as usize * std::mem::size_of::<Format::CPixel>(),
+            buffer_size,
             MapType::Write,
             debug_name,
             |byte_array| {
-                let elements = width as usize * height as usize;
-                assert_eq!(
-                    byte_array.len(),
-                    elements * std::mem::size_of::<Format::CPixel>()
-                );
-                //safety: we know the byte array is the right size
-                let as_elements: &mut [MaybeUninit<Format::CPixel>] = unsafe {
-                    std::slice::from_raw_parts_mut(
-                        byte_array.as_mut_ptr() as *mut MaybeUninit<Format::CPixel>,
-                        elements,
-                    )
-                };
+                // Initialize the buffer with padding
                 for y in 0..height {
                     for x in 0..width {
-                        let index = y as usize * width as usize + x as usize;
+                        let pixel_offset =
+                            y as usize * aligned_bytes_per_row + x as usize * bytes_per_pixel;
                         let texel = Texel { x, y };
                         let pixel = initializer(texel);
-                        as_elements[index] = MaybeUninit::new(pixel);
+
+                        // Write pixel data at the correct offset
+                        unsafe {
+                            let pixel_ptr =
+                                byte_array.as_mut_ptr().add(pixel_offset) as *mut Format::CPixel;
+                            pixel_ptr.write(pixel);
+                        }
                     }
+                    // The padding bytes between rows are left uninitialized (but that's OK for GPU buffers)
                 }
-                //transmute to byte array
-                //safety: we initialized all the elements
+
+                // Return the byte array
                 unsafe {
                     std::slice::from_raw_parts_mut(
                         byte_array.as_mut_ptr() as *mut u8,
@@ -117,11 +127,20 @@ impl<Format: PixelFormat> MappableTexture<Format> {
         use crate::pixel_formats::pixel_as_bytes;
         let data_bytes = pixel_as_bytes(data);
 
-        // Calculate destination offset based on texel position
-        // Assuming the buffer represents a 2D texture laid out row-major
+        // Calculate destination offset based on texel position with proper alignment
         let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
+        let unaligned_bytes_per_row = self.width as usize * bytes_per_pixel;
+
+        // Use the same alignment calculation as in new()
+        let aligned_bytes_per_row = unaligned_bytes_per_row
+            .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize - 1)
+            .unwrap()
+            .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
+            .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
+            .unwrap();
+
         let dst_offset =
-            (dst_texel.y as usize * self.width as usize + dst_texel.x as usize) * bytes_per_pixel;
+            dst_texel.y as usize * aligned_bytes_per_row + dst_texel.x as usize * bytes_per_pixel;
 
         self.imp.write(data_bytes, dst_offset);
     }
@@ -453,11 +472,21 @@ pub(super) fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelF
 ) {
     use wgpu::{Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase};
 
+    // Calculate bytes per row with proper alignment
+    let unaligned_bytes_per_row =
+        source.width as u32 * std::mem::size_of::<Format::CPixel>() as u32;
+    let aligned_bytes_per_row = unaligned_bytes_per_row
+        .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
+        .unwrap()
+        .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+        .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+        .unwrap();
+
     let source_base = TexelCopyBufferInfoBase {
         buffer: &source.imp.buffer,
         layout: wgpu::TexelCopyBufferLayout {
             offset: 0,
-            bytes_per_row: Some(source.width as u32 * std::mem::size_of::<Format::CPixel>() as u32),
+            bytes_per_row: Some(aligned_bytes_per_row),
             rows_per_image: Some(source.height as u32),
         },
     };
