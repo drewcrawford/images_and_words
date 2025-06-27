@@ -90,7 +90,7 @@ use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp;
-use crate::imp::{CopyInfo, GPUableBuffer, SendPhantom};
+use crate::imp::SendPhantom;
 use crate::multibuffer::CPUWriteGuard;
 use crate::multibuffer::Multibuffer;
 use std::fmt::{Debug, Display, Formatter};
@@ -324,32 +324,20 @@ impl<Element> Debug for RenderSide<Element> {
 /// The guard implements RAII - the buffer is automatically released when
 /// the guard is dropped, allowing the multibuffer system to recycle it.
 #[derive(Debug)]
-pub struct GPUAccess<Element> {
+pub struct GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
-    imp: crate::multibuffer::GPUGuard<imp::MappableBuffer, GPUableBuffer>,
-    _phantom: PhantomData<Element>,
+    pub(crate) dirty_guard:
+        Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
+    #[allow(dead_code)] //nop implementation does not use
+    pub(crate) gpu_buffer: imp::GPUableBuffer,
 }
-impl<Element> GPUAccess<Element> {
+impl GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
-        self.imp.as_imp()
+        &self.gpu_buffer
     }
 }
 
-/// Type-erased interface for GPU buffer access.
-///
-/// This trait allows different buffer types to be stored and accessed uniformly
-/// during rendering, regardless of their element type.
-#[allow(dead_code)] //nop implementation does not use
-pub(crate) trait SomeGPUAccess: Send + Sync {
-    fn as_imp(&self) -> &imp::GPUableBuffer;
-}
-
-impl<Element: Send + Sync> SomeGPUAccess for GPUAccess<Element> {
-    fn as_imp(&self) -> &imp::GPUableBuffer {
-        self.as_ref()
-    }
-}
 impl<Element> RenderSide<Element> {
     pub(crate) fn erased_render_side(self) -> ErasedRenderSide
     where
@@ -376,7 +364,7 @@ pub(crate) trait SomeRenderSide: Send + Sync + Debug {
     /// The caller must keep the returned guard alive for the entire duration
     /// of GPU operations using this buffer.
     #[allow(dead_code)] //nop implementation does not use
-    unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess>;
+    unsafe fn acquire_gpu_buffer(&self) -> GPUAccess;
 
     /// Returns a receiver for dirty state notifications.
     ///
@@ -395,33 +383,19 @@ pub(crate) trait SomeRenderSide: Send + Sync + Debug {
 }
 
 impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
-    unsafe fn acquire_gpu_buffer(&self, copy_info: &mut CopyInfo) -> Box<dyn SomeGPUAccess> {
+    unsafe fn acquire_gpu_buffer(&self) -> GPUAccess {
         let mut underlying_guard = unsafe { self.shared.multibuffer.access_gpu() };
 
-        // Handle the copy if there's a dirty guard
-        if let Some(dirty_guard) = underlying_guard.take_dirty_guard() {
-            // Get the source buffer from the dirty guard
-            let source: &imp::MappableBuffer = &dirty_guard;
+        // Take the dirty guard if present
+        let dirty_guard = underlying_guard.take_dirty_guard();
 
-            // Perform the copy operation
-            imp::copy_mappable_to_gpuable_buffer(
-                source,
-                underlying_guard.gpu_buffer_mut(),
-                0,
-                0,
-                dirty_guard.byte_len(),
-                copy_info,
-            );
+        // Get the GPU buffer - clone it from the guard
+        let gpu_buffer = underlying_guard.as_imp().clone();
 
-            // Keep the dirty guard alive until the copy is complete
-            // by storing it back (it will be dropped with the GPUGuard)
-            underlying_guard.set_dirty_guard(dirty_guard);
+        GPUAccess {
+            dirty_guard,
+            gpu_buffer,
         }
-
-        Box::new(GPUAccess {
-            imp: underlying_guard,
-            _phantom: PhantomData::<Element>,
-        })
     }
     fn dirty_receiver(&self) -> DirtyReceiver {
         self.shared.multibuffer.gpu_dirty_receiver()

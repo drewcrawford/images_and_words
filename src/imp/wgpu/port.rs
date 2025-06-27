@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::bindings::bind_style::BindTarget;
-use crate::bindings::forward::dynamic::buffer::{CRepr, SomeGPUAccess};
+use crate::bindings::forward::dynamic::buffer::CRepr;
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::camera::Camera;
 use crate::images::port::PortReporterSend;
 use crate::images::render_pass::{DrawCommand, PassDescriptor};
 use crate::images::vertex_layout::VertexFieldType;
+use crate::imp;
 use crate::imp::wgpu::buffer::StorageType;
 use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
@@ -360,16 +361,19 @@ and all guards that are needed to keep the resources alive.
 pub struct BindGroupGuard {
     bind_group: BindGroup,
     #[allow(dead_code)] // guards keep resources alive during GPU execution
-    guards: Vec<Arc<dyn SomeGPUAccess>>,
+    guards: Vec<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
     vertex_buffers: Vec<(u32, wgpu::Buffer)>,
-    dynamic_vertex_buffers: Vec<(u32, Arc<dyn SomeGPUAccess>)>,
+    dynamic_vertex_buffers: Vec<(
+        u32,
+        Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
+    )>,
     index_buffer: Option<wgpu::Buffer>,
 }
 
 pub fn prepare_bind_group(
     bind_device: &crate::images::BoundDevice,
     prepared: &PreparedPass,
-    camera_buffer: &dyn SomeGPUAccess,
+    camera_buffer: &Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
     mipmapped_sampler: &wgpu::Sampler,
     copy_info: &mut CopyInfo,
 ) -> BindGroupGuard {
@@ -383,10 +387,27 @@ pub fn prepare_bind_group(
         let resource = match &info.target {
             BindTarget::DynamicBuffer(buf) => {
                 //safety: Keep the guard alive
-                let build_buffer =
-                    unsafe { gpu_guard_buffers.push(buf.imp.acquire_gpu_buffer(copy_info)) };
+                let gpu_access = unsafe { buf.imp.acquire_gpu_buffer() };
+
+                // Handle the copy if there's a dirty guard
+                if let Some(dirty_guard) = &gpu_access.dirty_guard {
+                    // Get the source buffer from the dirty guard
+                    let source: &imp::MappableBuffer = &dirty_guard;
+
+                    // Perform the copy operation
+                    imp::copy_mappable_to_gpuable_buffer(
+                        source,
+                        &gpu_access.gpu_buffer,
+                        0,
+                        0,
+                        dirty_guard.byte_len(),
+                        copy_info,
+                    );
+                }
+
+                let build_buffer = gpu_guard_buffers.push(Arc::new(gpu_access));
                 BindingResource::Buffer(BufferBinding {
-                    buffer: &build_buffer.as_imp().buffer,
+                    buffer: &build_buffer.gpu_buffer.buffer,
                     offset: 0,
                     size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
                 })
@@ -397,7 +418,7 @@ pub fn prepare_bind_group(
                 size: Some(NonZero::new(buf.buffer.size()).unwrap()),
             }),
             BindTarget::Camera => BindingResource::Buffer(BufferBinding {
-                buffer: &camera_buffer.as_imp().buffer,
+                buffer: &camera_buffer.gpu_buffer.buffer,
                 offset: 0,
                 size: Some(NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap()),
             }),
@@ -480,8 +501,25 @@ pub fn prepare_bind_group(
             }
             BindTarget::DynamicVB(_layout, render_side) => {
                 //safety: guard kept alive
-                let buffer = unsafe { render_side.imp.acquire_gpu_buffer(copy_info) };
-                dynamic_vertex_buffers.push((*b, buffer));
+                let gpu_access = unsafe { render_side.imp.acquire_gpu_buffer() };
+
+                // Handle the copy if there's a dirty guard
+                if let Some(dirty_guard) = &gpu_access.dirty_guard {
+                    // Get the source buffer from the dirty guard
+                    let source: &imp::MappableBuffer = &dirty_guard;
+
+                    // Perform the copy operation
+                    imp::copy_mappable_to_gpuable_buffer(
+                        source,
+                        &gpu_access.gpu_buffer,
+                        0,
+                        0,
+                        dirty_guard.byte_len(),
+                        copy_info,
+                    );
+                }
+
+                dynamic_vertex_buffers.push((*b, Arc::new(gpu_access)));
             }
         }
     }
@@ -493,16 +531,9 @@ pub fn prepare_bind_group(
         None
     };
 
-    //arcify
-    let gpu_guard_buffers = gpu_guard_buffers
-        .into_vec()
-        .into_iter()
-        .map(|e| e.into())
-        .collect();
-    let dynamic_vertex_buffers = dynamic_vertex_buffers
-        .into_iter()
-        .map(|(b, e)| (b, e.into()))
-        .collect();
+    // Convert StableAddressVec to Vec
+    let gpu_guard_buffers = gpu_guard_buffers.into_vec();
+    // dynamic_vertex_buffers is already in the correct format
 
     BindGroupGuard {
         bind_group,
@@ -756,8 +787,27 @@ impl Port {
         let camera_render_side = camera_mappable_buffer.render_side();
         let camera_gpu_access = unsafe {
             use crate::bindings::forward::dynamic::buffer::SomeRenderSide;
-            let camera_gpu_access = camera_render_side.acquire_gpu_buffer(&mut copy_info);
-            frame_guards.push(camera_gpu_access) //safety
+            let camera_gpu_access = camera_render_side.acquire_gpu_buffer();
+
+            // Handle the copy if there's a dirty guard
+            if let Some(dirty_guard) = &camera_gpu_access.dirty_guard {
+                // Get the source buffer from the dirty guard
+                let source: &imp::MappableBuffer = &dirty_guard;
+
+                // Perform the copy operation
+                imp::copy_mappable_to_gpuable_buffer(
+                    source,
+                    &camera_gpu_access.gpu_buffer,
+                    0,
+                    0,
+                    dirty_guard.byte_len(),
+                    &mut copy_info,
+                );
+            }
+
+            let camera_gpu_access = Arc::new(camera_gpu_access);
+            frame_guards.push(camera_gpu_access.clone()); //safety
+            camera_gpu_access
         };
 
         let depth_store = if self.dump_framebuffer {
@@ -785,11 +835,10 @@ impl Port {
         };
         let mut frame_bind_groups = Vec::new();
         for prepared in &prepared {
-            let camera_gpu_deref: &dyn SomeGPUAccess = &**camera_gpu_access;
             let bind_group = prepare_bind_group(
                 device,
                 prepared,
-                camera_gpu_deref,
+                &camera_gpu_access,
                 &mipmapped_sampler,
                 &mut copy_info,
             );
@@ -817,7 +866,7 @@ impl Port {
                 render_pass.set_vertex_buffer(*v, buffer.slice(..));
             }
             for (v, buffer) in &bind_group.dynamic_vertex_buffers {
-                let buffer = buffer.as_imp().buffer.slice(..);
+                let buffer = buffer.gpu_buffer.buffer.slice(..);
                 render_pass.set_vertex_buffer(*v, buffer);
             }
             if let Some(buffer) = &bind_group.index_buffer {
