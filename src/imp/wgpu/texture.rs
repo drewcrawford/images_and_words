@@ -4,7 +4,6 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::{TextureConfig, TextureUsage};
-use crate::imp::GPUableTextureWrapped;
 use crate::imp::{Error, MappableBuffer};
 use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
 use crate::pixel_formats::pixel_as_bytes;
@@ -126,10 +125,6 @@ impl<Format: PixelFormat> MappableTexture<Format> {
 
         self.imp.write(data_bytes, dst_offset);
     }
-
-    pub fn as_imp(&self) -> &MappableBuffer {
-        &self.imp
-    }
 }
 
 impl<Format> Debug for MappableTexture<Format> {
@@ -149,18 +144,6 @@ impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped for Mappa
 
     fn height(&self) -> u16 {
         self.height
-    }
-
-    fn byte_len(&self) -> usize {
-        self.imp.byte_len()
-    }
-}
-
-impl<Format: crate::pixel_formats::sealed::PixelFormat + 'static> MappableTextureWrappedWgpu
-    for MappableTexture<Format>
-{
-    fn wgpu_format(&self) -> wgpu::TextureFormat {
-        Format::WGPU_FORMAT
     }
 }
 
@@ -386,39 +369,13 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             texture: self.imp.clone(),
         }
     }
-
-    pub fn as_imp(&self) -> &wgpu::Texture {
-        &self.imp
-    }
 }
 
 impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {}
 
-pub(crate) trait GPUableTextureWrappedWgpu: crate::imp::GPUableTextureWrapped {
-    fn wgpu_texture(&self) -> &wgpu::Texture;
-    fn wgpu_format(&self) -> wgpu::TextureFormat;
-    fn copy_from_mappable(
-        &self,
-        source: &dyn crate::imp::MappableTextureWrapped,
-        copy_info: &mut super::CopyInfo,
-    ) -> Result<(), String>;
-}
-
-pub(crate) trait MappableTextureWrappedWgpu: crate::imp::MappableTextureWrapped {
-    fn wgpu_format(&self) -> wgpu::TextureFormat;
-}
-
 impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextureWrapped
     for GPUableTexture<Format>
 {
-    fn width(&self) -> u32 {
-        self.width
-    }
-
-    fn height(&self) -> u32 {
-        self.height
-    }
-
     fn format_matches(&self, other: &dyn crate::imp::MappableTextureWrapped) -> bool {
         // Check if dimensions match
         if self.width != other.width() as u32 || self.height != other.height() as u32 {
@@ -439,10 +396,6 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
 
         // If we can't downcast to the same type, formats don't match
         false
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
     }
 
     fn copy_from_mappable(
@@ -474,46 +427,6 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
     }
 }
 
-impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTextureWrappedWgpu
-    for GPUableTexture<Format>
-{
-    fn wgpu_texture(&self) -> &wgpu::Texture {
-        &self.imp
-    }
-
-    fn wgpu_format(&self) -> wgpu::TextureFormat {
-        Format::WGPU_FORMAT
-    }
-
-    fn copy_from_mappable(
-        &self,
-        source: &dyn crate::imp::MappableTextureWrapped,
-        copy_info: &mut super::CopyInfo,
-    ) -> Result<(), String> {
-        // First check format compatibility
-        if !self.format_matches(source) {
-            return Err(format!(
-                "Format mismatch: GPU texture is {}x{}, but source is {}x{} or has incompatible format",
-                self.width,
-                self.height,
-                source.width(),
-                source.height()
-            ));
-        }
-
-        // Try to downcast to MappableTexture<Format>
-        let source_any = source as &dyn std::any::Any;
-
-        if let Some(source_concrete) = source_any.downcast_ref::<MappableTexture<Format>>() {
-            // Successfully downcasted - formats match and we have the concrete type
-            copy_texture_internal(source_concrete, self, copy_info);
-            Ok(())
-        } else {
-            // This shouldn't happen if format_matches returned true
-            Err("Internal error: format_matches returned true but downcast failed".to_string())
-        }
-    }
-}
 #[derive(Debug)]
 pub struct CopyGuard<Format, SourceGuard> {
     #[allow(dead_code)] // guard keeps source alive during copy operation

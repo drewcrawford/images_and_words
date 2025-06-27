@@ -160,16 +160,6 @@ impl<T: Mappable, U: Clone> GPUGuard<T, U> {
     pub fn take_dirty_guard(&mut self) -> Option<resource_tracking::GPUGuard<T>> {
         self.dirty_guard.take()
     }
-
-    /// Returns a mutable reference to the GPU buffer
-    pub fn gpu_buffer_mut(&mut self) -> &mut U {
-        &mut self.gpu_buffer
-    }
-
-    /// Puts the dirty guard back (used to keep it alive during copy operations)
-    pub fn set_dirty_guard(&mut self, guard: resource_tracking::GPUGuard<T>) {
-        self.dirty_guard = Some(guard);
-    }
 }
 
 /**

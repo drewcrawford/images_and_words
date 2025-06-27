@@ -101,7 +101,6 @@ pub struct Port {
     pass_config: RenderInput<PassConfig>,
     prepared_passes: Vec<PreparedPass>,
     view: crate::images::view::View,
-    camera: Camera,
     port_reporter_send: PortReporterSend,
     frame: u32,
     dump_framebuffer: bool, //for debugging
@@ -427,11 +426,11 @@ Guards and resources acquired during the copy phase.
 pub struct AcquiredGuards {
     // Combined buffer and vertex buffer guards, keyed by bind index
     buffer_guards: HashMap<u32, Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
-    copy_guards: Vec<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
+    _copy_guards: Vec<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
     // Texture guards, keyed by bind index
     texture_guards: HashMap<u32, crate::bindings::forward::dynamic::frame_texture::GPUAccess>,
     // Texture copy guards that need to be kept alive during GPU operations
-    texture_copy_guards: Vec<Box<dyn crate::bindings::forward::dynamic::frame_texture::DynGuard>>,
+    _texture_copy_guards: Vec<Box<dyn crate::bindings::forward::dynamic::frame_texture::DynGuard>>,
     camera_guard: Option<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
 }
 
@@ -547,10 +546,10 @@ impl AcquiredGuards {
 
         AcquiredGuards {
             buffer_guards,
-            copy_guards,
+            _copy_guards: copy_guards,
             camera_guard,
             texture_guards,
-            texture_copy_guards,
+            _texture_copy_guards: texture_copy_guards,
         }
     }
 }
@@ -825,7 +824,6 @@ impl Port {
             pass_config: RenderInput::new(PassConfig::new()),
             prepared_passes: Vec::new(),
             view,
-            camera,
             port_reporter_send,
             frame: 0,
             dump_framebuffer: std::env::var("IW_DUMP_FRAMEBUFFER")

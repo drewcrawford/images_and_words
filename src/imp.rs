@@ -8,10 +8,7 @@ pub trait GPUableTextureWrapper: Send + Sync {}
 pub trait MappableTextureWrapper: Send + Sync {}
 
 pub(crate) trait GPUableTextureWrapped: GPUableTextureWrapper {
-    fn width(&self) -> u32;
-    fn height(&self) -> u32;
     fn format_matches(&self, other: &dyn MappableTextureWrapped) -> bool;
-    fn as_any(&self) -> &dyn std::any::Any;
     /// Perform a copy from a mappable texture to this GPU texture
     fn copy_from_mappable(
         &self,
@@ -23,7 +20,6 @@ pub(crate) trait GPUableTextureWrapped: GPUableTextureWrapper {
 pub(crate) trait MappableTextureWrapped: MappableTextureWrapper + std::any::Any {
     fn width(&self) -> u16;
     fn height(&self) -> u16;
-    fn byte_len(&self) -> usize;
 }
 
 #[cfg(not(feature = "backend_wgpu"))]

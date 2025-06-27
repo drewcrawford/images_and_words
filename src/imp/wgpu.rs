@@ -39,14 +39,3 @@ pub fn copy_mappable_to_gpuable_buffer(
         copy_len as u64,
     );
 }
-
-/// Helper function to copy from a mappable texture to a GPU texture
-pub fn copy_mappable_to_gpuable_texture<Format: crate::pixel_formats::sealed::PixelFormat>(
-    source: &MappableTexture<Format>,
-    dest: &GPUableTexture<Format>,
-    copy_info: &mut CopyInfo,
-) {
-    // For textures, we need to implement the copy inside the texture module
-    // where we have access to private fields
-    texture::copy_texture_internal(source, dest, copy_info);
-}

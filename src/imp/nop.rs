@@ -230,20 +230,8 @@ impl<Format> GPUableTexture<Format> {
 impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {}
 
 impl<Format> crate::imp::GPUableTextureWrapped for GPUableTexture<Format> {
-    fn width(&self) -> u32 {
-        self.width
-    }
-
-    fn height(&self) -> u32 {
-        self.height
-    }
-
     fn format_matches(&self, _other: &dyn crate::imp::MappableTextureWrapped) -> bool {
         todo!("format_matches not implemented for nop backend")
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        todo!()
     }
 
     fn copy_from_mappable(
@@ -319,10 +307,6 @@ impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped for Mappa
 
     fn height(&self) -> u16 {
         todo!("height not implemented for nop backend")
-    }
-
-    fn byte_len(&self) -> usize {
-        todo!("byte_len not implemented for nop backend")
     }
 }
 
