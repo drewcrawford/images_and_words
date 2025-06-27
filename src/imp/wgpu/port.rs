@@ -835,6 +835,306 @@ impl Port {
             mipmapped_sampler,
         })
     }
+
+    fn setup_depth_buffer(&self) -> (wgpu::Texture, wgpu::TextureView) {
+        let depth_extra_usage = if self.dump_framebuffer {
+            wgpu::TextureUsages::COPY_SRC
+        } else {
+            wgpu::TextureUsages::empty()
+        };
+
+        let device = self.engine.bound_device().as_ref();
+        let scaled_size = self.scaled_size.requested.unwrap();
+        let depth_texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("depth texture"),
+            size: wgpu::Extent3d {
+                width: scaled_size.0,
+                height: scaled_size.1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth16Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | depth_extra_usage,
+            view_formats: &[],
+        });
+
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("depth view"),
+            format: None,
+            dimension: None,
+            usage: None,
+            aspect: Default::default(),
+            base_mip_level: 0,
+            mip_level_count: None,
+            base_array_layer: 0,
+            array_layer_count: None,
+        });
+
+        (depth_texture, depth_view)
+    }
+
+    fn update_pass_configuration(&mut self, enable_depth: bool, copy_info: &mut CopyInfo) {
+        if self.pass_config.is_dirty() {
+            self.prepared_passes.clear();
+
+            let device = self.engine.bound_device().as_ref();
+            for descriptor in &self.pass_config.requested.pass_descriptors {
+                let pipeline = PreparedPass::new(
+                    device,
+                    descriptor.clone(),
+                    enable_depth,
+                    &self.camera_buffer,
+                    &self.mipmapped_sampler,
+                    copy_info,
+                );
+                self.prepared_passes.push(pipeline);
+            }
+
+            self.pass_config.mark_submitted();
+        }
+    }
+
+    async fn update_camera_buffer(&mut self) {
+        let camera_dirty_receiver = self.camera.dirty_receiver();
+        if camera_dirty_receiver.is_dirty() {
+            let projection = self.camera.copy_projection_and_clear_dirty_bit();
+            let camera_projection = CameraProjection {
+                projection: [
+                    *projection.matrix().columns()[0].x(),
+                    *projection.matrix().columns()[0].y(),
+                    *projection.matrix().columns()[0].z(),
+                    *projection.matrix().columns()[0].w(),
+                    *projection.matrix().columns()[1].x(),
+                    *projection.matrix().columns()[1].y(),
+                    *projection.matrix().columns()[1].z(),
+                    *projection.matrix().columns()[1].w(),
+                    *projection.matrix().columns()[2].x(),
+                    *projection.matrix().columns()[2].y(),
+                    *projection.matrix().columns()[2].z(),
+                    *projection.matrix().columns()[2].w(),
+                    *projection.matrix().columns()[3].x(),
+                    *projection.matrix().columns()[3].y(),
+                    *projection.matrix().columns()[3].z(),
+                    *projection.matrix().columns()[3].w(),
+                ],
+            };
+            let mut write_guard = self.camera_buffer.access_write().await;
+            write_guard.write(&[camera_projection], 0);
+        }
+    }
+
+    fn setup_debug_framebuffer_capture(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        frame_texture: &wgpu::Texture,
+        depth_texture: &wgpu::Texture,
+    ) -> (
+        Option<wgpu::Buffer>,
+        Option<u32>,
+        Option<wgpu::Buffer>,
+        Option<u32>,
+    ) {
+        if !self.dump_framebuffer {
+            return (None, None, None, None);
+        }
+
+        let device = self.engine.bound_device().as_ref();
+        let scaled_size = self.scaled_size.requested.unwrap();
+
+        let wgpu_bytes_per_row_256 = (scaled_size.0 * 4)
+            .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
+            .unwrap()
+            .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            .unwrap();
+
+        let buf = device.0.device.create_buffer(&BufferDescriptor {
+            label: "dump framebuffer".into(),
+            size: (scaled_size.1 * wgpu_bytes_per_row_256) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: frame_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buf,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(wgpu_bytes_per_row_256),
+                    rows_per_image: None,
+                },
+            },
+            wgpu::Extent3d {
+                width: scaled_size.0,
+                height: scaled_size.1,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let depth_wgpu_bytes_per_row_256 = (scaled_size.0 * 2)
+            .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
+            .unwrap()
+            .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            .unwrap();
+
+        let depth_buf = device.0.device.create_buffer(&BufferDescriptor {
+            label: "dump depth buffer".into(),
+            size: (scaled_size.1 * depth_wgpu_bytes_per_row_256) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: depth_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &depth_buf,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(depth_wgpu_bytes_per_row_256),
+                    rows_per_image: None,
+                },
+            },
+            wgpu::Extent3d {
+                width: scaled_size.0,
+                height: scaled_size.1,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        (
+            Some(buf),
+            Some(wgpu_bytes_per_row_256),
+            Some(depth_buf),
+            Some(depth_wgpu_bytes_per_row_256),
+        )
+    }
+
+    fn submit_and_present_frame(
+        &mut self,
+        encoder: wgpu::CommandEncoder,
+        frame: Option<wgpu::SurfaceTexture>,
+        frame_bind_groups: Vec<BindGroupGuard>,
+        frame_acquired_guards: Vec<AcquiredGuards>,
+        frame_guard: std::sync::Arc<crate::images::port::FrameGuard>,
+        dump_buf: Option<wgpu::Buffer>,
+        dump_buff_bytes_per_row: Option<u32>,
+        depth_dump_buf: Option<wgpu::Buffer>,
+        depth_dump_buff_bytes_per_row: Option<u32>,
+    ) {
+        let device = self.engine.bound_device().as_ref();
+        let encoded = encoder.finish();
+
+        let frame_guard_for_callback = frame_guard.clone();
+        let callback_guard = frame_guard_for_callback.clone();
+        device.0.queue.on_submitted_work_done(move || {
+            std::mem::drop(frame_bind_groups);
+            std::mem::drop(frame_acquired_guards);
+            callback_guard.mark_gpu_complete();
+        });
+        device.0.queue.submit(std::iter::once(encoded));
+        if let Some(f) = frame {
+            f.present();
+        }
+        self.frame += 1;
+
+        if let Some(tx) = dump_buf {
+            let move_tx = tx.clone();
+            let move_frame = self.frame;
+            let scaled_size = self.scaled_size.requested.unwrap();
+            tx.map_async(wgpu::MapMode::Read, .., move |result| {
+                if let Err(e) = result {
+                    panic!("Failed to map framebuffer buffer: {:?}", e);
+                } else {
+                    let data = move_tx.slice(..).get_mapped_range();
+                    let wgpu_bytes_per_row_256 = dump_buff_bytes_per_row.unwrap();
+                    let mut pixels = Vec::new();
+                    for y in 0..scaled_size.1 {
+                        for x in 0..scaled_size.0 {
+                            let offset = (y * wgpu_bytes_per_row_256 + x * 4) as usize;
+                            let pixel_bgra = tgar::PixelBGRA {
+                                b: data[offset],
+                                g: data[offset + 1],
+                                r: data[offset + 2],
+                                a: data[offset + 3],
+                            };
+                            let zero = tgar::PixelBGRA {
+                                b: 0,
+                                g: 0,
+                                r: 0,
+                                a: 0,
+                            };
+                            if pixel_bgra != zero {}
+                            pixels.push(pixel_bgra);
+                        }
+                    }
+
+                    let tgar = tgar::BGRA::new(
+                        scaled_size.0.try_into().unwrap(),
+                        scaled_size.1.try_into().unwrap(),
+                        &pixels,
+                    );
+                    let data = tgar.into_data();
+                    std::fs::write(format!("frame_{}.tga", move_frame), data)
+                        .expect("Failed to write framebuffer dump");
+                }
+                move_tx.unmap();
+            });
+        }
+
+        if let Some(depth_tx) = depth_dump_buf {
+            let move_depth_tx = depth_tx.clone();
+            let move_frame = self.frame;
+            let scaled_size = self.scaled_size.requested.unwrap();
+            depth_tx.map_async(wgpu::MapMode::Read, .., move |result| {
+                if let Err(e) = result {
+                    panic!("Failed to map depth buffer: {:?}", e);
+                } else {
+                    let data = move_depth_tx.slice(..).get_mapped_range();
+                    let depth_wgpu_bytes_per_row_256 = depth_dump_buff_bytes_per_row.unwrap();
+                    let mut depth_pixels = Vec::new();
+                    for y in 0..scaled_size.1 {
+                        for x in 0..scaled_size.0 {
+                            let offset = (y * depth_wgpu_bytes_per_row_256 + x * 2) as usize;
+                            let depth_u16 = u16::from_le_bytes([data[offset], data[offset + 1]]);
+                            let depth_u8 = (depth_u16 as f32 / 65535.0 * 255.0) as u8;
+                            let depth_pixel = tgar::PixelBGRA {
+                                b: depth_u8,
+                                g: depth_u8,
+                                r: depth_u8,
+                                a: 255,
+                            };
+                            depth_pixels.push(depth_pixel);
+                        }
+                    }
+                    let depth_tgar = tgar::BGRA::new(
+                        scaled_size.0.try_into().unwrap(),
+                        scaled_size.1.try_into().unwrap(),
+                        &depth_pixels,
+                    );
+                    let depth_data = depth_tgar.into_data();
+                    std::fs::write(format!("depth_{}.tga", move_frame), depth_data)
+                        .expect("Failed to write depth buffer dump");
+                }
+                move_depth_tx.unmap();
+            });
+        }
+        frame_guard_for_callback.mark_cpu_complete();
+    }
+
     pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
         let mut new_config = self.pass_config.requested.clone();
         new_config.add_pass(descriptor);
@@ -847,11 +1147,15 @@ impl Port {
     pub async fn render_frame(&mut self) {
         self.port_reporter_send.begin_frame(self.frame);
         let frame_guard = self.port_reporter_send.create_frame_guard();
-        let device = self.engine.bound_device().as_ref();
 
-        // Check if any pass descriptor wants depth - if so, enable depth for all passes
         let enable_depth = self.pass_config.requested.enable_depth;
         let unscaled_size = self.view.size_scale().await;
+        // Setup frame reporting and surface configuration
+        let current_scaled_size = (
+            (unscaled_size.0 as f64 * unscaled_size.2) as u32,
+            (unscaled_size.1 as f64 * unscaled_size.2) as u32,
+        );
+        self.scaled_size.update(Some(current_scaled_size));
         let surface = self
             .view
             .imp
@@ -859,24 +1163,18 @@ impl Port {
             .expect("View not initialized")
             .surface
             .as_ref();
-
-        let current_scaled_size = (
-            (unscaled_size.0 as f64 * unscaled_size.2) as u32,
-            (unscaled_size.1 as f64 * unscaled_size.2) as u32,
-        );
-        self.scaled_size.update(Some(current_scaled_size));
         match surface {
             None => {
                 println!("Port surface not initialized");
             }
             Some(surface) => {
-                //todo: reconfigure often?
                 let extra_usage = if self.dump_framebuffer {
                     wgpu::TextureUsages::COPY_SRC
                 } else {
                     wgpu::TextureUsages::empty()
                 };
                 if self.scaled_size.is_dirty() {
+                    let device = self.engine.bound_device().as_ref();
                     let scaled_size = self.scaled_size.requested.unwrap();
                     surface.configure(
                         &device.0.device,
@@ -896,7 +1194,7 @@ impl Port {
             }
         }
 
-        //create per-frame resources
+        // Create per-frame resources
         let wgpu_view;
         let frame;
         let color_attachment;
@@ -904,6 +1202,7 @@ impl Port {
         match surface {
             None => {
                 let scaled_size = self.scaled_size.requested.unwrap();
+                let device = self.engine.bound_device().as_ref();
                 let texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
                     label: Some("dummy texture"),
                     size: wgpu::Extent3d {
@@ -960,107 +1259,31 @@ impl Port {
                 };
             }
         };
-        let mut encoder = device
-            .0
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("wgpu port"),
-            });
 
-        let depth_extra_usage = if self.dump_framebuffer {
-            wgpu::TextureUsages::COPY_SRC
-        } else {
-            wgpu::TextureUsages::empty()
+        let mut encoder = {
+            let device = self.engine.bound_device().as_ref();
+            device
+                .0
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("wgpu port"),
+                })
         };
 
-        let scaled_size = self.scaled_size.requested.unwrap();
-        let depth_texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("depth texture"),
-            size: wgpu::Extent3d {
-                width: scaled_size.0,
-                height: scaled_size.1,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth16Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | depth_extra_usage,
-            view_formats: &[],
-        });
+        // Setup depth buffer
+        let (depth_texture, depth_view) = self.setup_depth_buffer();
 
-        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("depth view"),
-            format: None,
-            dimension: None,
-            usage: None,
-            aspect: Default::default(),
-            base_mip_level: 0,
-            mip_level_count: None,
-            base_array_layer: 0,
-            array_layer_count: None,
-        });
-
-        //prepare to copy data
-        let mut copy_info = CopyInfo {
-            command_encoder: &mut encoder,
-        };
-
-        // Check if pass configuration is dirty and rebuild prepared passes if needed
-        if self.pass_config.is_dirty() {
-            // Clear existing prepared passes
-            self.prepared_passes.clear();
-
-            // Rebuild all prepared passes from current configuration
-            for descriptor in &self.pass_config.requested.pass_descriptors {
-                let pipeline = PreparedPass::new(
-                    device,
-                    descriptor.clone(),
-                    enable_depth,
-                    &self.camera_buffer,
-                    &self.mipmapped_sampler,
-                    &mut copy_info,
-                );
-                self.prepared_passes.push(pipeline);
-            }
-
-            // Mark configuration as submitted
-            self.pass_config.mark_submitted();
-        }
-
-        // Update camera buffer if camera is dirty
-        let camera_dirty_receiver = self.camera.dirty_receiver();
-        if camera_dirty_receiver.is_dirty() {
-            let projection = self.camera.copy_projection_and_clear_dirty_bit();
-            let camera_projection = CameraProjection {
-                projection: [
-                    *projection.matrix().columns()[0].x(),
-                    *projection.matrix().columns()[0].y(),
-                    *projection.matrix().columns()[0].z(),
-                    *projection.matrix().columns()[0].w(),
-                    *projection.matrix().columns()[1].x(),
-                    *projection.matrix().columns()[1].y(),
-                    *projection.matrix().columns()[1].z(),
-                    *projection.matrix().columns()[1].w(),
-                    *projection.matrix().columns()[2].x(),
-                    *projection.matrix().columns()[2].y(),
-                    *projection.matrix().columns()[2].z(),
-                    *projection.matrix().columns()[2].w(),
-                    *projection.matrix().columns()[3].x(),
-                    *projection.matrix().columns()[3].y(),
-                    *projection.matrix().columns()[3].z(),
-                    *projection.matrix().columns()[3].w(),
-                ],
+        // Update pass configuration and camera buffer
+        {
+            let mut copy_info = CopyInfo {
+                command_encoder: &mut encoder,
             };
-            let mut write_guard = self.camera_buffer.access_write().await;
-            write_guard.write(&[camera_projection], 0);
+            self.update_pass_configuration(enable_depth, &mut copy_info);
         }
 
-        // Always recreate acquired guards for all prepared passes
-        for prepared_pass in &mut self.prepared_passes {
-            prepared_pass.recreate_acquired_guards(&self.camera_buffer, &mut copy_info);
-        }
+        self.update_camera_buffer().await;
 
+        // Execute render passes
         let depth_store = if self.dump_framebuffer {
             StoreOp::Store
         } else {
@@ -1079,8 +1302,15 @@ impl Port {
             None
         };
 
-        //we're going to extract the bind groups and acquired guards from the prepared passes
-        //so the acquired guards can be explicitly dropped
+        // Recreate acquired guards for all prepared passes
+        let mut copy_info = CopyInfo {
+            command_encoder: &mut encoder,
+        };
+        for prepared_pass in &mut self.prepared_passes {
+            prepared_pass.recreate_acquired_guards(&self.camera_buffer, &mut copy_info);
+        }
+
+        // Extract bind groups and acquired guards from prepared passes
         let mut frame_bind_groups = Vec::new();
         let mut frame_acquired_guards = Vec::new();
         for prepared in &mut self.prepared_passes {
@@ -1089,7 +1319,8 @@ impl Port {
                 frame_acquired_guards.push(acquired);
             }
         }
-        //in the second pass, we encode our render pass
+
+        // Encode render passes
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Port render"),
             color_attachments: &[Some(color_attachment)],
@@ -1102,9 +1333,7 @@ impl Port {
             render_pass.push_debug_group(prepared.pass_descriptor.name());
             render_pass.set_pipeline(&prepared.pipeline);
 
-            //use the bind group we declared earlier
             let bind_group = &frame_bind_groups[p];
-
             render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
 
             for (v, buffer) in &bind_group.vertex_buffers {
@@ -1123,213 +1352,24 @@ impl Port {
             render_pass.pop_debug_group();
         }
 
-        // println!("encoded {passes} passes", passes = self.prepared_passes.len());
-        std::mem::drop(render_pass); //stop mutably borrowing the encoder
-        let dump_buf;
-        let dump_buff_bytes_per_row;
-        let depth_dump_buf;
-        let depth_dump_buff_bytes_per_row;
-        if self.dump_framebuffer {
-            //round up to nearest COPY_BYTES_PER_ROW_ALIGNMENT
-            let wgpu_bytes_per_row_256 = (scaled_size.0 * 4)
-                .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
-                .unwrap()
-                .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-                .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-                .unwrap();
-            dump_buff_bytes_per_row = Some(wgpu_bytes_per_row_256);
+        std::mem::drop(render_pass);
 
-            //copy framebuffer to a texture
-            let buf = device.0.device.create_buffer(&BufferDescriptor {
-                label: "dump framebuffer".into(),
-                size: (scaled_size.1 * wgpu_bytes_per_row_256) as u64,
-                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-                mapped_at_creation: false,
-            });
+        // Setup debug framebuffer capture
+        let (dump_buf, dump_buff_bytes_per_row, depth_dump_buf, depth_dump_buff_bytes_per_row) =
+            self.setup_debug_framebuffer_capture(&mut encoder, &frame_texture, &depth_texture);
 
-            encoder.copy_texture_to_buffer(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &frame_texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::TexelCopyBufferInfo {
-                    buffer: &buf,
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(wgpu_bytes_per_row_256),
-                        rows_per_image: None,
-                    },
-                },
-                wgpu::Extent3d {
-                    width: scaled_size.0,
-                    height: scaled_size.1,
-                    depth_or_array_layers: 1,
-                },
-            );
-            dump_buf = Some(buf);
-
-            //copy depth texture to a buffer (2 bytes per pixel for Depth16Unorm)
-            let depth_wgpu_bytes_per_row_256 = (scaled_size.0 * 2)
-                .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
-                .unwrap()
-                .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-                .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-                .unwrap();
-            depth_dump_buff_bytes_per_row = Some(depth_wgpu_bytes_per_row_256);
-
-            let depth_buf = device.0.device.create_buffer(&BufferDescriptor {
-                label: "dump depth buffer".into(),
-                size: (scaled_size.1 * depth_wgpu_bytes_per_row_256) as u64,
-                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-                mapped_at_creation: false,
-            });
-
-            encoder.copy_texture_to_buffer(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &depth_texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::TexelCopyBufferInfo {
-                    buffer: &depth_buf,
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(depth_wgpu_bytes_per_row_256),
-                        rows_per_image: None,
-                    },
-                },
-                wgpu::Extent3d {
-                    width: scaled_size.0,
-                    height: scaled_size.1,
-                    depth_or_array_layers: 1,
-                },
-            );
-            depth_dump_buf = Some(depth_buf);
-        } else {
-            dump_buf = None;
-            dump_buff_bytes_per_row = None;
-            depth_dump_buf = None;
-            depth_dump_buff_bytes_per_row = None;
-        }
-
-        let encoded = encoder.finish();
-
-        let frame_guard_for_callback = std::sync::Arc::new(frame_guard);
-        let callback_guard = frame_guard_for_callback.clone();
-        //note that on_submitted_work_done must be called BEFORE submit!
-        device.0.queue.on_submitted_work_done(move || {
-            //callbacks must be alive for full GPU-side render
-            std::mem::drop(frame_bind_groups);
-            std::mem::drop(frame_acquired_guards);
-            // println!("frame guards dropped");
-            callback_guard.mark_gpu_complete();
-        });
-        device.0.queue.submit(std::iter::once(encoded));
-        if let Some(f) = frame {
-            f.present();
-        }
-        self.frame += 1;
-        //dump framebuffer
-        if let Some(tx) = dump_buf {
-            //map
-            let move_tx = tx.clone();
-            let move_frame = self.frame;
-            tx.map_async(wgpu::MapMode::Read, .., move |result| {
-                if let Err(e) = result {
-                    panic!("Failed to map framebuffer buffer: {:?}", e);
-                } else {
-                    //safety: we can safely read the buffer now
-                    let data = move_tx.slice(..).get_mapped_range();
-                    let wgpu_bytes_per_row_256 = dump_buff_bytes_per_row.unwrap();
-                    let mut pixels = Vec::new();
-                    for y in 0..scaled_size.1 {
-                        for x in 0..scaled_size.0 {
-                            let offset = (y * wgpu_bytes_per_row_256 + x * 4) as usize;
-                            let pixel_bgra = tgar::PixelBGRA {
-                                b: data[offset],
-                                g: data[offset + 1],
-                                r: data[offset + 2],
-                                a: data[offset + 3],
-                            };
-                            let zero = tgar::PixelBGRA {
-                                b: 0,
-                                g: 0,
-                                r: 0,
-                                a: 0,
-                            };
-                            if pixel_bgra != zero {
-                                //only print non-zero pixels
-                                //println!("Pixel at ({}, {}) = {:?}", x, y, pixel_bgra);
-                            }
-                            pixels.push(pixel_bgra);
-                        }
-                    }
-
-                    //dump buffer to a file
-                    let tgar = tgar::BGRA::new(
-                        scaled_size.0.try_into().unwrap(),
-                        scaled_size.1.try_into().unwrap(),
-                        &pixels,
-                    );
-                    let data = tgar.into_data();
-                    std::fs::write(format!("frame_{}.tga", move_frame), data)
-                        .expect("Failed to write framebuffer dump");
-                }
-                move_tx.unmap(); //unmap after reading
-            });
-        }
-
-        //dump depth buffer
-        if let Some(depth_tx) = depth_dump_buf {
-            let move_depth_tx = depth_tx.clone();
-            let move_frame = self.frame;
-            depth_tx.map_async(wgpu::MapMode::Read, .., move |result| {
-                if let Err(e) = result {
-                    panic!("Failed to map depth buffer: {:?}", e);
-                } else {
-                    //safety: we can safely read the buffer now
-                    let data = move_depth_tx.slice(..).get_mapped_range();
-                    let depth_wgpu_bytes_per_row_256 = depth_dump_buff_bytes_per_row.unwrap();
-                    let mut depth_pixels = Vec::new();
-                    for y in 0..scaled_size.1 {
-                        for x in 0..scaled_size.0 {
-                            let offset = (y * depth_wgpu_bytes_per_row_256 + x * 2) as usize;
-                            //read 16-bit depth value as little-endian
-                            let depth_u16 = u16::from_le_bytes([data[offset], data[offset + 1]]);
-                            //convert 16-bit depth to 8-bit grayscale (scale from 0-65535 to 0-255)
-                            let depth_u8 = (depth_u16 as f32 / 65535.0 * 255.0) as u8;
-                            // if depth_u8 != 0 {
-                            //     //only print non-zero depth pixels
-                            //     println!("Depth pixel at ({}, {}) = {}", x, y, depth_u8);
-                            // }
-                            //create grayscale BGRA pixel
-                            let depth_pixel = tgar::PixelBGRA {
-                                b: depth_u8,
-                                g: depth_u8,
-                                r: depth_u8,
-                                a: 255,
-                            };
-                            depth_pixels.push(depth_pixel);
-                        }
-                    }
-                    //dump depth buffer to a file
-                    let depth_tgar = tgar::BGRA::new(
-                        scaled_size.0.try_into().unwrap(),
-                        scaled_size.1.try_into().unwrap(),
-                        &depth_pixels,
-                    );
-                    let depth_data = depth_tgar.into_data();
-                    std::fs::write(format!("depth_{}.tga", move_frame), depth_data)
-                        .expect("Failed to write depth buffer dump");
-                }
-                move_depth_tx.unmap(); //unmap after reading
-            });
-        }
-        frame_guard_for_callback.mark_cpu_complete();
-
-        // FrameGuard will be dropped here, triggering statistics update
+        // Submit and present frame
+        let frame_guard_arc = std::sync::Arc::new(frame_guard);
+        self.submit_and_present_frame(
+            encoder,
+            frame,
+            frame_bind_groups,
+            frame_acquired_guards,
+            frame_guard_arc,
+            dump_buf,
+            dump_buff_bytes_per_row,
+            depth_dump_buf,
+            depth_dump_buff_bytes_per_row,
+        );
     }
 }
