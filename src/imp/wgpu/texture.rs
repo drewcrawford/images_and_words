@@ -577,7 +577,7 @@ pub struct RenderSide {
 }
 
 impl PartialEq for RenderSide {
-    fn eq(&self, _other: &Self) -> bool {
-        todo!()
+    fn eq(&self, other: &Self) -> bool {
+        self.texture == other.texture
     }
 }

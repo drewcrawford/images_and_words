@@ -181,7 +181,7 @@ pub(super) enum StorageType {
 
 impl PartialEq for GPUableBuffer {
     fn eq(&self, _other: &Self) -> bool {
-        todo!()
+        self.buffer == _other.buffer
     }
 }
 

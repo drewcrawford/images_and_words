@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::bindings::bind_style::BindTarget;
-use crate::bindings::forward::dynamic::buffer::Buffer;
 use crate::bindings::forward::dynamic::buffer::CRepr;
+use crate::bindings::forward::dynamic::buffer::{Buffer, SomeRenderSide};
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::camera::Camera;
@@ -33,6 +33,28 @@ pub struct CameraProjection {
 }
 
 unsafe impl CRepr for CameraProjection {}
+
+#[derive(Debug, Clone, PartialEq)]
+struct PassConfig {
+    pass_descriptors: Vec<PassDescriptor>,
+    enable_depth: bool,
+}
+
+impl PassConfig {
+    fn new() -> Self {
+        PassConfig {
+            pass_descriptors: Vec::new(),
+            enable_depth: false,
+        }
+    }
+
+    fn add_pass(&mut self, descriptor: PassDescriptor) {
+        if descriptor.depth {
+            self.enable_depth = true;
+        }
+        self.pass_descriptors.push(descriptor);
+    }
+}
 
 /**
 A render input is a pair of requested and submitted values.
@@ -76,7 +98,8 @@ impl<T> RenderInput<T> {
 #[derive(Debug)]
 pub struct Port {
     engine: Arc<crate::images::Engine>,
-    pass_descriptors: Vec<PassDescriptor>,
+    pass_config: RenderInput<PassConfig>,
+    prepared_passes: Vec<PreparedPass>,
     view: crate::images::view::View,
     camera: Camera,
     port_reporter_send: PortReporterSend,
@@ -90,6 +113,7 @@ pub struct Port {
 /**
 A pass that is prepared to be rendered (compiled, layout calculated, etc.)
 */
+#[derive(Debug)]
 pub struct PreparedPass {
     pipeline: RenderPipeline,
     pass_descriptor: PassDescriptor,
@@ -453,7 +477,27 @@ impl AcquiredGuards {
                 }
 
                 BindTarget::Camera => {
-                    todo!()
+                    // Safety: Keep the guard alive
+                    let mut gpu_access =
+                        unsafe { camera_buffer.render_side().acquire_gpu_buffer() };
+
+                    // Handle the copy if there's a dirty guard
+                    if let Some(dirty_guard) = gpu_access.take_dirty_guard() {
+                        // Get the source buffer from the dirty guard
+                        let source: &imp::MappableBuffer = &dirty_guard;
+
+                        // Perform the copy operation
+                        imp::copy_mappable_to_gpuable_buffer(
+                            source,
+                            &gpu_access.gpu_buffer,
+                            0,
+                            0,
+                            dirty_guard.byte_len(),
+                            copy_info,
+                        );
+                        copy_guards.push(dirty_guard);
+                    }
+                    camera_guard = Some(Arc::new(gpu_access));
                 }
 
                 BindTarget::DynamicVB(_layout, render_side) => {
@@ -515,7 +559,7 @@ impl AcquiredGuards {
 Wrapper type that contains the bind group
 and all guards that are needed to keep the resources alive.
 */
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BindGroupGuard {
     bind_group: BindGroup,
     #[allow(dead_code)] // guards keep resources alive during GPU execution
@@ -778,7 +822,8 @@ impl Port {
         Ok(Port {
             engine: engine.clone(),
             camera_buffer,
-            pass_descriptors: Vec::new(),
+            pass_config: RenderInput::new(PassConfig::new()),
+            prepared_passes: Vec::new(),
             view,
             camera,
             port_reporter_send,
@@ -791,8 +836,13 @@ impl Port {
         })
     }
     pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
-        self.pass_descriptors.push(descriptor);
-        println!("now up to {} passes", self.pass_descriptors.len());
+        let mut new_config = self.pass_config.requested.clone();
+        new_config.add_pass(descriptor);
+        self.pass_config.update(new_config);
+        println!(
+            "now up to {} passes",
+            self.pass_config.requested.pass_descriptors.len()
+        );
     }
     pub async fn render_frame(&mut self) {
         self.port_reporter_send.begin_frame(self.frame);
@@ -800,7 +850,7 @@ impl Port {
         let device = self.engine.bound_device().as_ref();
 
         // Check if any pass descriptor wants depth - if so, enable depth for all passes
-        let enable_depth = self.pass_descriptors.iter().any(|desc| desc.depth);
+        let enable_depth = self.pass_config.requested.enable_depth;
         let unscaled_size = self.view.size_scale().await;
         let surface = self
             .view
@@ -956,22 +1006,30 @@ impl Port {
             command_encoder: &mut encoder,
         };
 
-        // Create prepared passes now that we have all required parameters
-        let mut prepared = Vec::new();
-        for descriptor in &self.pass_descriptors {
-            let pipeline = PreparedPass::new(
-                device,
-                descriptor.clone(),
-                enable_depth,
-                &self.camera_buffer,
-                &self.mipmapped_sampler,
-                &mut copy_info,
-            );
-            prepared.push(pipeline);
+        // Check if pass configuration is dirty and rebuild prepared passes if needed
+        if self.pass_config.is_dirty() {
+            // Clear existing prepared passes
+            self.prepared_passes.clear();
+
+            // Rebuild all prepared passes from current configuration
+            for descriptor in &self.pass_config.requested.pass_descriptors {
+                let pipeline = PreparedPass::new(
+                    device,
+                    descriptor.clone(),
+                    enable_depth,
+                    &self.camera_buffer,
+                    &self.mipmapped_sampler,
+                    &mut copy_info,
+                );
+                self.prepared_passes.push(pipeline);
+            }
+
+            // Mark configuration as submitted
+            self.pass_config.mark_submitted();
         }
 
-        // Recreate acquired guards for testing purposes
-        for prepared_pass in &mut prepared {
+        // Always recreate acquired guards for all prepared passes
+        for prepared_pass in &mut self.prepared_passes {
             prepared_pass.recreate_acquired_guards(&self.camera_buffer, &mut copy_info);
         }
 
@@ -980,7 +1038,7 @@ impl Port {
         } else {
             StoreOp::Discard
         };
-        let depth_stencil_attachment = if prepared.iter().any(|e| e.depth_pass) {
+        let depth_stencil_attachment = if self.prepared_passes.iter().any(|e| e.depth_pass) {
             Some(RenderPassDepthStencilAttachment {
                 view: &depth_view,
                 depth_ops: Some(wgpu::Operations {
@@ -997,7 +1055,7 @@ impl Port {
         //so the acquired guards can be explicitly dropped
         let mut frame_bind_groups = Vec::new();
         let mut frame_acquired_guards = Vec::new();
-        for prepared in &mut prepared {
+        for prepared in &mut self.prepared_passes {
             frame_bind_groups.push(prepared.bind_group_guard.clone());
             if let Some(acquired) = prepared.acquired_guards.take() {
                 frame_acquired_guards.push(acquired);
@@ -1012,7 +1070,7 @@ impl Port {
             occlusion_query_set: None,
         });
 
-        for (p, prepared) in prepared.iter().enumerate() {
+        for (p, prepared) in self.prepared_passes.iter().enumerate() {
             render_pass.push_debug_group(prepared.pass_descriptor.name());
             render_pass.set_pipeline(&prepared.pipeline);
 
@@ -1037,7 +1095,7 @@ impl Port {
             render_pass.pop_debug_group();
         }
 
-        // println!("encoded {passes} passes", passes = prepared.len());
+        // println!("encoded {passes} passes", passes = self.prepared_passes.len());
         std::mem::drop(render_pass); //stop mutably borrowing the encoder
         let dump_buf;
         let dump_buff_bytes_per_row;
