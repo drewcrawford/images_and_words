@@ -241,6 +241,19 @@ impl<Format> crate::imp::GPUableTextureWrapped for GPUableTexture<Format> {
     fn format_matches(&self, _other: &dyn crate::imp::MappableTextureWrapped) -> bool {
         todo!("format_matches not implemented for nop backend")
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        todo!()
+    }
+
+    fn copy_from_mappable(
+        &self,
+        _source: &dyn crate::imp::MappableTextureWrapped,
+        _copy_info: &mut crate::imp::CopyInfo,
+    ) -> Result<(), String> {
+        // Nop backend doesn't actually perform copies
+        Ok(())
+    }
 }
 
 pub struct MappableTexture<Format>(SendPhantom<Format>);

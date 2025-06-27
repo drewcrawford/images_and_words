@@ -106,12 +106,10 @@ use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureConfig;
 use crate::images::device::BoundDevice;
 use crate::imp;
-use crate::imp::CopyInfo;
 use crate::multibuffer::Multibuffer;
 use crate::pixel_formats::sealed::PixelFormat;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
-use std::ops::Deref;
 use std::sync::Arc;
 
 trait DynRenderSide: Send + Debug + Sync {
@@ -119,18 +117,8 @@ trait DynRenderSide: Send + Debug + Sync {
     /// # Safety
     /// Must hold the guard for the lifetime of the GPU texture access.
     #[allow(dead_code)] //nop implementation does not use
-    unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard;
+    unsafe fn acquire_gpu_texture(&self) -> GPUAccess;
     fn gpu_dirty_receiver(&self) -> DirtyReceiver;
-}
-
-trait DynGuard: Debug {
-    #[allow(dead_code)] //nop implementation does not use
-    fn as_imp(&self) -> imp::TextureRenderSide;
-}
-impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
-    fn as_imp(&self) -> crate::imp::TextureRenderSide {
-        self.underlying.as_imp().render_side()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -146,8 +134,8 @@ impl PartialEq for ErasedTextureRenderSide {
 
 impl ErasedTextureRenderSide {
     #[allow(dead_code)] //nop implementation does not use
-    pub unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
-        unsafe { self.imp.acquire_gpu_texture(copy_info) }
+    pub unsafe fn acquire_gpu_texture(&self) -> GPUAccess {
+        unsafe { self.imp.acquire_gpu_texture() }
     }
     pub fn gpu_dirty_receiver(&self) -> DirtyReceiver {
         self.imp.gpu_dirty_receiver()
@@ -213,25 +201,33 @@ impl<Format: PixelFormat> Debug for TextureRenderSide<Format> {
     }
 }
 impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
-    unsafe fn acquire_gpu_texture(&self, copy_info: &mut CopyInfo) -> ErasedGPUGuard {
+    unsafe fn acquire_gpu_texture(&self) -> GPUAccess {
         let mut guard = unsafe { self.shared.multibuffer.access_gpu() };
 
-        // Handle the copy if there's a dirty guard
-        if let Some(dirty_guard) = guard.take_dirty_guard() {
-            // Get the source texture from the dirty guard - it's already a MappableTexture
-            let source: &imp::MappableTexture<Format> = &dirty_guard;
+        // Take the dirty guard if present
+        let dirty_guard = guard.take_dirty_guard();
 
-            // Perform the texture copy operation
-            imp::copy_mappable_to_gpuable_texture(source, guard.gpu_buffer_mut(), copy_info);
+        // Get the render side and GPU texture
+        let render_side = guard.as_imp().render_side();
+        let gpu_texture: Box<dyn imp::GPUableTextureWrapped> = Box::new(guard.as_imp().clone());
 
-            // Keep the dirty guard alive until the copy is complete
-            guard.set_dirty_guard(dirty_guard);
-        }
+        // Create GPUGuard with the dirty guard stored separately
+        let our_guard = GPUGuard {
+            underlying: guard,
+            dirty_guard,
+            render_side: render_side.clone(),
+        };
 
-        let our_guard = GPUGuard { underlying: guard };
-        let render_side = our_guard.underlying.as_imp().render_side();
-        ErasedGPUGuard {
-            erasing: Box::new(our_guard),
+        // Create the dirty guard wrapper if we have dirty data
+        let dirty_guard_box = if our_guard.dirty_guard.is_some() {
+            Some(Box::new(our_guard) as Box<dyn DynGuard>)
+        } else {
+            None
+        };
+
+        GPUAccess {
+            dirty_guard: dirty_guard_box,
+            gpu_texture,
             render_side,
         }
     }
@@ -313,23 +309,62 @@ pub struct CPUReadGuard<Format: PixelFormat> {
 }
 
 #[allow(dead_code)] //nop implementation does not use
-#[derive(Debug)]
 struct GPUGuard<Format: PixelFormat> {
     underlying:
         crate::multibuffer::GPUGuard<imp::MappableTexture<Format>, imp::GPUableTexture<Format>>,
-}
-#[derive(Debug)]
-pub struct ErasedGPUGuard {
-    #[allow(dead_code)] //nop implementation does not use
-    erasing: Box<dyn DynGuard>,
+    // Store the dirty guard separately so we can access the source texture
+    dirty_guard: Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableTexture<Format>>>,
     render_side: imp::TextureRenderSide,
 }
 
-impl Deref for ErasedGPUGuard {
-    type Target = imp::TextureRenderSide;
-    fn deref(&self) -> &Self::Target {
-        &self.render_side
+impl<Format: PixelFormat> Debug for GPUGuard<Format> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GPUGuard")
+            .field("underlying", &self.underlying)
+            .field("render_side", &self.render_side)
+            .finish()
     }
+}
+
+impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
+    fn perform_copy(
+        &self,
+        destination: &dyn imp::GPUableTextureWrapped,
+        copy_info: &mut imp::CopyInfo,
+    ) -> Result<(), String> {
+        if let Some(ref dirty_guard) = self.dirty_guard {
+            // Dereference the dirty guard to get the MappableTexture
+            let source: &imp::MappableTexture<Format> = dirty_guard;
+            // Use the type-erased copy method
+            destination.copy_from_mappable(source, copy_info)
+        } else {
+            Err("perform_copy called on GPUGuard without dirty data".to_string())
+        }
+    }
+}
+
+/// Guards access to the underlying GPU texture during rendering.
+///
+/// `GPUAccess` provides access to the GPU texture with optional dirty data
+/// that needs to be copied. This type is created internally by the rendering
+/// system and maintains the texture's availability for GPU operations.
+pub struct GPUAccess {
+    // Option<Box<DynGuard>> if we need to perform a copy, otherwise None (how we erase Format in this field)
+    pub(crate) dirty_guard: Option<Box<dyn DynGuard>>,
+    // Underlying GPU type, typecast to Box<dyn GPUableTextureWrapped> (how we erase Format in this field)
+    pub(crate) gpu_texture: Box<dyn imp::GPUableTextureWrapped>,
+    // The render side for creating views (always available)
+    pub(crate) render_side: imp::TextureRenderSide,
+}
+
+/// Trait for type-erased guard that provides access to source texture for copying
+pub(crate) trait DynGuard: Debug + Send {
+    /// Perform the copy from the stored source to the given destination
+    fn perform_copy(
+        &self,
+        destination: &dyn imp::GPUableTextureWrapped,
+        copy_info: &mut imp::CopyInfo,
+    ) -> Result<(), String>;
 }
 
 ///Shared between FrameTexture and TextureRenderSide

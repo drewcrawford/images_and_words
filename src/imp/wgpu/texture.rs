@@ -441,6 +441,38 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
         // If we can't downcast to the same type, formats don't match
         false
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn copy_from_mappable(
+        &self,
+        source: &dyn crate::imp::MappableTextureWrapped,
+        copy_info: &mut crate::imp::CopyInfo,
+    ) -> Result<(), String> {
+        // First check format compatibility
+        if !self.format_matches(source) {
+            return Err(format!(
+                "Format mismatch: GPU texture is {}x{}, but source is {}x{} or has incompatible format",
+                self.width,
+                self.height,
+                source.width(),
+                source.height()
+            ));
+        }
+
+        // Try to downcast to MappableTexture<Format>
+        let source_any = source as &dyn std::any::Any;
+
+        if let Some(source_concrete) = source_any.downcast_ref::<MappableTexture<Format>>() {
+            // Perform the copy using the existing copy_texture_internal function
+            copy_texture_internal(source_concrete, self, copy_info);
+            Ok(())
+        } else {
+            Err("Failed to downcast source texture to concrete type".to_string())
+        }
+    }
 }
 
 impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTextureWrappedWgpu

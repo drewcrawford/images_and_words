@@ -443,9 +443,21 @@ pub fn prepare_bind_group(
             }
             BindTarget::DynamicTexture(texture) => {
                 //safety: keep the guard alive
-                let texture =
-                    unsafe { gpu_guard_textures.push(texture.acquire_gpu_texture(copy_info)) };
-                let view = build_resources.push(texture.texture.create_view(
+                let gpu_access = unsafe { texture.acquire_gpu_texture() };
+
+                // Handle the copy if there's a dirty guard
+                if let Some(ref dirty_guard) = gpu_access.dirty_guard {
+                    // Perform the texture copy using copy_from_mappable without hardcoding format
+                    if let Err(e) = dirty_guard.perform_copy(&*gpu_access.gpu_texture, copy_info) {
+                        panic!("Texture copy failed: {}", e);
+                    }
+                }
+
+                // Store the guard
+                let guard = gpu_guard_textures.push(gpu_access);
+
+                // Use the render_side from GPUAccess
+                let view = build_resources.push(guard.render_side.texture.create_view(
                     &wgpu::TextureViewDescriptor {
                         label: None,
                         format: None,

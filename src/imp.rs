@@ -11,6 +11,13 @@ pub(crate) trait GPUableTextureWrapped: GPUableTextureWrapper {
     fn width(&self) -> u32;
     fn height(&self) -> u32;
     fn format_matches(&self, other: &dyn MappableTextureWrapped) -> bool;
+    fn as_any(&self) -> &dyn std::any::Any;
+    /// Perform a copy from a mappable texture to this GPU texture
+    fn copy_from_mappable(
+        &self,
+        source: &dyn MappableTextureWrapped,
+        copy_info: &mut crate::imp::CopyInfo,
+    ) -> Result<(), String>;
 }
 
 pub(crate) trait MappableTextureWrapped: MappableTextureWrapper + std::any::Any {
