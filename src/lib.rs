@@ -182,3 +182,9 @@ pub use vectormatrix;
 
 pub type Priority = some_executor::Priority;
 pub type Strategy = vec_parallel::Strategy;
+
+/**
+Re-export the `app_window` module if the `app_window` feature is enabled.
+*/
+#[cfg(app_window)]
+pub use app_window;

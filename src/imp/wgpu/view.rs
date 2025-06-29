@@ -15,6 +15,9 @@ impl View {
     # Safety
     This function is unsafe because the underlying surface is created with a raw window handle.
     If the raw window handle is not valid or the display handle is incorrect, it may lead to undefined behavior.
+
+    # Threading
+    Typically, this function should be called from [app_window::wgpu::wgpu_in_context].
     */
     #[cfg(feature = "app_window")]
     pub async unsafe fn from_surface(
