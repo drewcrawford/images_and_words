@@ -1178,13 +1178,16 @@ impl Port {
                     wgpu::TextureUsages::empty()
                 };
                 if self.scaled_size.is_dirty() {
+                    let surface_capabilities =
+                        surface.get_capabilities(&self.engine.bound_device().0.adapter);
+
                     let device = self.engine.bound_device().as_ref();
                     let scaled_size = self.scaled_size.requested.unwrap();
                     surface.configure(
                         &device.0.device,
                         &wgpu::SurfaceConfiguration {
                             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | extra_usage,
-                            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                            format: surface_capabilities.formats[0],
                             width: scaled_size.0,
                             height: scaled_size.1,
                             present_mode: wgpu::PresentMode::Fifo,

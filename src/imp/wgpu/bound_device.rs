@@ -7,6 +7,7 @@ use wgpu::{Limits, Trace};
 pub struct BoundDevice {
     pub(super) device: wgpu::Device,
     pub(super) queue: wgpu::Queue,
+    pub(super) adapter: wgpu::Adapter,
 }
 
 impl BoundDevice {
@@ -25,6 +26,10 @@ impl BoundDevice {
         };
         let (device, q) = unbound_device.0.adapter.request_device(&descriptor).await?;
 
-        Ok(BoundDevice { device, queue: q })
+        Ok(BoundDevice {
+            device,
+            queue: q,
+            adapter: unbound_device.0.adapter,
+        })
     }
 }
