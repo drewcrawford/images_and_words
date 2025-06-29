@@ -55,7 +55,7 @@ use std::sync::{Arc, Mutex};
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
-use wasm_time::Instant;
+use web_time::Instant;
 
 /**
 Guard type for tracking frame timing information.
