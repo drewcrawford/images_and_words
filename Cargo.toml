@@ -53,3 +53,5 @@ testing = []
 [patch.crates-io]
 #vec_parallel = {path = "../vec_parallel"}
 app_window = {path = "../app_window"}
+send_cells = {path = "../send_cells"}
+some_executor = {path = "../some_executor"}

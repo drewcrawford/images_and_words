@@ -27,19 +27,16 @@ impl View {
             raw_display_handle,
         ));
         let entrypoint = entrypoint.clone();
-        app_window::wgpu::wgpu_call_context_relaxed(async move {
-            let target = wgpu::SurfaceTargetUnsafe::RawHandle {
-                //safety: see function documentation
-                raw_window_handle: unsafe { move_handles.get().0 },
-                raw_display_handle: unsafe { move_handles.get().1 },
-            };
+        let target = wgpu::SurfaceTargetUnsafe::RawHandle {
             //safety: see function documentation
-            let surface = unsafe { entrypoint.0.0.create_surface_unsafe(target)? };
-            Ok(View {
-                surface: Some(surface).into(),
-            })
+            raw_window_handle: unsafe { move_handles.get().0 },
+            raw_display_handle: unsafe { move_handles.get().1 },
+        };
+        //safety: see function documentation
+        let surface = unsafe { entrypoint.0.0.create_surface_unsafe(target)? };
+        Ok(View {
+            surface: Some(surface).into(),
         })
-        .await
     }
 
     #[cfg(any(test, feature = "testing"))]
