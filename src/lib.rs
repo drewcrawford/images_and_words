@@ -186,5 +186,5 @@ pub type Strategy = vec_parallel::Strategy;
 /**
 Re-export the `app_window` module if the `app_window` feature is enabled.
 */
-#[cfg(app_window)]
+#[cfg(feature = "app_window")]
 pub use app_window;

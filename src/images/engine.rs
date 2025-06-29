@@ -6,7 +6,6 @@ use crate::images::port::Port;
 use crate::images::projection::WorldCoord;
 use crate::images::view::View;
 use crate::imp;
-use crate::imp::{BackendSend, BackendSync};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 

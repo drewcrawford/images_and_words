@@ -10,7 +10,7 @@ use crate::images::render_pass::{DrawCommand, PassDescriptor};
 use crate::images::vertex_layout::VertexFieldType;
 use crate::imp;
 use crate::imp::wgpu::buffer::StorageType;
-use crate::imp::{BackendSend, BackendSync, CopyInfo, Error};
+use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
 use send_cells::send_cell::SendCell;
 use std::collections::HashMap;
@@ -1258,6 +1258,7 @@ impl Port {
                     .create_view(&wgpu::TextureViewDescriptor::default());
                 color_attachment = wgpu::RenderPassColorAttachment {
                     view: &wgpu_view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color::TRANSPARENT),

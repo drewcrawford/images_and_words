@@ -4,7 +4,8 @@ use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
-use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label, MaintainBase};
+use wgpu::PollType;
+use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label};
 
 /**
 A buffer that can be mapped onto the host.
@@ -101,7 +102,7 @@ impl MappableBuffer {
         self.bound_device
             .0
             .device
-            .poll(MaintainBase::Wait)
+            .poll(PollType::Wait)
             .expect("Poll failed");
         r.await;
         let range = slice.get_mapped_range();
@@ -119,7 +120,7 @@ impl MappableBuffer {
         self.bound_device
             .0
             .device
-            .poll(MaintainBase::Wait)
+            .poll(PollType::Wait)
             .expect("Poll failed");
         r.await;
         let mut range = slice.get_mapped_range_mut();
@@ -280,7 +281,7 @@ impl GPUableBuffer {
         self.bound_device
             .0
             .device
-            .poll(MaintainBase::WaitForSubmissionIndex(submission_index))
+            .poll(PollType::WaitForSubmissionIndex(submission_index))
             .expect("Poll failed");
         r.await;
     }
