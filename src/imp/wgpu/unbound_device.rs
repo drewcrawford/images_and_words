@@ -1,8 +1,9 @@
+use app_window::wgpu::WgpuCell;
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::images::view::View;
 
 pub struct UnboundDevice {
-    pub(super) adapter: wgpu::Adapter,
+    pub(super) adapter: WgpuCell<wgpu::Adapter>,
 }
 
 impl UnboundDevice {
@@ -24,6 +25,8 @@ impl UnboundDevice {
         let adapter = entry_point.0.0.request_adapter(&options).await;
         let adapter = adapter.map_err(|_| super::Error::NoSuchAdapter)?;
 
-        Ok(UnboundDevice { adapter })
+        Ok(UnboundDevice {
+            adapter: adapter.into(),
+        })
     }
 }

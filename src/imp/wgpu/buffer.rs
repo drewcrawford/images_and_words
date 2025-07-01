@@ -2,6 +2,7 @@
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
+use app_window::wgpu::WgpuCell;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 use wgpu::PollType;
@@ -12,14 +13,18 @@ A buffer that can be mapped onto the host.
 */
 #[derive(Debug)]
 pub struct MappableBuffer {
-    mapped: Option<wgpu::BufferView<'static>>,
-    mapped_mut: Option<wgpu::BufferViewMut<'static>>,
+    //In wgpu, buffers are not sendable.
+    //Accordingly we need to emulate this somewhat terribly.
+    internal_buffer: Box<[u8]>,
+    wgpu_buffer: WgpuCell<wgpu::Buffer>,
 
-    pub(super) buffer: wgpu::Buffer,
     bound_device: Arc<BoundDevice>,
 }
 
 impl MappableBuffer {
+    pub(crate) fn wgpu_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+        &self.wgpu_buffer
+    }
     pub(crate) async fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]>(
         bound_device: Arc<crate::images::BoundDevice>,
         requested_size: usize,
@@ -27,6 +32,18 @@ impl MappableBuffer {
         debug_name: &str,
         initialize_with: Initializer,
     ) -> Result<Self, crate::imp::Error> {
+        let mut data = vec![MaybeUninit::uninit(); requested_size];
+        let data_ptr = data.as_ptr();
+        let initialized = initialize_with(&mut data);
+        // Safety: we ensure that the data is initialized and has the correct length
+        //very dumb check that they were the same pointer
+        assert_eq!(initialized.as_ptr(), data_ptr as *const u8);
+        //and have same length as requested
+        assert_eq!(initialized.len(), data.len());
+        //convert to Vec<u8>
+        let initialed_data = unsafe { std::mem::transmute::<Vec<MaybeUninit<u8>>, Vec<u8>>(data) };
+        let internal_buffer = initialed_data.into_boxed_slice();
+
         let buffer_usage = match map_type {
             MapType::Read => BufferUsages::MAP_READ,
             MapType::Write => BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC,
@@ -36,100 +53,74 @@ impl MappableBuffer {
         let allocated_size = (requested_size as u64 + wgpu::COPY_BUFFER_ALIGNMENT - 1)
             & !(wgpu::COPY_BUFFER_ALIGNMENT - 1);
 
-        let descriptor = BufferDescriptor {
-            label: Some(debug_name),
-            size: allocated_size,
-            usage: buffer_usage,
-            mapped_at_creation: true,
-        };
-        let buffer = bound_device.0.device.create_buffer(&descriptor);
+        //prepare for port
+        let debug_name = debug_name.to_string();
+        let move_device = bound_device.clone();
+        let arc_buffer = Arc::new(internal_buffer);
+        let post_arc_buffer = arc_buffer.clone();
+        //here we must use threads
+        let buffer = WgpuCell::new_on_thread(move || {
+            async move {
+                let descriptor = BufferDescriptor {
+                    label: Some(&debug_name),
+                    size: allocated_size,
+                    usage: buffer_usage,
+                    mapped_at_creation: true,
+                };
+                let buffer = move_device
+                    .0
+                    .wgpu
+                    .lock()
+                    .unwrap()
+                    .device
+                    .create_buffer(&descriptor);
+                let mut entire_map = buffer.slice(..).get_mapped_range_mut();
+                //copy all data
+                entire_map.copy_from_slice(&arc_buffer[..requested_size]);
+                drop(entire_map);
+                buffer.unmap();
+                buffer
+            }
+        })
+        .await;
 
-        //data we access is only up to the requested size, omitting any padding
-        let mut entire_map = buffer.slice(..).get_mapped_range_mut();
+        let internal_buffer = Arc::try_unwrap(post_arc_buffer).unwrap();
 
-        let map_entire_view = entire_map.as_mut();
-        //ensure we only access the requested size
-        let map_requested_view = &mut map_entire_view[..requested_size];
-        //These bytes are probably uninitialized and we should represent that to callers
-        let map_view: &mut [MaybeUninit<u8>] = unsafe { std::mem::transmute(map_requested_view) };
-        let map_view_ptr = map_view.as_ptr();
-        let map_view_len = map_view.len();
-        //initialize them
-        let initialized = initialize_with(map_view);
-
-        //very dumb check that they were the same pointer
-        assert_eq!(initialized.as_ptr(), map_view_ptr as *const u8);
-        //and have same length as requested
-        assert_eq!(initialized.len(), map_view_len);
-        std::mem::drop(entire_map);
-
-        buffer.unmap();
         Ok(MappableBuffer {
-            buffer,
-            mapped: None,
-            mapped_mut: None,
+            internal_buffer,
+            wgpu_buffer: buffer,
             bound_device,
         })
     }
 
     pub fn as_slice(&self) -> &[u8] {
-        self.mapped.as_ref().expect("Map first")
+        self.internal_buffer.as_ref()
     }
 
     pub fn write(&mut self, data: &[u8], dst_offset: usize) {
-        let mapped = self.mapped_mut.as_mut().expect("Map first");
-        assert!(mapped.len() >= data.len() + dst_offset, "Buffer too small");
-        mapped[dst_offset..dst_offset + data.len()].copy_from_slice(data);
+        assert!(
+            dst_offset + data.len() <= self.internal_buffer.len(),
+            "Write out of bounds"
+        );
+        // Safety: we ensure that the data is within bounds
+        unsafe {
+            let slice = &mut self.internal_buffer[dst_offset..dst_offset + data.len()];
+            slice.copy_from_slice(data);
+        }
     }
 
     pub async fn map_read(&mut self) {
-        let (s, r) = r#continue::continuation();
-        let slice = self.buffer.slice(..);
-
-        slice.map_async(wgpu::MapMode::Read, |r| {
-            r.unwrap();
-            s.send(());
-        });
-        self.bound_device
-            .0
-            .device
-            .poll(PollType::Wait)
-            .expect("Poll failed");
-        r.await;
-        let range = slice.get_mapped_range();
-        // Safety: we're transmuting the lifetime to 'static, but we ensure the buffer
-        // remains mapped until unmap() is called
-        self.mapped = Some(unsafe { std::mem::transmute(range) });
+        //since we use a CPU view, this is a no-op
     }
     pub async fn map_write(&mut self) {
-        let (s, r) = r#continue::continuation();
-        let slice = self.buffer.slice(..);
-        slice.map_async(wgpu::MapMode::Write, |r| {
-            r.unwrap();
-            s.send(());
-        });
-
-        // Use blocking poll to wait for map completion, avoiding VSync timing issues
-        self.bound_device
-            .0
-            .device
-            .poll(PollType::Wait)
-            .expect("Poll failed");
-        r.await;
-        let range = slice.get_mapped_range_mut();
-        // Safety: we're transmuting the lifetime to 'static, but we ensure the buffer
-        // remains mapped until unmap() is called
-        self.mapped_mut = Some(unsafe { std::mem::transmute(range) });
+        //since we use a CPU view, this is a no-op
     }
     pub fn unmap(&mut self) {
-        // Drop the mapped views first - they will unmap automatically
-        self.mapped = None;
-        self.mapped_mut = None;
-        self.buffer.unmap();
+        //since we use a CPU view, this is a no-op
     }
 
     pub fn byte_len(&self) -> usize {
-        self.buffer.size() as usize
+        self.internal_buffer.len()
     }
 }
 
@@ -203,7 +194,13 @@ impl GPUableBuffer {
             usage: usage_type,
             mapped_at_creation: false,
         };
-        let buffer = bound_device.0.device.create_buffer(&descriptor);
+        let buffer = bound_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_buffer(&descriptor);
         GPUableBuffer {
             buffer,
             bound_device,
@@ -220,6 +217,9 @@ impl GPUableBuffer {
             GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
                 if bound_device
                     .0
+                    .wgpu
+                    .lock()
+                    .unwrap()
                     .device
                     .limits()
                     .max_uniform_buffer_binding_size as usize
@@ -250,13 +250,16 @@ impl GPUableBuffer {
         dest_offset: usize,
         copy_len: usize,
     ) {
-        let mut encoder =
-            self.bound_device
-                .0
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Label::from("wgpu::GPUableBuffer::copy_from_buffer"),
-                });
+        let mut encoder = self
+            .bound_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Label::from("wgpu::GPUableBuffer::copy_from_buffer"),
+            });
         //safety: we take the source, so nobody can deallocate it
         unsafe {
             self.copy_from_buffer_internal(
@@ -269,13 +272,29 @@ impl GPUableBuffer {
         }
 
         let command = encoder.finish();
-        let submission_index = self.bound_device.0.queue.submit(std::iter::once(command));
+        let submission_index = self
+            .bound_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .queue
+            .submit(std::iter::once(command));
         let (s, r) = r#continue::continuation();
-        self.bound_device.0.queue.on_submitted_work_done(|| {
-            s.send(());
-        });
         self.bound_device
             .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .queue
+            .on_submitted_work_done(|| {
+                s.send(());
+            });
+        self.bound_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
             .device
             .poll(PollType::WaitForSubmissionIndex(submission_index))
             .expect("Poll failed");
@@ -296,7 +315,7 @@ impl GPUableBuffer {
         command_encoder: &mut CommandEncoder,
     ) {
         command_encoder.copy_buffer_to_buffer(
-            &source.buffer,
+            &source.wgpu_buffer.get(),
             source_offset as u64,
             &self.buffer,
             dest_offset as u64,

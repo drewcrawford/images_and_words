@@ -321,12 +321,18 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             }
         }
 
-        let texture = bound_device.0.device.create_texture_with_data(
-            &bound_device.0.queue,
-            &descriptor,
-            TextureDataOrder::default(),
-            pixel_as_bytes(&src_buf),
-        );
+        let texture = bound_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_texture_with_data(
+                &bound_device.0.wgpu.lock().unwrap().queue,
+                &descriptor,
+                TextureDataOrder::default(),
+                pixel_as_bytes(&src_buf),
+            );
         Ok(Self {
             format: PhantomData,
             imp: texture,
@@ -376,7 +382,13 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             config.visible_to,
             config.mipmaps,
         );
-        let texture = bound_device.0.device.create_texture(&descriptor);
+        let texture = bound_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_texture(&descriptor);
         Ok(Self {
             format: PhantomData,
             imp: texture,
@@ -486,7 +498,7 @@ pub(super) fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelF
         .unwrap();
 
     let source_base = TexelCopyBufferInfoBase {
-        buffer: &source.imp.buffer,
+        buffer: source.imp.wgpu_buffer().get(),
         layout: wgpu::TexelCopyBufferLayout {
             offset: 0,
             bytes_per_row: Some(aligned_bytes_per_row),

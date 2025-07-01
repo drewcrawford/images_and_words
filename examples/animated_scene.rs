@@ -259,6 +259,7 @@ async fn run_animated_rendering_with_engine_arc(
             cosine_time: 1.0,
         },
     )
+    .await
     .expect("Failed to create uniform buffer");
 
     // Step 2: Create bind style and bind dynamic uniform buffer

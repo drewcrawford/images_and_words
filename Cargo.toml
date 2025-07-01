@@ -29,7 +29,7 @@ half = "2.6"
 portable_async_sleep = "0.1.0"
 await_values = "0.1.0"
 # optional
-app_window = {version = "0.2", optional=true, features = []}
+app_window = {version = "0.2", features = ["wgpu"], optional=true}
 # used for app_window
 send_cells = {version = "0.1"}
 # used for wgpu backend
@@ -41,16 +41,13 @@ web-time = "1.1.0"
 
 [dev-dependencies]
 
-app_window = {version = "0.2", features=["wgpu"]}
 env_logger = {version = "0.11.8"}
 
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
 
 [features]
-# Create a view based on app_window Surface
-app_window = ["dep:app_window"]
-backend_wgpu = ["dep:wgpu", "app_window?/wgpu"]
+backend_wgpu = ["dep:wgpu", "app_window/wgpu"]
 # Enable testing APIs for integration tests
 testing = []
 

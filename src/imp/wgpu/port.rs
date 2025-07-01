@@ -223,35 +223,41 @@ impl PreparedPass {
         }
         // println!("Will create bind group layout {:?}", layouts);
 
-        let bind_group_layout =
-            bind_device
-                .0
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some(descriptor.name()),
-                    entries: layouts.as_slice(),
-                });
+        let bind_group_layout = bind_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some(descriptor.name()),
+                entries: layouts.as_slice(),
+            });
 
-        let pipeline_layout =
-            bind_device
-                .0
-                .device
-                .create_pipeline_layout(&PipelineLayoutDescriptor {
-                    label: Some(descriptor.name()),
-                    bind_group_layouts: &[&bind_group_layout],
-                    push_constant_ranges: &[], //not yet supported
-                });
+        let pipeline_layout = bind_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: Some(descriptor.name()),
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[], //not yet supported
+            });
 
-        let vertex_module =
-            bind_device
-                .0
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some(descriptor.vertex_shader.label),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        &descriptor.vertex_shader.wgsl_code,
-                    )),
-                });
+        let vertex_module = bind_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(descriptor.vertex_shader.label),
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                    &descriptor.vertex_shader.wgsl_code,
+                )),
+            });
 
         //calculate vertex buffers
         let mut vertex_buffers = Vec::new();
@@ -346,16 +352,18 @@ impl PreparedPass {
             alpha_to_coverage_enabled: false,
         };
 
-        let fragment_module =
-            bind_device
-                .0
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some(descriptor.fragment_shader.label),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        &descriptor.fragment_shader.wgsl_code,
-                    )),
-                });
+        let fragment_module = bind_device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(descriptor.fragment_shader.label),
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                    &descriptor.fragment_shader.wgsl_code,
+                )),
+            });
         let blend = if descriptor.alpha {
             Some(BlendState::ALPHA_BLENDING)
         } else {
@@ -389,6 +397,9 @@ impl PreparedPass {
         };
         let pipeline = bind_device
             .0
+            .wgpu
+            .lock()
+            .unwrap()
             .device
             .create_render_pipeline(&render_descriptor);
 
@@ -686,14 +697,13 @@ impl BindGroupGuard {
             };
             entries.push(entry);
         }
-        let bind_group = bind_device
-            .0
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = bind_device.0.wgpu.lock().unwrap().device.create_bind_group(
+            &wgpu::BindGroupDescriptor {
                 label: Some(name),
                 layout: bind_group_layout,
                 entries: entries.as_slice(),
-            });
+            },
+        );
 
         //find vertex buffers
         let mut vertex_buffers = Vec::new();
@@ -807,25 +817,27 @@ impl Port {
         )
         .await
         .expect("Create camera buffer");
-        let mipmapped_sampler =
-            engine
-                .bound_device()
-                .0
-                .device
-                .create_sampler(&wgpu::SamplerDescriptor {
-                    label: Some("mipmapped sampler"),
-                    address_mode_u: wgpu::AddressMode::ClampToEdge,
-                    address_mode_v: wgpu::AddressMode::ClampToEdge,
-                    address_mode_w: wgpu::AddressMode::ClampToEdge,
-                    mag_filter: wgpu::FilterMode::Linear,
-                    min_filter: wgpu::FilterMode::Linear,
-                    mipmap_filter: wgpu::FilterMode::Linear,
-                    lod_min_clamp: 0.0,
-                    lod_max_clamp: 14.0,
-                    compare: None,
-                    anisotropy_clamp: 1,
-                    border_color: None,
-                });
+        let mipmapped_sampler = engine
+            .bound_device()
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("mipmapped sampler"),
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Linear,
+                lod_min_clamp: 0.0,
+                lod_max_clamp: 14.0,
+                compare: None,
+                anisotropy_clamp: 1,
+                border_color: None,
+            });
         Ok(Port {
             engine: engine.clone(),
             camera_buffer,
@@ -852,20 +864,27 @@ impl Port {
 
         let device = self.engine.bound_device().as_ref();
         let scaled_size = self.scaled_size.requested.unwrap();
-        let depth_texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("depth texture"),
-            size: wgpu::Extent3d {
-                width: scaled_size.0,
-                height: scaled_size.1,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth16Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | depth_extra_usage,
-            view_formats: &[],
-        });
+        let depth_texture =
+            device
+                .0
+                .wgpu
+                .lock()
+                .unwrap()
+                .device
+                .create_texture(&wgpu::TextureDescriptor {
+                    label: Some("depth texture"),
+                    size: wgpu::Extent3d {
+                        width: scaled_size.0,
+                        height: scaled_size.1,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Depth16Unorm,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | depth_extra_usage,
+                    view_formats: &[],
+                });
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("depth view"),
@@ -958,12 +977,18 @@ impl Port {
             .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
             .unwrap();
 
-        let buf = device.0.device.create_buffer(&BufferDescriptor {
-            label: "dump framebuffer".into(),
-            size: (scaled_size.1 * wgpu_bytes_per_row_256) as u64,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
+        let buf = device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_buffer(&BufferDescriptor {
+                label: "dump framebuffer".into(),
+                size: (scaled_size.1 * wgpu_bytes_per_row_256) as u64,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
 
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -994,12 +1019,18 @@ impl Port {
             .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
             .unwrap();
 
-        let depth_buf = device.0.device.create_buffer(&BufferDescriptor {
-            label: "dump depth buffer".into(),
-            size: (scaled_size.1 * depth_wgpu_bytes_per_row_256) as u64,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
+        let depth_buf = device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .device
+            .create_buffer(&BufferDescriptor {
+                label: "dump depth buffer".into(),
+                size: (scaled_size.1 * depth_wgpu_bytes_per_row_256) as u64,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
 
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -1051,12 +1082,24 @@ impl Port {
         //this closure requires Send but I don't think we actually do on wgpu
         let frame_bind_groups = SendCell::new(frame_bind_groups);
         let frame_acquired_guards = SendCell::new(frame_acquired_guards);
-        device.0.queue.on_submitted_work_done(move || {
-            std::mem::drop(frame_bind_groups);
-            std::mem::drop(frame_acquired_guards);
-            callback_guard.mark_gpu_complete();
-        });
-        device.0.queue.submit(std::iter::once(encoded));
+        device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .queue
+            .on_submitted_work_done(move || {
+                std::mem::drop(frame_bind_groups);
+                std::mem::drop(frame_acquired_guards);
+                callback_guard.mark_gpu_complete();
+            });
+        device
+            .0
+            .wgpu
+            .lock()
+            .unwrap()
+            .queue
+            .submit(std::iter::once(encoded));
         if let Some(f) = frame {
             f.present();
         }
@@ -1185,8 +1228,9 @@ impl Port {
                     wgpu::TextureUsages::empty()
                 };
                 if self.scaled_size.is_dirty() {
-                    let surface_capabilities =
-                        surface.get_capabilities(&self.engine.bound_device().0.adapter);
+                    let surface_capabilities = surface.get_capabilities(
+                        &self.engine.bound_device().0.wgpu.lock().unwrap().adapter,
+                    );
 
                     let device = self.engine.bound_device().as_ref();
                     let scaled_size = self.scaled_size.requested.unwrap();
@@ -1196,7 +1240,7 @@ impl Port {
                     self.pass_config.requested.surface_format = Some(preferred_format);
 
                     surface.configure(
-                        &device.0.device,
+                        &device.0.wgpu.lock().unwrap().device,
                         &wgpu::SurfaceConfiguration {
                             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | extra_usage,
                             format: preferred_format,
@@ -1222,24 +1266,31 @@ impl Port {
             None => {
                 let scaled_size = self.scaled_size.requested.unwrap();
                 let device = self.engine.bound_device().as_ref();
-                let texture = device.0.device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("dummy texture"),
-                    size: wgpu::Extent3d {
-                        width: scaled_size.0,
-                        height: scaled_size.1,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: self
-                        .pass_config
-                        .requested
-                        .surface_format
-                        .expect("configured format"),
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                    view_formats: &[],
-                });
+                let texture =
+                    device
+                        .0
+                        .wgpu
+                        .lock()
+                        .unwrap()
+                        .device
+                        .create_texture(&wgpu::TextureDescriptor {
+                            label: Some("dummy texture"),
+                            size: wgpu::Extent3d {
+                                width: scaled_size.0,
+                                height: scaled_size.1,
+                                depth_or_array_layers: 1,
+                            },
+                            mip_level_count: 1,
+                            sample_count: 1,
+                            dimension: wgpu::TextureDimension::D2,
+                            format: self
+                                .pass_config
+                                .requested
+                                .surface_format
+                                .expect("configured format"),
+                            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                            view_formats: &[],
+                        });
                 wgpu_view = texture.create_view(&wgpu::TextureViewDescriptor {
                     label: Some("dummy view"),
                     format: None,
@@ -1287,12 +1338,11 @@ impl Port {
 
         let mut encoder = {
             let device = self.engine.bound_device().as_ref();
-            device
-                .0
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            device.0.wgpu.lock().unwrap().device.create_command_encoder(
+                &wgpu::CommandEncoderDescriptor {
                     label: Some("wgpu port"),
-                })
+                },
+            )
         };
 
         // Setup depth buffer
