@@ -185,7 +185,7 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 ///
 /// Creates a window and renders animated scene with dynamic buffers.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Starting animated scene example with dynamic buffers...");
+    logwise::info_sync!("Starting animated scene example with dynamic buffers...");
 
     app_window::application::main(|| {
         app_window::wgpu::wgpu_begin_context(async move {
@@ -200,7 +200,7 @@ async fn run_app_window_example() {
     use app_window::coordinates::{Position, Size};
     use app_window::window::Window;
 
-    println!("Creating window for animated scene...");
+    logwise::info_sync!("Creating window for animated scene...");
     let mut window = Window::new(
         Position::default(),
         Size::new(800.0, 600.0),
@@ -210,10 +210,10 @@ async fn run_app_window_example() {
 
     let surface = window.surface().await;
 
-    println!("Creating view from surface...");
+    logwise::info_sync!("Creating view from surface...");
     let view = View::from_surface(surface).expect("View creation failed");
 
-    println!("Creating graphics engine...");
+    logwise::info_sync!("Creating graphics engine...");
     let initial_camera_position = WorldCoord::new(0.0, 0.0, 2.0);
     let engine_arc = Engine::rendering_to(view, initial_camera_position)
         .await
@@ -223,7 +223,7 @@ async fn run_app_window_example() {
         .await
         .expect("Engine creation failed");
 
-    println!("Keeping window alive during rendering...");
+    logwise::info_sync!("Keeping window alive during rendering...");
     drop(window);
 }
 
@@ -240,13 +240,13 @@ async fn run_animated_rendering_with_engine_arc(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let device = engine.bound_device();
 
-    println!("Creating animated shaders...");
+    logwise::info_sync!("Creating animated shaders...");
     let vertex_shader = VertexShader::new("animated_vertex", ANIMATED_VERTEX_SHADER.to_string());
     let fragment_shader =
         FragmentShader::new("animated_fragment", ANIMATED_FRAGMENT_SHADER.to_string());
 
     // Step 1: Create dynamic uniform buffer for animation parameters
-    println!("Creating dynamic uniform buffer...");
+    logwise::info_sync!("Creating dynamic uniform buffer...");
     let uniform_buffer = Buffer::<AnimationUniforms>::new(
         device.clone(),
         1, // Single uniform struct
@@ -263,14 +263,14 @@ async fn run_animated_rendering_with_engine_arc(
     .expect("Failed to create uniform buffer");
 
     // Step 2: Create bind style and bind dynamic uniform buffer
-    println!("Setting up resource bindings...");
+    logwise::info_sync!("Setting up resource bindings...");
     let mut bind_style = BindStyle::new();
 
     // Bind animation uniforms to binding 0 (accessible to vertex stage)
     bind_style.bind_dynamic_buffer(BindSlot::new(0), Stage::Vertex, &uniform_buffer);
 
     // Step 3: Create render pass descriptor
-    println!("Creating animated render pass...");
+    logwise::info_sync!("Creating animated render pass...");
     let pass_descriptor = PassDescriptor::new(
         "animated_pass".to_string(),
         vertex_shader,
@@ -282,13 +282,15 @@ async fn run_animated_rendering_with_engine_arc(
     );
 
     // Step 4: Register render pass with engine
-    println!("Adding render pass to engine...");
+    logwise::info_sync!("Adding render pass to engine...");
     let mut port = engine.main_port_mut();
     port.add_fixed_pass(pass_descriptor).await;
 
     // Step 5: Animation loop with dynamic buffer updates
-    println!("Starting animation loop...");
-    println!("Rendering complex animated scene with dynamic colors and transformations...");
+    logwise::info_sync!("Starting animation loop...");
+    logwise::info_sync!(
+        "Rendering complex animated scene with dynamic colors and transformations..."
+    );
 
     let mut frame_count = 0u32;
     let max_frames = 600; // 10 seconds at 60fps
@@ -316,9 +318,10 @@ async fn run_animated_rendering_with_engine_arc(
 
         // Progress reporting
         if frame_count % 60 == 0 {
-            println!(
-                "Rendered {} animated frames (time: {:.2}s)",
-                frame_count, elapsed
+            logwise::info_sync!(
+                "Rendered {frame_count} animated frames (time: {secs}s)",
+                frame_count = frame_count,
+                secs = elapsed
             );
         }
 
@@ -326,9 +329,9 @@ async fn run_animated_rendering_with_engine_arc(
         portable_async_sleep::async_sleep(std::time::Duration::from_millis(16)).await;
     }
 
-    println!(
-        "Animation complete! Rendered {} frames with dynamic buffers.",
-        frame_count
+    logwise::info_sync!(
+        "Animation complete! Rendered {frame} frames with dynamic buffers.",
+        frame = frame_count
     );
     Ok(())
 }

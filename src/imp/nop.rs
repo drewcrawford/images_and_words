@@ -241,7 +241,7 @@ impl<Format> crate::imp::GPUableTextureWrapped for GPUableTexture<Format> {
 
     fn copy_from_mappable(
         &self,
-        _source: &dyn crate::imp::MappableTextureWrapped,
+        _source: &mut dyn crate::imp::MappableTextureWrapped,
         _copy_info: &mut crate::imp::CopyInfo,
     ) -> Result<(), String> {
         // Nop backend doesn't actually perform copies

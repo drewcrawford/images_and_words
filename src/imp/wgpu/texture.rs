@@ -434,7 +434,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
 
     fn copy_from_mappable(
         &self,
-        source: &dyn crate::imp::MappableTextureWrapped,
+        source: &mut dyn crate::imp::MappableTextureWrapped,
         copy_info: &mut crate::imp::CopyInfo,
     ) -> Result<(), String> {
         // First check format compatibility
@@ -449,9 +449,9 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
         }
 
         // Try to downcast to MappableTexture<Format>
-        let source_any = source as &dyn std::any::Any;
+        let source_any = source as &mut dyn std::any::Any;
 
-        if let Some(source_concrete) = source_any.downcast_ref::<MappableTexture<Format>>() {
+        if let Some(source_concrete) = source_any.downcast_mut::<MappableTexture<Format>>() {
             // Perform the copy using the existing copy_texture_internal function
             copy_texture_internal(source_concrete, self, copy_info);
             Ok(())
@@ -480,10 +480,10 @@ impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
 }
 
 /// Internal helper function to copy from a mappable texture to a GPU texture
-pub(super) fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelFormat>(
-    source: &MappableTexture<Format>,
+pub(super) async fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelFormat>(
+    source: &mut MappableTexture<Format>,
     dest: &GPUableTexture<Format>,
-    copy_info: &mut super::CopyInfo,
+    copy_info: &mut super::CopyInfo<'_>,
 ) {
     use wgpu::{Extent3d, TexelCopyBufferInfoBase, TexelCopyTextureInfoBase};
 
@@ -496,9 +496,9 @@ pub(super) fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelF
         .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         .unwrap();
-
+    source.imp.copy_data().await;
     let source_base = TexelCopyBufferInfoBase {
-        buffer: source.imp.wgpu_buffer().get(),
+        buffer: source.imp.outdated_wgpu_buffer().get(),
         layout: wgpu::TexelCopyBufferLayout {
             offset: 0,
             bytes_per_row: Some(aligned_bytes_per_row),

@@ -328,13 +328,13 @@ impl<Format: PixelFormat> Debug for GPUGuard<Format> {
 
 impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
     fn perform_copy(
-        &self,
-        destination: &dyn imp::GPUableTextureWrapped,
+        &mut self,
+        destination: &mut dyn imp::GPUableTextureWrapped,
         copy_info: &mut imp::CopyInfo,
     ) -> Result<(), String> {
-        if let Some(ref dirty_guard) = self.dirty_guard {
+        if let Some(dirty_guard) = &mut self.dirty_guard {
             // Dereference the dirty guard to get the MappableTexture
-            let source: &imp::MappableTexture<Format> = dirty_guard;
+            let source: &mut imp::MappableTexture<Format> = dirty_guard;
             // Use the type-erased copy method
             destination.copy_from_mappable(source, copy_info)
         } else {
@@ -379,8 +379,8 @@ pub(crate) trait DynGuard: Debug + BackendSend {
     /// Perform the copy from the stored source to the given destination
     #[allow(dead_code)] //nop implementation does not use
     fn perform_copy(
-        &self,
-        destination: &dyn imp::GPUableTextureWrapped,
+        &mut self,
+        destination: &mut dyn imp::GPUableTextureWrapped,
         copy_info: &mut imp::CopyInfo,
     ) -> Result<(), String>;
 }

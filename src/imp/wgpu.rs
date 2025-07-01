@@ -56,16 +56,17 @@ impl<T> BackendSend for T {}
 impl<T: Send> BackendSend for T {}
 
 /// Helper function to copy from a mappable buffer to a GPU buffer
-pub fn copy_mappable_to_gpuable_buffer(
-    source: &MappableBuffer,
+pub async fn copy_mappable_to_gpuable_buffer(
+    source: &mut MappableBuffer,
     dest: &GPUableBuffer,
     source_offset: usize,
     dest_offset: usize,
     copy_len: usize,
-    copy_info: &mut CopyInfo,
+    copy_info: &mut CopyInfo<'_>,
 ) {
+    source.copy_data().await;
     copy_info.command_encoder.copy_buffer_to_buffer(
-        source.wgpu_buffer().get(),
+        source.outdated_wgpu_buffer().get(),
         source_offset as u64,
         &dest.buffer,
         dest_offset as u64,

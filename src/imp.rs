@@ -14,7 +14,7 @@ pub(crate) trait GPUableTextureWrapped: GPUableTextureWrapper {
     #[allow(dead_code)] //nop implementation does not use
     fn copy_from_mappable(
         &self,
-        source: &dyn MappableTextureWrapped,
+        source: &mut dyn MappableTextureWrapped,
         copy_info: &mut crate::imp::CopyInfo,
     ) -> Result<(), String>;
 }
