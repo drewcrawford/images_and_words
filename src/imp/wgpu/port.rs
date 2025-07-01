@@ -39,6 +39,7 @@ unsafe impl CRepr for CameraProjection {}
 struct PassConfig {
     pass_descriptors: Vec<PassDescriptor>,
     enable_depth: bool,
+    surface_format: Option<TextureFormat>,
 }
 
 impl PassConfig {
@@ -46,6 +47,7 @@ impl PassConfig {
         PassConfig {
             pass_descriptors: Vec::new(),
             enable_depth: false,
+            surface_format: None,
         }
     }
 
@@ -134,6 +136,7 @@ impl PreparedPass {
         camera_buffer: &Buffer<CameraProjection>,
         mipmapped_sampler: &wgpu::Sampler,
         copy_info: &mut CopyInfo,
+        pass_config: &PassConfig,
     ) -> PreparedPass {
         let mut layouts = Vec::new();
 
@@ -359,7 +362,9 @@ impl PreparedPass {
             None
         };
         let color_target_state = ColorTargetState {
-            format: TextureFormat::Bgra8UnormSrgb,
+            format: pass_config
+                .surface_format
+                .unwrap_or(TextureFormat::Bgra8UnormSrgb),
             blend,
             write_mask: Default::default(),
         };
@@ -889,6 +894,7 @@ impl Port {
                     &self.camera_buffer,
                     &self.mipmapped_sampler,
                     copy_info,
+                    &self.pass_config.requested,
                 );
                 self.prepared_passes.push(pipeline);
             }
@@ -1183,11 +1189,16 @@ impl Port {
 
                     let device = self.engine.bound_device().as_ref();
                     let scaled_size = self.scaled_size.requested.unwrap();
+
+                    // Update the surface format to match what we'll actually use
+                    let preferred_format = surface_capabilities.formats[0];
+                    self.pass_config.requested.surface_format = Some(preferred_format);
+
                     surface.configure(
                         &device.0.device,
                         &wgpu::SurfaceConfiguration {
                             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | extra_usage,
-                            format: surface_capabilities.formats[0],
+                            format: preferred_format,
                             width: scaled_size.0,
                             height: scaled_size.1,
                             present_mode: wgpu::PresentMode::Fifo,
@@ -1220,7 +1231,11 @@ impl Port {
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    format: self
+                        .pass_config
+                        .requested
+                        .surface_format
+                        .expect("configured format"),
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                     view_formats: &[],
                 });
