@@ -12,14 +12,13 @@ A buffer that can be mapped onto the host.
 */
 #[derive(Debug)]
 pub struct MappableBuffer {
-    //not actually static!
-    mapped: Option<(*const u8, usize)>,
-    mapped_mut: Option<(*mut u8, usize)>,
+    mapped: Option<wgpu::BufferView<'static>>,
+    mapped_mut: Option<wgpu::BufferViewMut<'static>>,
 
     pub(super) buffer: wgpu::Buffer,
     bound_device: Arc<BoundDevice>,
 }
-//ignore the mapped raw pointers!
+// BufferView and BufferViewMut are Send + Sync
 unsafe impl Send for MappableBuffer {}
 unsafe impl Sync for MappableBuffer {}
 
@@ -77,18 +76,13 @@ impl MappableBuffer {
     }
 
     pub fn as_slice(&self) -> &[u8] {
-        unsafe {
-            let (ptr, len) = self.mapped.as_ref().expect("Map first");
-            std::slice::from_raw_parts(*ptr, *len)
-        }
+        self.mapped.as_ref().expect("Map first")
     }
 
     pub fn write(&mut self, data: &[u8], dst_offset: usize) {
-        unsafe {
-            let (ptr, len) = self.mapped_mut.as_ref().expect("Map first");
-            assert!(*len >= data.len() + dst_offset, "Buffer too small");
-            std::ptr::copy(data.as_ptr(), (*ptr).add(dst_offset), data.len());
-        }
+        let mapped = self.mapped_mut.as_mut().expect("Map first");
+        assert!(mapped.len() >= data.len() + dst_offset, "Buffer too small");
+        mapped[dst_offset..dst_offset + data.len()].copy_from_slice(data);
     }
 
     pub async fn map_read(&mut self) {
@@ -106,7 +100,9 @@ impl MappableBuffer {
             .expect("Poll failed");
         r.await;
         let range = slice.get_mapped_range();
-        self.mapped = Some((range.as_ptr(), range.len()));
+        // Safety: we're transmuting the lifetime to 'static, but we ensure the buffer
+        // remains mapped until unmap() is called
+        self.mapped = Some(unsafe { std::mem::transmute(range) });
     }
     pub async fn map_write(&mut self) {
         let (s, r) = r#continue::continuation();
@@ -123,13 +119,16 @@ impl MappableBuffer {
             .poll(PollType::Wait)
             .expect("Poll failed");
         r.await;
-        let mut range = slice.get_mapped_range_mut();
-        self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
+        let range = slice.get_mapped_range_mut();
+        // Safety: we're transmuting the lifetime to 'static, but we ensure the buffer
+        // remains mapped until unmap() is called
+        self.mapped_mut = Some(unsafe { std::mem::transmute(range) });
     }
     pub fn unmap(&mut self) {
-        self.buffer.unmap();
+        // Drop the mapped views first - they will unmap automatically
         self.mapped = None;
         self.mapped_mut = None;
+        self.buffer.unmap();
     }
 
     pub fn byte_len(&self) -> usize {
