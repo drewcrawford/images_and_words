@@ -1240,6 +1240,7 @@ impl Port {
                 color_attachment = wgpu::RenderPassColorAttachment {
                     view: &wgpu_view,
                     resolve_target: None,
+                    depth_slice: None,
                     ops: Default::default(),
                 };
             }
