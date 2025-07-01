@@ -18,9 +18,6 @@ pub struct MappableBuffer {
     pub(super) buffer: wgpu::Buffer,
     bound_device: Arc<BoundDevice>,
 }
-// BufferView and BufferViewMut are Send + Sync
-unsafe impl Send for MappableBuffer {}
-unsafe impl Sync for MappableBuffer {}
 
 impl MappableBuffer {
     pub(crate) fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]>(

@@ -45,19 +45,12 @@
 // use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 // use images_and_words::bindings::forward::r#static::buffer::Buffer;
 // use images_and_words::bindings::visible_to::GPUBufferUsage;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::BindStyle;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::Engine;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::projection::WorldCoord;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::render_pass::{DrawCommand, PassDescriptor};
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::shader::{FragmentShader, VertexShader};
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::view::View;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use std::sync::Arc;
 
 // Note: In this simplified example, we generate vertex data procedurally in the
@@ -80,7 +73,6 @@ use std::sync::Arc;
 /// It creates a colorful triangle by outputting different positions and colors
 /// for vertices 0, 1, and 2. This approach avoids the need for vertex buffers
 /// in this simple demonstration.
-#[cfg(any(feature = "app_window", feature = "testing"))]
 const VERTEX_SHADER: &str = r#"
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -120,7 +112,6 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 /// This shader receives interpolated color values from the vertex shader
 /// and outputs the final pixel color. It simply passes through the color
 /// without any additional processing.
-#[cfg(any(feature = "app_window", feature = "testing"))]
 const FRAGMENT_SHADER: &str = r#"
 @fragment
 fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
@@ -136,62 +127,35 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 //
 // The GPU will interpolate colors between vertices, creating a smooth gradient.
 
-/// Main entry point demonstrating the dual-mode pattern.
+/// Main entry point for the simple scene example.
 ///
-/// This function showcases how images_and_words applications can work in two modes:
-/// 1. **App Window Mode**: Creates an actual window and renders to it
-/// 2. **Testing Mode**: Uses a virtual surface for automated testing
+/// Creates a window and renders a colorful triangle.
 ///
 /// ## Threading Pattern Explanation
 ///
-/// The app_window version uses a complex threading pattern required by Metal on macOS:
+/// Uses threading pattern required by Metal on macOS:
 /// - `app_window::application::main()`: Establishes the main application context
-/// - `test_executors::sleep_on()`: Bridges sync/async boundary
-/// - `app_window::application::on_main_thread()`: Ensures main UI thread execution  
-/// - `app_window::wgpu::wgpu_spawn()`: Special spawner for GPU operations
+/// - `app_window::wgpu::wgpu_begin_context()`: GPU context setup
+/// - `app_window::wgpu::wgpu_in_context()`: Ensures GPU operations on correct thread
 ///
 /// This layered approach ensures graphics operations happen on the correct thread
 /// while maintaining the async execution model needed for the middleware.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     logwise::info_sync!("Running simple_scene example...");
-    #[cfg(feature = "app_window")]
-    {
-        // App Window Mode: Create actual window with proper threading
-        app_window::application::main(|| {
-            // Hop on wgpu context
-            app_window::wgpu::wgpu_begin_context(async {
-                app_window::wgpu::wgpu_in_context(async {
-                    run_app_window_example().await;
-                });
+
+    // Create actual window with proper threading
+    app_window::application::main(|| {
+        // Hop on wgpu context
+        app_window::wgpu::wgpu_begin_context(async {
+            app_window::wgpu::wgpu_in_context(async {
+                run_app_window_example().await;
             });
         });
-        Ok(())
-    }
-
-    #[cfg(all(not(feature = "app_window"), any(test, feature = "testing")))]
-    {
-        // Testing Mode: Use virtual surface for headless testing
-        logwise::info_sync!("app_window feature not enabled, using test view...");
-        test_executors::spawn_local(run_testing_example(), "run_example");
-        Ok(())
-    }
-
-    #[cfg(all(not(feature = "app_window"), not(any(test, feature = "testing"))))]
-    {
-        logwise::info_sync!(
-            "This example requires either the 'app_window' or 'testing' feature to be enabled."
-        );
-        logwise::info_sync!(
-            "Run with: cargo run --example simple_scene --features=backend_wgpu,app_window"
-        );
-        logwise::info_sync!(
-            "Or for testing: cargo run --example simple_scene --features=backend_wgpu,testing"
-        );
-        Ok(())
-    }
+    });
+    Ok(())
 }
 
-/// App Window Mode: Creates and renders to an actual window.
+/// Creates and renders to an actual window.
 ///
 /// This function demonstrates the complete lifecycle of a windowed graphics application:
 /// 1. **Window Creation**: Uses app_window to create a native OS window
@@ -207,7 +171,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// - **View**: images_and_words abstraction over the surface
 /// - **Engine**: Core rendering coordinator that manages GPU resources
 /// - **WorldCoord**: 3D coordinate system for camera positioning
-#[cfg(feature = "app_window")]
 async fn run_app_window_example() {
     use app_window::coordinates::{Position, Size};
     use app_window::window::Window;
@@ -244,39 +207,6 @@ async fn run_app_window_example() {
     drop(window); // Explicitly drop when we're done
 }
 
-/// Testing Mode: Renders without creating a window.
-///
-/// This function demonstrates headless rendering for automated testing and CI:
-/// 1. **Virtual View**: Creates a testing view without an actual window
-/// 2. **Engine Setup**: Same engine creation as windowed mode
-/// 3. **Headless Rendering**: Executes rendering without visual output
-///
-/// ## Use Cases
-///
-/// - **Continuous Integration**: Run graphics tests without display
-/// - **Performance Benchmarking**: Measure rendering performance
-/// - **Automated Testing**: Verify rendering pipeline correctness
-/// - **Development**: Test graphics code without window management
-///
-/// The rendering output isn't visible but all GPU operations execute normally,
-/// making this perfect for validation and performance measurement.
-#[cfg(all(not(feature = "app_window"), any(test, feature = "testing")))]
-async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
-    // Step 1: Create a virtual view for testing (no actual window)
-    let view = View::for_testing();
-
-    // Step 2: Create the graphics engine (same as windowed mode)
-    logwise::info_sync!("Creating graphics engine...");
-    let initial_camera_position = WorldCoord::new(0.0, 0.0, 2.0);
-    let engine = Engine::rendering_to(view, initial_camera_position)
-        .await
-        .expect("Failed to create engine");
-
-    // Step 3: Execute headless rendering
-    // Note: Engine is returned as Arc<Engine> to handle internal references
-    run_rendering_with_engine_arc(engine).await
-}
-
 /// Core rendering pipeline demonstration.
 ///
 /// This function implements the complete graphics pipeline using images_and_words:
@@ -305,7 +235,6 @@ async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
 /// - Uses `force_render()` for demonstration (normally event-driven)
 /// - 16ms frame timing targets 60fps
 /// - 300 frame limit prevents infinite loops
-#[cfg(any(feature = "app_window", feature = "testing"))]
 async fn run_rendering_with_engine_arc(
     engine: Arc<Engine>,
 ) -> Result<(), Box<dyn std::error::Error>> {

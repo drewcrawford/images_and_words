@@ -74,8 +74,15 @@ name = "texture_alignment"
 path = "tests/texture_alignment.rs"
 harness = false
 
+[[example]]
+name = "simple_scene"
+path = "examples/simple_scene.rs"
+required-features = ["app_window", "backend_wgpu"]
 
-
+[[example]]
+name = "animated_scene"
+path = "examples/animated_scene.rs"
+required-features = ["app_window", "backend_wgpu"]
 
 [patch.crates-io]
 #vec_parallel = {path = "../vec_parallel"}
