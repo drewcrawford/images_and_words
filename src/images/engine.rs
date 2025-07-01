@@ -53,6 +53,7 @@ impl Engine {
             initial_camera_position,
             (initial_width, initial_height, initial_scale),
         )
+        .await
         .unwrap();
         r.main_port.lock().unwrap().replace(final_port);
         Ok(r)

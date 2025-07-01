@@ -769,7 +769,7 @@ impl BindGroupGuard {
 }
 
 impl Port {
-    pub(crate) fn new(
+    pub(crate) async fn new(
         engine: &Arc<crate::images::Engine>,
         view: crate::images::view::View,
         camera: Camera,
@@ -805,6 +805,7 @@ impl Port {
                 }
             },
         )
+        .await
         .expect("Create camera buffer");
         let mipmapped_sampler =
             engine

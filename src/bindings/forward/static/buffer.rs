@@ -270,7 +270,8 @@ impl<Element> Buffer<Element> {
             MapType::Write,
             debug_name,
             |bytes| initialize_byte_array_with(count, bytes, initializer),
-        )?;
+        )
+        .await?;
 
         let imp = imp::GPUableBuffer::new(device, byte_size, usage, debug_name);
 

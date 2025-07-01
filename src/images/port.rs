@@ -439,7 +439,7 @@ impl Port {
     /// # });
     /// # }
     /// ```
-    pub fn new(
+    pub async fn new(
         engine: &Arc<Engine>,
         view: View,
         initial_camera_position: WorldCoord,
@@ -449,7 +449,9 @@ impl Port {
         let (port_sender, port_reporter) = port_reporter(0, &camera);
 
         Ok(Self {
-            imp: crate::imp::Port::new(engine, view, camera.clone(), port_sender).map_err(Error)?,
+            imp: crate::imp::Port::new(engine, view, camera.clone(), port_sender)
+                .await
+                .map_err(Error)?,
             port_reporter,
             descriptors: Default::default(),
             camera,

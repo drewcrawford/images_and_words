@@ -20,7 +20,7 @@ pub struct MappableBuffer {
 }
 
 impl MappableBuffer {
-    pub(crate) fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]>(
+    pub(crate) async fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]>(
         bound_device: Arc<crate::images::BoundDevice>,
         requested_size: usize,
         map_type: crate::bindings::buffer_access::MapType,

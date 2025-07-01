@@ -66,7 +66,7 @@ impl View {
 pub struct Port {}
 
 impl Port {
-    pub(crate) fn new(
+    pub(crate) async fn new(
         _engine: &Arc<crate::images::Engine>,
         _view: crate::images::view::View,
         _camera: Camera,
@@ -259,7 +259,7 @@ impl<Format> std::fmt::Debug for MappableTexture<Format> {
     }
 }
 impl<Format> MappableTexture<Format> {
-    pub fn new<I>(
+    pub async fn new<I>(
         _bound_device: &crate::images::BoundDevice,
         _width: u16,
         _height: u16,
@@ -323,7 +323,7 @@ pub type TextureRenderSide = RenderSide;
 #[derive(Debug)]
 pub struct MappableBuffer;
 impl MappableBuffer {
-    pub fn new<F>(
+    pub async fn new<F>(
         _bound_device: Arc<crate::images::BoundDevice>,
         _byte_size: usize,
         _map_type: MapType,

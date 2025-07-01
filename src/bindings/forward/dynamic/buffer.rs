@@ -501,7 +501,7 @@ impl<Element> Buffer<Element> {
     /// # });
     /// # }
     /// ```
-    pub fn new(
+    pub async fn new(
         bound_device: Arc<BoundDevice>,
         size: usize,
         usage: GPUBufferUsage,
@@ -528,7 +528,8 @@ impl<Element> Buffer<Element> {
                     initialize_with,
                 )
             },
-        )?;
+        )
+        .await?;
 
         let gpu_buffer = imp::GPUableBuffer::new(bound_device, byte_size, usage, debug_name);
 

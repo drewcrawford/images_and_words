@@ -58,7 +58,7 @@ unsafe impl<Format> Send for MappableTexture<Format> {}
 unsafe impl<Format> Sync for MappableTexture<Format> {}
 
 impl<Format: PixelFormat> MappableTexture<Format> {
-    pub fn new<Initializer: Fn(Texel) -> Format::CPixel>(
+    pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(
         bound_device: &Arc<crate::images::BoundDevice>,
         width: u16,
         height: u16,
@@ -104,6 +104,7 @@ impl<Format: PixelFormat> MappableTexture<Format> {
                 }
             },
         )
+        .await
         .expect("Mappable buffer creation");
         Self {
             imp: buffer,
