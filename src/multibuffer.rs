@@ -233,7 +233,13 @@ where
             let (s, f) = r#continue::continuation();
             self.wake_list.lock().unwrap().push(s);
             // THEN, try to acquire the write lock.
-            match self.mappable.cpu_write().await {
+            //force send of the future:
+            let r = unsafe {
+                send_cells::UnsafeSendCell::new(async { self.mappable.cpu_write().await })
+                    .into_future()
+            }
+            .await;
+            match r {
                 Ok(guard) => {
                     //Someone else will send a nonsense value to the sender later, that's fine.
                     return CPUWriteGuard {

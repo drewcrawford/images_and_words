@@ -173,6 +173,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Testing Mode: Use virtual surface for headless testing
         logwise::info_sync!("app_window feature not enabled, using test view...");
         test_executors::spawn_local(run_testing_example(), "run_example");
+        Ok(())
     }
 
     #[cfg(all(not(feature = "app_window"), not(any(test, feature = "testing"))))]

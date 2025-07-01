@@ -27,83 +27,86 @@ unsafe impl CRepr for TestData {}
 /// complete in reasonable time and detects if they're being throttled by the render pipeline.
 ///
 /// This test should FAIL if the bug exists where buffer writes take seconds instead of milliseconds.
-#[test_executors::async_test]
 #[cfg(feature = "backend_wgpu")]
-async fn test_buffer_write_performance_issue() {
-    // Create a view for testing (bypasses surface requirement)
-    let view = View::for_testing();
+fn main() {
+    app_window::wgpu::wgpu_begin_context(async {
+        app_window::wgpu::wgpu_in_context(async {
+            // Create a view for testing (bypasses surface requirement)
+            let view = View::for_testing();
 
-    // Create an engine with a stationary camera
-    let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
-    let engine = Arc::new(
-        Engine::rendering_to(view, initial_camera_position)
-            .await
-            .expect("Failed to create engine for testing"),
-    );
+            // Create an engine with a stationary camera
+            let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
+            let engine = Arc::new(
+                Engine::rendering_to(view, initial_camera_position)
+                    .await
+                    .expect("Failed to create engine for testing"),
+            );
 
-    let device = engine.bound_device();
+            let device = engine.bound_device();
 
-    // Create a test buffer similar to what the reproducer uses
-    let test_buffer = Buffer::new(
-        device.clone(),
-        10, // Small buffer size for testing
-        GPUBufferUsage::VertexBuffer,
-        "test_buffer_performance",
-        |_| TestData {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-            w: 0.0,
-        },
-    )
-    .expect("Failed to create test buffer");
+            // Create a test buffer similar to what the reproducer uses
+            let test_buffer = Buffer::new(
+                device.clone(),
+                10, // Small buffer size for testing
+                GPUBufferUsage::VertexBuffer,
+                "test_buffer_performance",
+                |_| TestData {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    w: 0.0,
+                },
+            )
+            .expect("Failed to create test buffer");
 
-    println!("=== Testing buffer write performance ===");
+            println!("=== Testing buffer write performance ===");
 
-    // Test multiple buffer write operations and measure timing
-    let mut total_time = Duration::ZERO;
-    let iterations = 3;
+            // Test multiple buffer write operations and measure timing
+            let mut total_time = Duration::ZERO;
+            let iterations = 3;
 
-    for i in 0..iterations {
-        let start = Instant::now();
+            for i in 0..iterations {
+                let start = Instant::now();
 
-        // This is the operation that was slow in the reproducer
-        let mut write_guard = test_buffer.access_write().await;
-        let test_data = TestData {
-            x: i as f32,
-            y: (i * 2) as f32,
-            z: (i * 3) as f32,
-            w: (i * 4) as f32,
-        };
-        write_guard.write(&[test_data], 0);
-        drop(write_guard);
+                // This is the operation that was slow in the reproducer
+                let mut write_guard = test_buffer.access_write().await;
+                let test_data = TestData {
+                    x: i as f32,
+                    y: (i * 2) as f32,
+                    z: (i * 3) as f32,
+                    w: (i * 4) as f32,
+                };
+                write_guard.write(&[test_data], 0);
+                drop(write_guard);
 
-        let elapsed = start.elapsed();
-        println!("  Buffer write iteration {} took: {:?}", i + 1, elapsed);
-        total_time += elapsed;
+                let elapsed = start.elapsed();
+                println!("  Buffer write iteration {} took: {:?}", i + 1, elapsed);
+                total_time += elapsed;
 
-        // Small delay between operations like in the reproducer
-        portable_async_sleep::async_sleep(Duration::from_millis(1)).await;
-    }
+                // Small delay between operations like in the reproducer
+                portable_async_sleep::async_sleep(Duration::from_millis(1)).await;
+            }
 
-    let avg_time = total_time / iterations as u32;
-    println!("Average buffer write time: {:?}", avg_time);
+            let avg_time = total_time / iterations as u32;
+            println!("Average buffer write time: {:?}", avg_time);
 
-    // The bug manifested as buffer writes taking SECONDS instead of milliseconds
-    // If any single operation takes more than 1 second, that indicates the bug
-    let max_acceptable_time = Duration::from_secs(1);
+            // The bug manifested as buffer writes taking SECONDS instead of milliseconds
+            // If any single operation takes more than 1 second, that indicates the bug
+            let max_acceptable_time = Duration::from_secs(1);
 
-    assert!(
-        avg_time < max_acceptable_time,
-        "Buffer write performance issue detected! Average write time ({:?}) exceeds acceptable threshold ({:?}). \
+            assert!(
+                avg_time < max_acceptable_time,
+                "Buffer write performance issue detected! Average write time ({:?}) exceeds acceptable threshold ({:?}). \
          This suggests buffer operations are being throttled by the rendering pipeline. \
          In the original bug, operations took seconds instead of milliseconds.",
-        avg_time,
-        max_acceptable_time
-    );
+                avg_time,
+                max_acceptable_time
+            );
 
-    println!(
-        "✅ Buffer write performance is acceptable (avg: {:?})",
-        avg_time
-    );
+            println!(
+                "✅ Buffer write performance is acceptable (avg: {:?})",
+                avg_time
+            );
+        });
+    });
 }

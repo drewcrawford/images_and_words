@@ -170,6 +170,9 @@ pub struct GPUableBuffer {
     storage_type: StorageType,
 }
 
+unsafe impl Send for GPUableBuffer {}
+unsafe impl Sync for GPUableBuffer {}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum StorageType {
     Uniform,

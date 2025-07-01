@@ -14,50 +14,43 @@ use images_and_words::images::view::View;
 use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 use std::sync::Arc;
 
-/// Test that reproduces the COPY_BYTES_PER_ROW_ALIGNMENT error on Windows.
-///
-/// This test creates a texture with a width that results in a bytes_per_row
-/// that is NOT a multiple of 256 (wgpu's COPY_BYTES_PER_ROW_ALIGNMENT).
-///
-/// For example, with RGBA8 format (4 bytes per pixel):
-/// - Width 100 → 400 bytes per row (not divisible by 256)
-/// - Width 63 → 252 bytes per row (not divisible by 256)
-///
-/// The error occurs when copy_texture_internal tries to copy from the
-/// MappableTexture to the GPUableTexture without proper alignment.
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
 async fn test_texture_alignment_error_width_100() {
     println!("=== Testing texture alignment error with width 100 ===");
-    test_problematic_width(100).await;
 }
 
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
 async fn test_texture_alignment_error_width_63() {
     println!("=== Testing texture alignment error with width 63 ===");
     test_problematic_width(63).await;
 }
 
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
 async fn test_texture_alignment_error_width_150() {
     println!("=== Testing texture alignment error with width 150 ===");
     test_problematic_width(150).await;
 }
 
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
 async fn test_texture_alignment_ok_width_64() {
     println!("=== Testing properly aligned texture with width 64 ===");
     test_problematic_width(64).await; // 64 * 4 = 256, which is aligned
 }
 
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
 async fn test_texture_alignment_ok_width_128() {
     println!("=== Testing properly aligned texture with width 128 ===");
     test_problematic_width(128).await; // 128 * 4 = 512, which is aligned
+}
+
+fn main() {
+    app_window::application::main(|| {
+        app_window::wgpu::wgpu_begin_context(async {
+            app_window::wgpu::wgpu_in_context(async {
+                // Run the tests
+                test_texture_alignment_error_width_100().await;
+                test_texture_alignment_error_width_63().await;
+                test_texture_alignment_error_width_150().await;
+                test_texture_alignment_ok_width_64().await;
+                test_texture_alignment_ok_width_128().await;
+            });
+        });
+    });
 }
 
 /// Helper function to test a specific problematic width
