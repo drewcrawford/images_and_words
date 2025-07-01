@@ -64,6 +64,11 @@ use images_and_words::images::view::View;
 #[cfg(any(feature = "app_window", feature = "testing"))]
 use std::sync::Arc;
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
+
 /// Animation parameters passed to shaders each frame.
 ///
 /// This structure contains all the time-based parameters needed for animation,
@@ -339,7 +344,7 @@ async fn run_animated_rendering_with_engine_arc(
 
     let mut frame_count = 0u32;
     let max_frames = 600; // 10 seconds at 60fps
-    let start_time = std::time::Instant::now();
+    let start_time = Instant::now();
 
     while frame_count < max_frames {
         let elapsed = start_time.elapsed().as_secs_f32();
