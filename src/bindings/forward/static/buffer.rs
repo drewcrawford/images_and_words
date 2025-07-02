@@ -279,7 +279,7 @@ impl<Element> Buffer<Element> {
         )
         .await?;
 
-        let imp = imp::GPUableBuffer::new(device, byte_size, usage, debug_name);
+        let imp = imp::GPUableBuffer::new(device, byte_size, usage, debug_name).await;
 
         imp.copy_from_buffer(mappable, 0, 0, byte_size).await;
 

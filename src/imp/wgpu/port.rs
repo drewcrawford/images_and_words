@@ -170,7 +170,7 @@ impl PreparedPass {
                     BindingType::Buffer {
                         ty: buffer_binding_type,
                         has_dynamic_offset: false,
-                        min_binding_size: NonZero::new(imp.buffer.size()),
+                        min_binding_size: NonZero::new(imp.with_buffer(|buffer| buffer.size())),
                     }
                 }
                 BindTarget::Camera => {
@@ -603,7 +603,8 @@ impl BindGroupGuard {
         _copy_info: &mut CopyInfo,
     ) -> Self {
         let mut entries = Vec::new();
-        let build_resources = StableAddressVec::with_capactiy(5);
+        let build_buffers = StableAddressVec::with_capactiy(5);
+        let build_texture_views = StableAddressVec::with_capactiy(5);
 
         let gpu_guard_buffers = StableAddressVec::with_capactiy(5);
         let gpu_guard_textures = StableAddressVec::with_capactiy(5);
@@ -617,34 +618,44 @@ impl BindGroupGuard {
                         .remove(pass_index)
                         .expect("Dynamic buffer guard should be in acquired_guards");
                     let stored_guard = gpu_guard_buffers.push(build_buffer);
+                    let gpu_buffer = stored_guard.gpu_buffer.buffer();
+                    let stored_buffer = build_buffers.push(gpu_buffer);
                     BindingResource::Buffer(BufferBinding {
-                        buffer: &stored_guard.gpu_buffer.buffer,
+                        buffer: stored_buffer,
                         offset: 0,
                         size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
                     })
                 }
-                BindTarget::StaticBuffer(buf) => BindingResource::Buffer(BufferBinding {
-                    buffer: &buf.buffer,
-                    offset: 0,
-                    size: Some(NonZero::new(buf.buffer.size()).unwrap()),
-                }),
-                BindTarget::Camera => BindingResource::Buffer(BufferBinding {
-                    buffer: &acquired_guards
+                BindTarget::StaticBuffer(buf) => {
+                    let gpu_buffer = buf.buffer();
+                    let stored_buffer = build_buffers.push(gpu_buffer);
+                    BindingResource::Buffer(BufferBinding {
+                        buffer: stored_buffer,
+                        offset: 0,
+                        size: Some(NonZero::new(buf.with_buffer(|buffer| buffer.size())).unwrap()),
+                    })
+                }
+                BindTarget::Camera => {
+                    let gpu_buffer = acquired_guards
                         .camera_guard
                         .as_ref()
                         .expect("camera")
                         .gpu_buffer
-                        .buffer,
-                    offset: 0,
-                    size: Some(
-                        NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap(),
-                    ),
-                }),
+                        .buffer();
+                    let stored_buffer = build_buffers.push(gpu_buffer);
+                    BindingResource::Buffer(BufferBinding {
+                        buffer: stored_buffer,
+                        offset: 0,
+                        size: Some(
+                            NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap(),
+                        ),
+                    })
+                }
                 BindTarget::FrameCounter => {
                     todo!()
                 }
                 BindTarget::StaticTexture(texture_render_side, _sampler_type) => {
-                    let view = build_resources.push(texture_render_side.texture.create_view(
+                    let view = build_texture_views.push(texture_render_side.texture.create_view(
                         &wgpu::TextureViewDescriptor {
                             label: None,
                             format: None,
@@ -670,7 +681,7 @@ impl BindGroupGuard {
                     let guard = gpu_guard_textures.push(gpu_access);
 
                     // Use the render_side from GPUAccess
-                    let view = build_resources.push(guard.render_side.texture.create_view(
+                    let view = build_texture_views.push(guard.render_side.texture.create_view(
                         &wgpu::TextureViewDescriptor {
                             label: None,
                             format: None,
@@ -720,7 +731,7 @@ impl BindGroupGuard {
                 | BindTarget::StaticTexture(..)
                 | BindTarget::Sampler(_) => {}
                 BindTarget::VB(_layout, render_side) => {
-                    let buffer = render_side.buffer.clone();
+                    let buffer = render_side.buffer();
                     vertex_buffers.push((*b, buffer));
                 }
                 BindTarget::DynamicVB(..) => {
@@ -735,7 +746,7 @@ impl BindGroupGuard {
         }
 
         let index_buffer = if let Some(buffer) = &bind_style.index_buffer {
-            let buffer = buffer.buffer.clone();
+            let buffer = buffer.buffer();
             Some(buffer)
         } else {
             None
@@ -1423,8 +1434,9 @@ impl Port {
                 render_pass.set_vertex_buffer(*v, buffer.slice(..));
             }
             for (v, buffer) in &bind_group.dynamic_vertex_buffers {
-                let buffer = buffer.gpu_buffer.buffer.slice(..);
-                render_pass.set_vertex_buffer(*v, buffer);
+                let gpu_buffer = buffer.gpu_buffer.buffer();
+                let buffer_slice = gpu_buffer.slice(..);
+                render_pass.set_vertex_buffer(*v, buffer_slice);
             }
             if let Some(buffer) = &bind_group.index_buffer {
                 render_pass.set_index_buffer(buffer.slice(..), wgpu::IndexFormat::Uint16);

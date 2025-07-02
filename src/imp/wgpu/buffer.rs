@@ -4,7 +4,7 @@ use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use app_window::wgpu::WgpuCell;
 use std::mem::MaybeUninit;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label};
 use wgpu::{MapMode, PollType};
 
@@ -139,11 +139,8 @@ impl MappableBuffer {
             "Write out of bounds"
         );
         self.wgpu_buffer_is_dirty = true;
-        // Safety: we ensure that the data is within bounds
-        unsafe {
-            let slice = &mut self.internal_buffer[dst_offset..dst_offset + data.len()];
-            slice.copy_from_slice(data);
-        }
+        let slice = &mut self.internal_buffer[dst_offset..dst_offset + data.len()];
+        slice.copy_from_slice(data);
     }
 
     pub async fn map_read(&mut self) {
@@ -186,12 +183,20 @@ impl AsRef<MappableBuffer> for MappableBuffer {
 }
 
 /**
+Internal structure for GPUableBuffer containing WGPU resources.
+*/
+#[derive(Debug)]
+struct GPUableBufferInner {
+    buffer: wgpu::Buffer,
+    bound_device: Arc<BoundDevice>,
+}
+
+/**
 A buffer that can (only) be mapped to GPU.
 */
 #[derive(Debug, Clone)]
 pub struct GPUableBuffer {
-    pub(super) buffer: wgpu::Buffer,
-    bound_device: Arc<BoundDevice>,
+    inner: Arc<Mutex<WgpuCell<GPUableBufferInner>>>,
     storage_type: StorageType,
 }
 
@@ -205,13 +210,13 @@ pub(super) enum StorageType {
 
 impl PartialEq for GPUableBuffer {
     fn eq(&self, _other: &Self) -> bool {
-        self.buffer == _other.buffer
+        self.inner.lock().unwrap().get().buffer == _other.inner.lock().unwrap().get().buffer
     }
 }
 
 impl GPUableBuffer {
     //only visible to wgpu backend
-    pub(super) fn new_imp(
+    pub(super) async fn new_imp(
         bound_device: Arc<crate::images::BoundDevice>,
         size: usize,
         debug_name: &str,
@@ -225,26 +230,36 @@ impl GPUableBuffer {
             StorageType::Index => BufferUsages::INDEX,
         };
         let usage_type = usage_type_only | forward_flags;
-        let descriptor = BufferDescriptor {
-            label: Some(debug_name),
-            size: size as u64,
-            usage: usage_type,
-            mapped_at_creation: false,
-        };
-        let buffer = bound_device
-            .0
-            .wgpu
-            .lock()
-            .unwrap()
-            .device
-            .create_buffer(&descriptor);
+
+        let debug_name = debug_name.to_string();
+        let move_device = bound_device.clone();
+        let inner = WgpuCell::new_on_thread(move || async move {
+            let descriptor = BufferDescriptor {
+                label: Some(&debug_name),
+                size: size as u64,
+                usage: usage_type,
+                mapped_at_creation: false,
+            };
+            let buffer = move_device
+                .0
+                .wgpu
+                .lock()
+                .unwrap()
+                .device
+                .create_buffer(&descriptor);
+            GPUableBufferInner {
+                buffer,
+                bound_device,
+            }
+        })
+        .await;
+
         GPUableBuffer {
-            buffer,
-            bound_device,
+            inner: Arc::new(Mutex::new(inner)),
             storage_type,
         }
     }
-    pub(crate) fn new(
+    pub(crate) async fn new(
         bound_device: Arc<crate::images::BoundDevice>,
         size: usize,
         usage: GPUBufferUsage,
@@ -270,10 +285,23 @@ impl GPUableBuffer {
             GPUBufferUsage::VertexBuffer => StorageType::Vertex,
             GPUBufferUsage::Index => StorageType::Index,
         };
-        Self::new_imp(bound_device, size, debug_name, storage_type)
+        Self::new_imp(bound_device, size, debug_name, storage_type).await
     }
     pub(super) fn storage_type(&self) -> StorageType {
         self.storage_type
+    }
+
+    pub(super) fn buffer(&self) -> wgpu::Buffer {
+        let inner = self.inner.lock().unwrap();
+        inner.get().buffer.clone()
+    }
+
+    pub(super) fn with_buffer<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&wgpu::Buffer) -> R,
+    {
+        let inner = self.inner.lock().unwrap();
+        f(&inner.get().buffer)
     }
     /// Copy from buffer, taking the source buffer to ensure it lives long enough
     ///
@@ -282,13 +310,17 @@ impl GPUableBuffer {
     /// This function suspends until the copy operation is completed.
     pub(crate) async fn copy_from_buffer(
         &self,
-        mut source: MappableBuffer,
+        source: MappableBuffer,
         source_offset: usize,
         dest_offset: usize,
         copy_len: usize,
     ) {
-        let mut encoder = self
-            .bound_device
+        let bound_device = {
+            let inner = self.inner.lock().unwrap();
+            inner.get().bound_device.clone()
+        };
+
+        let mut encoder = bound_device
             .0
             .wgpu
             .lock()
@@ -309,8 +341,7 @@ impl GPUableBuffer {
         }
 
         let command = encoder.finish();
-        let submission_index = self
-            .bound_device
+        let submission_index = bound_device
             .0
             .wgpu
             .lock()
@@ -318,7 +349,7 @@ impl GPUableBuffer {
             .queue
             .submit(std::iter::once(command));
         let (s, r) = r#continue::continuation();
-        self.bound_device
+        bound_device
             .0
             .wgpu
             .lock()
@@ -327,7 +358,7 @@ impl GPUableBuffer {
             .on_submitted_work_done(|| {
                 s.send(());
             });
-        self.bound_device
+        bound_device
             .0
             .wgpu
             .lock()
@@ -351,10 +382,11 @@ impl GPUableBuffer {
         copy_len: usize,
         command_encoder: &mut CommandEncoder,
     ) {
+        let inner = self.inner.lock().unwrap();
         command_encoder.copy_buffer_to_buffer(
             &source.wgpu_buffer.get(),
             source_offset as u64,
-            &self.buffer,
+            &inner.get().buffer,
             dest_offset as u64,
             copy_len as u64,
         );

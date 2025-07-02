@@ -389,7 +389,7 @@ impl AsRef<MappableBuffer> for MappableBuffer {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GPUableBuffer;
 impl GPUableBuffer {
-    pub fn new(
+    pub async fn new(
         _bound_device: Arc<crate::images::BoundDevice>,
         _byte_size: usize,
         _usage: GPUBufferUsage,

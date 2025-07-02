@@ -67,7 +67,7 @@ pub fn copy_mappable_to_gpuable_buffer(
     copy_info.command_encoder.copy_buffer_to_buffer(
         source.wgpu_buffer().get(),
         source_offset as u64,
-        &dest.buffer,
+        &dest.buffer(),
         dest_offset as u64,
         copy_len as u64,
     );

@@ -549,7 +549,7 @@ impl<Element> Buffer<Element> {
         )
         .await?;
 
-        let gpu_buffer = imp::GPUableBuffer::new(bound_device, byte_size, usage, debug_name);
+        let gpu_buffer = imp::GPUableBuffer::new(bound_device, byte_size, usage, debug_name).await;
 
         Ok(Self {
             shared: Arc::new(Shared {
@@ -680,4 +680,11 @@ unsafe impl CRepr for i32 {}
 unsafe impl CRepr for i16 {}
 unsafe impl CRepr for i8 {}
 
-// Note: Test moved to integration test due to Swift library dependency issues with wgpu backend
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn send() {
+        fn assert_send<T: Send>() {}
+        assert_send::<super::Buffer<u8>>();
+    }
+}
