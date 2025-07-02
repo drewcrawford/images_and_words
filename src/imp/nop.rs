@@ -298,7 +298,7 @@ impl<Format> crate::bindings::resource_tracking::sealed::Mappable for MappableTe
         todo!()
     }
 
-    fn unmap(&mut self) {
+    async fn unmap(&mut self) {
         todo!()
     }
 }
@@ -344,7 +344,7 @@ impl MappableBuffer {
         todo!()
     }
 
-    pub fn unmap(&mut self) {
+    pub async fn unmap(&mut self) {
         todo!()
     }
 
@@ -375,8 +375,8 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
         self.byte_len()
     }
 
-    fn unmap(&mut self) {
-        self.unmap()
+    async fn unmap(&mut self) {
+        self.unmap().await
     }
 }
 

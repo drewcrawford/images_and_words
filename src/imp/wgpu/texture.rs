@@ -48,8 +48,8 @@ impl<Format> Mappable for MappableTexture<Format> {
         self.imp.byte_len()
     }
 
-    fn unmap(&mut self) {
-        self.imp.unmap();
+    async fn unmap(&mut self) {
+        self.imp.unmap().await;
     }
 }
 

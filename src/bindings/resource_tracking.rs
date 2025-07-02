@@ -217,7 +217,7 @@ pub(crate) mod sealed {
         /// Unmaps the resource from CPU memory
         ///
         /// Called automatically when CPU access guards are dropped.
-        fn unmap(&mut self);
+        fn unmap(&mut self) -> impl Future<Output = ()>;
     }
 }
 

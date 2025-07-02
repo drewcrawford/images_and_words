@@ -142,7 +142,7 @@ impl MappableBuffer {
     pub async fn map_write(&mut self) {
         //since we use a CPU view, this is a no-op
     }
-    pub fn unmap(&mut self) {
+    pub async fn unmap(&mut self) {
         //since we use a CPU view, this is a no-op
     }
 
@@ -160,8 +160,8 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
         self.map_write().await
     }
 
-    fn unmap(&mut self) {
-        self.unmap()
+    async fn unmap(&mut self) {
+        self.unmap().await
     }
 
     fn byte_len(&self) -> usize {

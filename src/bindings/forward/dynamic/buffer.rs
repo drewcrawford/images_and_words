@@ -282,8 +282,8 @@ impl<Element> Mappable for CPUWriteAccess<'_, Element> {
     async fn map_write(&mut self) {
         self.guard.deref_mut().map_write().await;
     }
-    fn unmap(&mut self) {
-        self.guard.deref_mut().unmap();
+    async fn unmap(&mut self) {
+        self.guard.deref_mut().unmap().await;
     }
     fn byte_len(&self) -> usize {
         self.count * std::mem::size_of::<Element>()
