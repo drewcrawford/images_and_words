@@ -433,7 +433,7 @@ impl PreparedPass {
     ) {
         // Recreate only the acquired_guards field, leaving bind_group_guard unchanged
         let new_acquired_guards =
-            AcquiredGuards::new(self.pass_descriptor.bind_style(), copy_info, camera_buffer).await;
+            AcquiredGuards::new(self.pass_descriptor.bind_style(), copy_info, camera_buffer);
         self.acquired_guards = Some(new_acquired_guards);
     }
 }
@@ -456,7 +456,7 @@ pub struct AcquiredGuards {
 impl AcquiredGuards {
     /// Acquires GPU buffers and performs copy operations for dynamic resources.
     /// Returns guards that must be kept alive and copy guards that can be disposed after copying.
-    pub async fn new(
+    pub fn new(
         bind_style: &crate::bindings::bind_style::BindStyle,
         copy_info: &mut CopyInfo<'_>,
         camera_buffer: &Buffer<CameraProjection>,
@@ -488,8 +488,7 @@ impl AcquiredGuards {
                             0,
                             byte_len,
                             copy_info,
-                        )
-                        .await;
+                        );
                         copy_guards.push(dirty_guard);
                     }
 
@@ -515,8 +514,7 @@ impl AcquiredGuards {
                             0,
                             byte_len,
                             copy_info,
-                        )
-                        .await;
+                        );
                         copy_guards.push(dirty_guard);
                     }
                     camera_guard = Some(Arc::new(gpu_access));
@@ -540,8 +538,7 @@ impl AcquiredGuards {
                             0,
                             byte_len,
                             copy_info,
-                        )
-                        .await;
+                        );
                         copy_guards.push(dirty_guard);
                     }
 
@@ -769,7 +766,7 @@ impl BindGroupGuard {
         copy_info: &mut CopyInfo<'_>,
     ) -> (Self, AcquiredGuards) {
         // First acquire guards and perform copies
-        let mut acquired_guards = AcquiredGuards::new(bind_style, copy_info, camera_buffer).await;
+        let mut acquired_guards = AcquiredGuards::new(bind_style, copy_info, camera_buffer);
 
         // Then create the bind group using the acquired guards
         let s = Self::new_from_guards(

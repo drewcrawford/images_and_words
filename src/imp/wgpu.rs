@@ -56,7 +56,7 @@ impl<T> BackendSend for T {}
 impl<T: Send> BackendSend for T {}
 
 /// Helper function to copy from a mappable buffer to a GPU buffer
-pub async fn copy_mappable_to_gpuable_buffer(
+pub fn copy_mappable_to_gpuable_buffer(
     source: &mut MappableBuffer,
     dest: &GPUableBuffer,
     source_offset: usize,
