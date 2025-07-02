@@ -179,12 +179,12 @@ impl View {
     /// - `scale_factor` - The DPI scale factor (f64)
     ///
     /// For test views, this always returns (800, 600, 1.0).
-    pub(crate) async fn size_scale(&self) -> (u16, u16, f64) {
+    pub(crate) fn size_scale(&self) -> (u16, u16, f64) {
         #[cfg(feature = "app_window")]
         {
             match &self.os_impl {
                 OSImpl::AppWindow(surface, _, _) => {
-                    let (size, scale) = surface.size_scale().await;
+                    let (size, scale) = surface.size_main();
                     (size.width() as u16, size.height() as u16, scale)
                 }
                 #[cfg(any(test, feature = "testing"))]

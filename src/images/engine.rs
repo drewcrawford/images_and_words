@@ -35,7 +35,7 @@ impl Engine {
         view.provide_entry_point(&entry_point)
             .await
             .expect("Can't provide entry point");
-        let (initial_width, initial_height, initial_scale) = view.size_scale().await;
+        let (initial_width, initial_height, initial_scale) = view.size_scale();
 
         let unbound_device = UnboundDevice::pick(&view, &entry_point).await?;
         let bound_device = Arc::new(BoundDevice::bind(unbound_device, entry_point.clone()).await?);

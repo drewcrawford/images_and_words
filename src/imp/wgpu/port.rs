@@ -1215,7 +1215,7 @@ impl Port {
         let frame_guard = self.port_reporter_send.create_frame_guard();
 
         let enable_depth = self.pass_config.requested.enable_depth;
-        let unscaled_size = self.view.size_scale().await;
+        let unscaled_size = self.view.size_scale();
         // Setup frame reporting and surface configuration
         let current_scaled_size = (
             (unscaled_size.0 as f64 * unscaled_size.2) as u32,
