@@ -424,7 +424,7 @@ impl PreparedPass {
         }
     }
 
-    async fn recreate_acquired_guards(
+    fn recreate_acquired_guards(
         &mut self,
         camera_buffer: &Buffer<CameraProjection>,
         copy_info: &mut CopyInfo<'_>,
@@ -951,6 +951,7 @@ impl Port {
             };
             let mut write_guard = self.camera_buffer.access_write().await;
             write_guard.write(&[camera_projection], 0);
+            write_guard.async_drop().await;
         }
     }
 
@@ -1201,6 +1202,9 @@ impl Port {
         );
     }
     pub async fn render_frame(&mut self) {
+        self.update_camera_buffer().await;
+        //basically we want to bunch up all our awaits here,
+        //so we don't interrupt the frame
         self.port_reporter_send.begin_frame(self.frame);
         let frame_guard = self.port_reporter_send.create_frame_guard();
 
@@ -1362,8 +1366,6 @@ impl Port {
             self.update_pass_configuration(enable_depth, &mut copy_info);
         }
 
-        self.update_camera_buffer().await;
-
         // Execute render passes
         let depth_store = if self.dump_framebuffer {
             StoreOp::Store
@@ -1388,9 +1390,7 @@ impl Port {
             command_encoder: &mut encoder,
         };
         for prepared_pass in &mut self.prepared_passes {
-            prepared_pass
-                .recreate_acquired_guards(&self.camera_buffer, &mut copy_info)
-                .await;
+            prepared_pass.recreate_acquired_guards(&self.camera_buffer, &mut copy_info)
         }
 
         // Extract bind groups and acquired guards from prepared passes
