@@ -60,7 +60,7 @@ let mut write_guard = texture.dequeue().await;
 
 // Update texture data
 write_guard.replace(
-    256, // source width
+    1, // source width (single pixel)
     Texel { x: 0, y: 0 }, // destination position
     &[Unorm4 { r: 255, g: 0, b: 0, a: 255 }] // red pixel
 );
@@ -279,7 +279,7 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// // Write pixel data
 /// let width = guard.width();
 /// guard.replace(
-///     width, // source width
+///     1, // source width (single pixel)
 ///     Texel { x: 10, y: 20 }, // destination
 ///     &[Unorm4 { r: 255, g: 128, b: 0, a: 255 }] // orange pixel
 /// );

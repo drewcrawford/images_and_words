@@ -130,33 +130,50 @@ impl<Format: PixelFormat> MappableTexture<Format> {
     }
 
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) {
-        assert!(src_width == self.width); //we could support this but it would involve multiple copies
-        assert!(dst_texel == Texel::ZERO); //not supported at present
+        // Validate source width
+        assert!(src_width > 0, "Source width must be greater than 0");
 
-        // Validate that we have enough data for the full texture
-        let expected_pixels = (self.width as usize) * (self.height as usize);
-        assert_eq!(
+        // Calculate number of rows from the data
+        assert!(
+            data.len() % src_width as usize == 0,
+            "Data length ({}) must be divisible by source width ({})",
             data.len(),
-            expected_pixels,
-            "Data size mismatch: expected {} pixels ({}x{}), got {} pixels",
-            expected_pixels,
-            self.width,
-            self.height,
-            data.len()
+            src_width
+        );
+        let src_height = data.len() / src_width as usize;
+
+        // Validate destination bounds
+        assert!(
+            dst_texel.x as usize + src_width as usize <= self.width as usize,
+            "Destination region exceeds texture width: dst_x({}) + src_width({}) > texture_width({})",
+            dst_texel.x,
+            src_width,
+            self.width
+        );
+        assert!(
+            dst_texel.y as usize + src_height <= self.height as usize,
+            "Destination region exceeds texture height: dst_y({}) + src_height({}) > texture_height({})",
+            dst_texel.y,
+            src_height,
+            self.height
         );
 
         use crate::pixel_formats::pixel_as_bytes;
         let data_bytes = pixel_as_bytes(data);
         let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
-        let unaligned_bytes_per_row = src_width as usize * bytes_per_pixel; //this is the unaligned row size
+        let src_bytes_per_row = src_width as usize * bytes_per_pixel;
         let aligned_bytes_per_row = Self::aligned_bytes_per_row(self.width);
 
-        for y in 0..self.height {
-            //src is tightly packed
-            let src_offset = y as usize * unaligned_bytes_per_row;
-            let src_slice = &data_bytes[src_offset..src_offset + unaligned_bytes_per_row];
-            //dst is aligned
-            let dst_offset = y as usize * aligned_bytes_per_row;
+        for row in 0..src_height {
+            // Source data is tightly packed
+            let src_offset = row * src_bytes_per_row;
+            let src_slice = &data_bytes[src_offset..src_offset + src_bytes_per_row];
+
+            // Calculate destination offset accounting for destination position
+            let dst_y = dst_texel.y as usize + row;
+            let dst_x_bytes = dst_texel.x as usize * bytes_per_pixel;
+            let dst_offset = dst_y * aligned_bytes_per_row + dst_x_bytes;
+
             self.imp.write(&src_slice, dst_offset);
         }
     }
