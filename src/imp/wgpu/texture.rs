@@ -480,7 +480,7 @@ impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
 }
 
 /// Internal helper function to copy from a mappable texture to a GPU texture
-pub(super) async fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelFormat>(
+pub(super) fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelFormat>(
     source: &mut MappableTexture<Format>,
     dest: &GPUableTexture<Format>,
     copy_info: &mut super::CopyInfo<'_>,
