@@ -86,9 +86,6 @@ where
         for waker in wakers_to_send {
             waker.send(());
         }
-
-        // Guard is consumed, so Drop won't run
-        std::mem::forget(self);
     }
 }
 
@@ -175,9 +172,6 @@ where
         for waker in wakers_to_send {
             waker.send(());
         }
-
-        // Guard is consumed, so Drop won't run
-        std::mem::forget(self);
     }
 }
 

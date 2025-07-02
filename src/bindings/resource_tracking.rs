@@ -82,8 +82,6 @@ where
         unsafe {
             self.tracker.async_unuse_cpu().await;
         }
-        // Guard is consumed, so Drop won't run
-        std::mem::forget(self);
     }
 }
 impl<Resource> Drop for CPUReadGuard<'_, Resource>
@@ -147,8 +145,6 @@ where
         unsafe {
             self.tracker.async_unuse_cpu().await;
         }
-        // Guard is consumed, so Drop won't run
-        std::mem::forget(self);
     }
 }
 
