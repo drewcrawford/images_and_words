@@ -129,7 +129,7 @@ pub struct PreparedPass {
 }
 
 impl PreparedPass {
-    async fn new(
+    fn new(
         bind_device: &crate::images::BoundDevice,
         descriptor: PassDescriptor,
         enable_depth: bool,
@@ -412,9 +412,7 @@ impl PreparedPass {
             camera_buffer,
             mipmapped_sampler,
             copy_info,
-        )
-        .await;
-
+        );
         PreparedPass {
             pipeline,
             vertex_count,
@@ -756,7 +754,7 @@ impl BindGroupGuard {
         }
     }
 
-    async fn new(
+    fn new(
         bind_device: &crate::images::BoundDevice,
         bind_style: &crate::bindings::bind_style::BindStyle,
         name: &str,
@@ -905,11 +903,7 @@ impl Port {
         (depth_texture, depth_view)
     }
 
-    async fn update_pass_configuration(
-        &mut self,
-        enable_depth: bool,
-        copy_info: &mut CopyInfo<'_>,
-    ) {
+    fn update_pass_configuration(&mut self, enable_depth: bool, copy_info: &mut CopyInfo<'_>) {
         if self.pass_config.is_dirty() {
             self.prepared_passes.clear();
 
@@ -923,8 +917,7 @@ impl Port {
                     &self.mipmapped_sampler,
                     copy_info,
                     &self.pass_config.requested,
-                )
-                .await;
+                );
                 self.prepared_passes.push(pipeline);
             }
 
@@ -1366,8 +1359,7 @@ impl Port {
             let mut copy_info = CopyInfo {
                 command_encoder: &mut encoder,
             };
-            self.update_pass_configuration(enable_depth, &mut copy_info)
-                .await;
+            self.update_pass_configuration(enable_depth, &mut copy_info);
         }
 
         self.update_camera_buffer().await;
