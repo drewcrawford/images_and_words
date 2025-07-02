@@ -9,6 +9,46 @@ use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label};
 use wgpu::{MapMode, PollType};
 
 /**
+Copy buffer data in a thread-safe manner.
+This function takes owned/cloned data that can be moved across thread boundaries.
+*/
+async fn copy_buffer_data_threadsafe(
+    internal_buffer_data: Box<[u8]>,
+    wgpu_buffer: Arc<Mutex<WgpuCell<wgpu::Buffer>>>,
+    bound_device: Arc<BoundDevice>,
+) {
+    let specified_length = internal_buffer_data.len() as u64;
+    let (s, r) = r#continue::continuation();
+    wgpu_buffer
+        .lock()
+        .unwrap()
+        .map_async(MapMode::Write, 0..specified_length, |c| {
+            c.unwrap();
+            s.send(());
+        });
+    bound_device
+        .0
+        .wgpu
+        .lock()
+        .unwrap()
+        .device
+        .poll(PollType::Wait)
+        .unwrap();
+    r.await;
+    {
+        let wgpu_buffer_guard = wgpu_buffer.lock().unwrap();
+        let mut entire_map = wgpu_buffer_guard
+            .get()
+            .slice(0..specified_length)
+            .get_mapped_range_mut();
+        //copy all data
+        entire_map.copy_from_slice(&internal_buffer_data);
+        drop(entire_map);
+        wgpu_buffer_guard.get().unmap();
+    }
+}
+
+/**
 A buffer that can be mapped onto the host.
 */
 #[derive(Debug)]
@@ -18,7 +58,7 @@ pub struct MappableBuffer {
     internal_buffer: Box<[u8]>,
     //note that wgpu also requires us to use this 'staging' buffer since MAP_WRITE is only
     //compatible with COPY_SRC.
-    wgpu_buffer: Mutex<WgpuCell<wgpu::Buffer>>,
+    wgpu_buffer: Arc<Mutex<WgpuCell<wgpu::Buffer>>>,
     /// Whether the buffer is dirty and needs to be written back to the GPU.
     wgpu_buffer_is_dirty: bool,
 
@@ -27,7 +67,7 @@ pub struct MappableBuffer {
 
 impl MappableBuffer {
     pub(crate) fn wgpu_buffer(&self) -> &Mutex<WgpuCell<wgpu::Buffer>> {
-        &self.wgpu_buffer
+        &*self.wgpu_buffer
     }
     pub(crate) async fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]>(
         bound_device: Arc<crate::images::BoundDevice>,
@@ -91,7 +131,7 @@ impl MappableBuffer {
         let internal_buffer = Arc::try_unwrap(move_internal_buffer).unwrap();
         Ok(MappableBuffer {
             internal_buffer,
-            wgpu_buffer: Mutex::new(buffer),
+            wgpu_buffer: Arc::new(Mutex::new(buffer)),
             bound_device,
             wgpu_buffer_is_dirty: false,
         })
@@ -99,42 +139,6 @@ impl MappableBuffer {
 
     pub fn as_slice(&self) -> &[u8] {
         self.internal_buffer.as_ref()
-    }
-
-    async fn copy_data(&mut self) {
-        if !self.wgpu_buffer_is_dirty {
-            return;
-        }
-        self.wgpu_buffer_is_dirty = false;
-        let specified_length = self.internal_buffer.len() as u64; //as opposed to the allocated length
-        let (s, r) = r#continue::continuation();
-        self.wgpu_buffer
-            .lock()
-            .unwrap()
-            .map_async(MapMode::Write, 0..specified_length, |c| {
-                c.unwrap();
-                s.send(());
-            });
-        self.bound_device
-            .0
-            .wgpu
-            .lock()
-            .unwrap()
-            .device
-            .poll(PollType::Wait)
-            .unwrap();
-        r.await;
-        {
-            let wgpu_buffer_guard = self.wgpu_buffer.lock().unwrap();
-            let mut entire_map = wgpu_buffer_guard
-                .get()
-                .slice(0..specified_length)
-                .get_mapped_range_mut();
-            //copy all data
-            entire_map.copy_from_slice(&self.internal_buffer);
-            drop(entire_map);
-            wgpu_buffer_guard.get().unmap();
-        }
     }
 
     pub fn write(&mut self, data: &[u8], dst_offset: usize) {
@@ -154,7 +158,21 @@ impl MappableBuffer {
         //since we use a CPU view, this is a no-op
     }
     pub async fn unmap(&mut self) {
-        self.copy_data().await;
+        if !self.wgpu_buffer_is_dirty {
+            return;
+        }
+        self.wgpu_buffer_is_dirty = false;
+
+        // Clone the data we need to move across the thread boundary
+        let internal_buffer_data = self.internal_buffer.clone();
+        let wgpu_buffer = self.wgpu_buffer.clone();
+        let bound_device = self.bound_device.clone();
+
+        app_window::wgpu::wgpu_begin_context(async move {
+            app_window::wgpu::wgpu_in_context(async move {
+                copy_buffer_data_threadsafe(internal_buffer_data, wgpu_buffer, bound_device).await;
+            });
+        });
     }
 
     pub fn byte_len(&self) -> usize {

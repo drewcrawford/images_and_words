@@ -76,13 +76,16 @@ fn main() {
                         write_access.async_drop().await;
                     });
 
-                    let _ = sender.send(());
+                    let _ = sender.send(0);
                 });
 
                 // Wait for the spawned thread to complete
                 let result = receiver
                     .recv()
                     .expect("Failed to receive result from spawned thread");
+
+                //exit the process
+                std::process::exit(result);
             });
         });
     });
