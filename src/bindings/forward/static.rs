@@ -66,7 +66,8 @@ Use **Texture** when you need:
 # use images_and_words::images::view::View;
 # use images_and_words::pixel_formats::RGBA8UNorm;
 # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
-# test_executors::sleep_on(async {
+# app_window::wgpu::wgpu_begin_context(async {
+# app_window::wgpu::wgpu_in_context(async {
 # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 # let device = engine.bound_device();
 # #[derive(Copy, Clone)]
@@ -136,6 +137,7 @@ let gradient_lut = r#static::buffer::Buffer::new(
     "gradient_lut",
     |i| gradient_data[i]
 ).await.expect("Failed to create gradient LUT");
+# });
 # });
 # }
 ```

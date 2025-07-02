@@ -39,7 +39,8 @@
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! # #[cfg(feature = "testing")]
-//! # test_executors::sleep_on(async {
+//! # app_window::wgpu::wgpu_begin_context(async {
+//! # app_window::wgpu::wgpu_in_context(async {
 //! use images_and_words::images::{Engine, view::View};
 //! use images_and_words::images::projection::WorldCoord;
 //!
@@ -48,6 +49,7 @@
 //! let engine = Engine::rendering_to(view, camera_position)
 //!     .await
 //!     .expect("Failed to create engine");
+//! # });
 //! # });
 //! ```
 

@@ -503,7 +503,8 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::pixel_formats::{RGBA32Float, Float4};
     /// use images_and_words::{Priority, Strategy};
     ///
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     ///     // Create a complex procedural texture in parallel
     ///     let texture = Texture::<RGBA32Float>::new_with_parallel(
     ///         512, 512,
@@ -524,6 +525,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     
     ///     assert_eq!(texture.width(), 512);
     ///     assert_eq!(texture.height(), 512);
+    /// });
     /// });
     /// ```
     pub async fn new_with_parallel<

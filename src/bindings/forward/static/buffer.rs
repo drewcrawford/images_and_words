@@ -33,7 +33,8 @@
 //! # use images_and_words::bindings::visible_to::GPUBufferUsage;
 //! # use images_and_words::images::projection::WorldCoord;
 //! # use images_and_words::images::view::View;
-//! # test_executors::sleep_on(async {
+//! # app_window::wgpu::wgpu_begin_context(async {
+//! # app_window::wgpu::wgpu_in_context(async {
 //! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! # let device = engine.bound_device();
 //! // Define a vertex type
@@ -58,6 +59,7 @@
 //!         _ => unreachable!()
 //!     }
 //! ).await.expect("Failed to create buffer");
+//! # });
 //! # });
 //! # }
 //! ```
@@ -106,7 +108,8 @@ use std::sync::Arc;
 /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
-/// # test_executors::sleep_on(async {
+/// # app_window::wgpu::wgpu_begin_context(async {
+/// # app_window::wgpu::wgpu_in_context(async {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let device = engine.bound_device();
 /// // Create a buffer of precomputed sine values
@@ -117,6 +120,7 @@ use std::sync::Arc;
 ///     "sine_lookup_table",
 ///     |i| (i as f32 * std::f32::consts::TAU / 256.0).sin()
 /// ).await.expect("Failed to create buffer");
+/// # });
 /// # });
 /// # }
 /// ```
@@ -227,7 +231,8 @@ impl<Element> Buffer<Element> {
     /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
-    /// # test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// # let device = engine.bound_device();
     /// // Create an index buffer for a quad (two triangles)
@@ -242,6 +247,7 @@ impl<Element> Buffer<Element> {
     ///         _ => unreachable!()
     ///     }
     /// ).await.expect("Failed to create buffer");
+    /// # });
     /// # });
     /// # }
     /// ```

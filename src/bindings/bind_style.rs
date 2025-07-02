@@ -22,7 +22,8 @@
 //! # {
 //! use images_and_words::bindings::forward::r#static::buffer::Buffer;
 //! use images_and_words::pixel_formats::{BGRA8UNormSRGB};
-//! # test_executors::sleep_on(async {
+//! # app_window::wgpu::wgpu_begin_context(async {
+//! # app_window::wgpu::wgpu_in_context(async {
 //! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! # let bound_device = engine.bound_device().clone();
 //! let my_buffer: Buffer<u8> = Buffer::new(bound_device, 1024, images_and_words::bindings::visible_to::GPUBufferUsage::VertexBuffer, "my_buffer", |index| 2).await.expect("can't create buffer");
@@ -37,6 +38,7 @@
 //!
 //! // Bind a static buffer to slot 1 for the fragment shader
 //! bind_style.bind_static_buffer(BindSlot::new(1), Stage::Fragment, &my_buffer);
+//! # });
 //! # });
 //! # }
 //! ```
@@ -405,7 +407,8 @@ pub enum Stage {
 /// use images_and_words::images::view::View;
 /// use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
 /// use images_and_words::Priority;
-///  # test_executors::sleep_on(async {
+///  # app_window::wgpu::wgpu_begin_context(async {
+///  # app_window::wgpu::wgpu_in_context(async {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let bound_device = engine.bound_device().clone();
 /// let mut bind_style = BindStyle::new();
@@ -433,6 +436,7 @@ pub enum Stage {
 /// // In Rust:
 /// bind_style.bind_camera_matrix(BindSlot::new(0), Stage::Vertex);
 /// bind_style.bind_static_texture(BindSlot::new(1), Stage::Fragment, &texture, None);
+/// # });
 /// # });
 /// # }
 /// ```

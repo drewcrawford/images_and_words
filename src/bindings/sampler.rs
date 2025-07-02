@@ -19,7 +19,8 @@
 //! # {
 //! use images_and_words::bindings::sampler::SamplerType;
 //! use images_and_words::bindings::bind_style::{BindStyle, BindSlot, Stage, SamplerInfo};
-//! # test_executors::sleep_on(async {
+//! # app_window::wgpu::wgpu_begin_context(async {
+//! # app_window::wgpu::wgpu_in_context(async {
 //! # use images_and_words::images::view::View;
 //! # use images_and_words::images::projection::WorldCoord;
 //! # use images_and_words::bindings::forward::r#static::texture::Texture;
@@ -56,6 +57,7 @@
 //!     &texture,
 //!     Some(sampler)
 //! );
+//! # });
 //! # });
 //! # }
 //! ```

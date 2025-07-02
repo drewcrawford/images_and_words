@@ -24,7 +24,8 @@
 //! use images_and_words::images::view::View;
 //! use images_and_words::pixel_formats::RGBA8UNorm;
 //! use images_and_words::Priority;
-//! test_executors::sleep_on(async {
+//! # app_window::wgpu::wgpu_begin_context(async {
+//! # app_window::wgpu::wgpu_in_context(async {
 //! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! let device = engine.bound_device();
 //!
@@ -44,6 +45,7 @@
 //!     config,
 //!     |_texel| images_and_words::pixel_formats::Unorm4 { r: 255, g: 0, b: 0, a: 255 }  // RGBA red
 //! ).await.expect("Failed to create texture");
+//! # });
 //! # });
 //! # }
 //! ```
@@ -123,7 +125,8 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     ///
@@ -147,6 +150,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///         images_and_words::pixel_formats::Unorm4 { r, g, b: 0, a: 255 }
     ///     }
     /// ).await.expect("Failed to create texture");
+    /// # });
     /// # });
     /// # }
     /// ```
@@ -194,7 +198,8 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     ///
@@ -218,6 +223,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     &soft_texture,
     ///     config
     /// ).await.expect("Failed to create GPU texture");
+    /// # });
     /// # });
     /// # }
     /// ```
@@ -290,7 +296,8 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     ///
@@ -316,6 +323,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     &device,
     ///     config
     /// ).await.expect("Failed to create texture");
+    /// # });
     /// # });
     /// # }
     /// ```

@@ -34,7 +34,8 @@ updated from the CPU side during runtime.
 # use images_and_words::images::projection::WorldCoord;
 # use images_and_words::images::view::View;
 # use images_and_words::Priority;
-test_executors::sleep_on(async {
+# app_window::wgpu::wgpu_begin_context(async {
+# app_window::wgpu::wgpu_in_context(async {
 # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 let device = engine.bound_device();
 
@@ -66,6 +67,7 @@ write_guard.replace(
 
 // Buffer is automatically enqueued when guard is dropped
 drop(write_guard);
+# });
 # });
 # }
 ```
@@ -166,7 +168,8 @@ impl ErasedTextureRenderSide {
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// test_executors::sleep_on(async {
+/// # app_window::wgpu::wgpu_begin_context(async {
+/// # app_window::wgpu::wgpu_in_context(async {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// let device = engine.bound_device();
 /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
@@ -175,6 +178,7 @@ impl ErasedTextureRenderSide {
 ///
 /// // Bind the texture to slot 0 for the fragment shader
 /// bind_style.bind_dynamic_texture(BindSlot::new(0), Stage::Fragment, &frame_texture);
+/// # });
 /// # });
 /// # }
 /// ```
@@ -263,7 +267,8 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// test_executors::sleep_on(async {
+/// # app_window::wgpu::wgpu_begin_context(async {
+/// # app_window::wgpu::wgpu_in_context(async {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// let device = engine.bound_device();
 /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
@@ -280,6 +285,7 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// );
 ///
 /// // Texture is automatically enqueued when guard goes out of scope
+/// # });
 /// # });
 /// # }
 /// ```
@@ -428,7 +434,8 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// test_executors::sleep_on(async {
+/// # app_window::wgpu::wgpu_begin_context(async {
+/// # app_window::wgpu::wgpu_in_context(async {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// let device = engine.bound_device();
 ///
@@ -455,6 +462,7 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// let mut guard = video_texture.dequeue().await;
 /// guard.replace(1920, Texel::ZERO, &frame_data);
 /// drop(guard); // Enqueue for GPU
+/// # });
 /// # });
 /// # }
 /// ```
@@ -505,7 +513,8 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
@@ -520,6 +529,7 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     ///     Texel { x: 0, y: 10 },
     ///     &pixels // full row of pixels
     /// );
+    /// # });
     /// # });
     /// # }
     /// ```
@@ -579,7 +589,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     ///
@@ -602,6 +613,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///         (texel.x as f32 + texel.y as f32) / 1024.0
     ///     },
     /// ).await;
+    /// # });
     /// # });
     /// # }
     /// ```
@@ -655,7 +667,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
@@ -665,6 +678,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///
     /// // Modify the texture through the guard...
     /// // Buffer is automatically enqueued when guard is dropped
+    /// # });
     /// # });
     /// # }
     /// ```

@@ -42,7 +42,8 @@
 //! use images_and_words::bindings::visible_to::GPUBufferUsage;
 //! use images_and_words::images::projection::WorldCoord;
 //! use images_and_words::images::view::View;
-//! test_executors::sleep_on(async {
+//! # app_window::wgpu::wgpu_begin_context(async {
+//! # app_window::wgpu::wgpu_in_context(async {
 //! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! let device = engine.bound_device();
 //! // Define a C-compatible struct
@@ -75,6 +76,7 @@
 //!     y: 2.0,
 //!     z: 3.0,
 //! }], 0);
+//! # });
 //! # });
 //! # }
 //! ```
@@ -171,7 +173,8 @@ impl Debug for Shared {
 /// use images_and_words::bindings::visible_to::GPUBufferUsage;
 /// use images_and_words::images::projection::WorldCoord;
 /// use images_and_words::images::view::View;
-/// test_executors::sleep_on(async {
+/// # app_window::wgpu::wgpu_begin_context(async {
+/// # app_window::wgpu::wgpu_in_context(async {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// let device = engine.bound_device();
 /// // Create a buffer for float values
@@ -182,6 +185,7 @@ impl Debug for Shared {
 ///     "float_data",
 ///     |i| i as f32 * 0.1  // Initialize with scaled index
 /// ).await.expect("Failed to create buffer");
+/// # });
 /// # });
 /// # }
 /// ```
@@ -253,7 +257,8 @@ impl<Element> CPUWriteAccess<'_, Element> {
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).await.expect("Failed to create buffer");
@@ -261,6 +266,7 @@ impl<Element> CPUWriteAccess<'_, Element> {
     ///
     /// // Write 3 floats starting at index 5
     /// write_guard.write(&[1.0, 2.0, 3.0], 5);
+    /// # });
     /// # });
     /// # }
     /// ```
@@ -495,7 +501,8 @@ impl<Element> Buffer<Element> {
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     /// // Create a buffer of 256 floats initialized to their index
@@ -506,6 +513,7 @@ impl<Element> Buffer<Element> {
     ///     "index_buffer",
     ///     |i| i as f32
     /// ).await.expect("Failed to create buffer");
+    /// # });
     /// # });
     /// # }
     /// ```
@@ -574,7 +582,8 @@ impl<Element> Buffer<Element> {
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
-    /// test_executors::sleep_on(async {
+    /// # app_window::wgpu::wgpu_begin_context(async {
+    /// # app_window::wgpu::wgpu_in_context(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
     /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).await.expect("Failed to create buffer");
@@ -584,6 +593,7 @@ impl<Element> Buffer<Element> {
     /// write_guard.write(&[1.0, 2.0, 3.0], 0);
     ///
     /// // Guard automatically marks buffer as dirty when dropped
+    /// # });
     /// # });
     /// # }
     /// ```
@@ -666,3 +676,5 @@ unsafe impl CRepr for f64 {}
 unsafe impl CRepr for i32 {}
 unsafe impl CRepr for i16 {}
 unsafe impl CRepr for i8 {}
+
+// Note: Test moved to integration test due to Swift library dependency issues with wgpu backend
