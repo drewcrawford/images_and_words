@@ -18,7 +18,7 @@ pub struct MappableBuffer {
     internal_buffer: Box<[u8]>,
     //note that wgpu also requires us to use this 'staging' buffer since MAP_WRITE is only
     //compatible with COPY_SRC.
-    wgpu_buffer: WgpuCell<wgpu::Buffer>,
+    wgpu_buffer: Mutex<WgpuCell<wgpu::Buffer>>,
     /// Whether the buffer is dirty and needs to be written back to the GPU.
     wgpu_buffer_is_dirty: bool,
 
@@ -26,7 +26,7 @@ pub struct MappableBuffer {
 }
 
 impl MappableBuffer {
-    pub(crate) fn wgpu_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+    pub(crate) fn wgpu_buffer(&self) -> &Mutex<WgpuCell<wgpu::Buffer>> {
         &self.wgpu_buffer
     }
     pub(crate) async fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]>(
@@ -91,7 +91,7 @@ impl MappableBuffer {
         let internal_buffer = Arc::try_unwrap(move_internal_buffer).unwrap();
         Ok(MappableBuffer {
             internal_buffer,
-            wgpu_buffer: buffer,
+            wgpu_buffer: Mutex::new(buffer),
             bound_device,
             wgpu_buffer_is_dirty: false,
         })
@@ -109,6 +109,8 @@ impl MappableBuffer {
         let specified_length = self.internal_buffer.len() as u64; //as opposed to the allocated length
         let (s, r) = r#continue::continuation();
         self.wgpu_buffer
+            .lock()
+            .unwrap()
             .map_async(MapMode::Write, 0..specified_length, |c| {
                 c.unwrap();
                 s.send(());
@@ -122,15 +124,17 @@ impl MappableBuffer {
             .poll(PollType::Wait)
             .unwrap();
         r.await;
-        let mut entire_map = self
-            .wgpu_buffer
-            .get()
-            .slice(0..specified_length)
-            .get_mapped_range_mut();
-        //copy all data
-        entire_map.copy_from_slice(&self.internal_buffer);
-        drop(entire_map);
-        self.wgpu_buffer.get().unmap();
+        {
+            let wgpu_buffer_guard = self.wgpu_buffer.lock().unwrap();
+            let mut entire_map = wgpu_buffer_guard
+                .get()
+                .slice(0..specified_length)
+                .get_mapped_range_mut();
+            //copy all data
+            entire_map.copy_from_slice(&self.internal_buffer);
+            drop(entire_map);
+            wgpu_buffer_guard.get().unmap();
+        }
     }
 
     pub fn write(&mut self, data: &[u8], dst_offset: usize) {
@@ -384,7 +388,7 @@ impl GPUableBuffer {
     ) {
         let inner = self.inner.lock().unwrap();
         command_encoder.copy_buffer_to_buffer(
-            &source.wgpu_buffer.get(),
+            &source.wgpu_buffer.lock().unwrap().get(),
             source_offset as u64,
             &inner.get().buffer,
             dest_offset as u64,

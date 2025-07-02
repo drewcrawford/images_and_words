@@ -64,8 +64,9 @@ pub fn copy_mappable_to_gpuable_buffer(
     copy_len: usize,
     copy_info: &mut CopyInfo<'_>,
 ) {
+    let source_buffer_guard = source.wgpu_buffer().lock().unwrap();
     copy_info.command_encoder.copy_buffer_to_buffer(
-        source.wgpu_buffer().get(),
+        source_buffer_guard.get(),
         source_offset as u64,
         &dest.buffer(),
         dest_offset as u64,
