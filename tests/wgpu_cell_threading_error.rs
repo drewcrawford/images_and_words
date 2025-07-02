@@ -22,8 +22,7 @@ struct TestData {
 
 unsafe impl CRepr for TestData {}
 
-#[test]
-fn wgpu_cell_threading_error_test() {
+fn main() {
     println!("=== Testing WgpuCell threading error reproduction ===");
     app_window::application::main(|| {
         app_window::wgpu::wgpu_begin_context(async {

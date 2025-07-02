@@ -71,6 +71,11 @@ name = "texture_alignment"
 path = "tests/texture_alignment.rs"
 harness = false
 
+[[test]]
+name = "wgpu_cell_threading_error"
+path = "tests/wgpu_cell_threading_error.rs"
+harness = false
+
 [[example]]
 name = "simple_scene"
 path = "examples/simple_scene.rs"
