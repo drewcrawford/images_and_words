@@ -64,83 +64,25 @@ fn main() {
                     println!("Getting write access from spawned thread (non-main thread)");
 
                     // This should trigger: "WgpuCell accessed from non-main thread when strategy is MainThread"
-                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        test_executors::sleep_on(async move {
-                            let mut write_access = test_buffer_clone.access_write().await;
-                            println!("Obtained write access on non-main thread");
+                    test_executors::sleep_on(async move {
+                        let mut write_access = test_buffer_clone.access_write().await;
+                        println!("Obtained write access on non-main thread");
 
-                            // Write some data
-                            write_access.write(&[TestData { value: 42.0 }], 0);
-                            println!("Wrote data to buffer");
+                        // Write some data
+                        write_access.write(&[TestData { value: 42.0 }], 0);
+                        println!("Wrote data to buffer");
 
-                            println!("Calling async_drop from spawned thread (non-main thread)");
-                            write_access.async_drop().await;
-                        })
-                    }));
+                        println!("Calling async_drop from spawned thread (non-main thread)");
+                        write_access.async_drop().await;
+                    });
 
-                    let outcome = match result {
-                        Ok(()) => {
-                            println!(
-                                "❌ async_drop succeeded unexpectedly - no threading error reproduced"
-                            );
-                            "no_error"
-                        }
-                        Err(panic_payload) => {
-                            let panic_msg = if let Some(s) = panic_payload.downcast_ref::<String>()
-                            {
-                                s.clone()
-                            } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
-                                s.to_string()
-                            } else {
-                                "Unknown panic".to_string()
-                            };
-
-                            if panic_msg.contains("WgpuCell accessed from non-main thread") {
-                                println!(
-                                    "✅ Successfully reproduced the WgpuCell threading error!"
-                                );
-                                println!("Error message: {}", panic_msg);
-                                "threading_error_reproduced"
-                            } else {
-                                println!("❌ Got a different error: {}", panic_msg);
-                                "different_error"
-                            }
-                        }
-                    };
-
-                    let _ = sender.send(outcome);
+                    let _ = sender.send(());
                 });
 
                 // Wait for the spawned thread to complete
-                let result = receiver.recv().unwrap_or("thread_failed");
-
-                match result {
-                    "threading_error_reproduced" => {
-                        println!(
-                            "🎯 Test PASSED: Successfully reproduced the WgpuCell threading error"
-                        );
-                        println!(
-                            "The error occurs when CPUWriteAccess::async_drop() is called from a non-main thread"
-                        );
-                        std::process::exit(0);
-                    }
-                    "no_error" => {
-                        println!(
-                            "⚠️  Test result: No threading error occurred - this may indicate the issue is fixed or requires different conditions"
-                        );
-                        std::process::exit(1);
-                    }
-                    "different_error" => {
-                        println!(
-                            "⚠️  Test result: A different error occurred - check the error message above"
-                        );
-                        std::process::exit(1);
-                    }
-                    _ => {
-                        println!("❌ Test FAILED: Thread failed to complete properly");
-                        std::process::exit(1);
-                    }
-                }
+                let result = receiver
+                    .recv()
+                    .expect("Failed to receive result from spawned thread");
             });
         });
     });

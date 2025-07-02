@@ -99,32 +99,6 @@ where
     buffer: &'a Multibuffer<Element, U>,
 }
 
-impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U>
-where
-    Element: Mappable,
-    U: Clone,
-{
-    fn drop(&mut self) {
-        // Just drop the CPU guard - this will transition to PENDING_WRITE_TO_GPU automatically
-        _ = self.imp.take().expect("Dropped CPUWriteGuard already");
-
-        // Mark that GPU side needs updating
-        self.buffer.gpu_side_is_dirty.mark_dirty(true);
-
-        //wake up the waiting threads
-        // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
-        let wakers_to_send: Vec<r#continue::Sender<()>> = {
-            let mut locked_wake_list = self.buffer.wake_list.lock().unwrap();
-            locked_wake_list.drain(..).collect()
-        }; // MutexGuard is dropped here, so the lock is released.
-
-        // Step 2: Iterate and send notifications *after* the lock is released.
-        for waker in wakers_to_send {
-            waker.send(());
-        }
-    }
-}
-
 impl<'a, Element, U> DerefMut for CPUWriteGuard<'a, Element, U>
 where
     Element: Mappable,
