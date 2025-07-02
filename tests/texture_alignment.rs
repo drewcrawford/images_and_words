@@ -48,6 +48,8 @@ fn main() {
                 test_texture_alignment_error_width_150().await;
                 test_texture_alignment_ok_width_64().await;
                 test_texture_alignment_ok_width_128().await;
+
+                std::process::exit(0);
             });
         });
     });
@@ -157,19 +159,37 @@ async fn test_problematic_width(width: u16) {
     {
         let mut write_guard = frame_texture.dequeue().await;
 
-        // Write a red pixel at position (0, 0)
-        write_guard.replace(
-            width, // source width
-            Texel { x: 0, y: 0 },
-            &[Unorm4 {
+        // Create full texture data (width × height pixels)
+        let total_pixels = (width as usize) * (100 as usize); // height is 100
+        let mut pixel_data = vec![
+            Unorm4 {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255
+            };
+            total_pixels
+        ]; // Black background
+
+        // Set first pixel to red
+        if !pixel_data.is_empty() {
+            pixel_data[0] = Unorm4 {
                 r: 255,
                 g: 0,
                 b: 0,
                 a: 255,
-            }],
+            };
+        }
+
+        // Write the full texture data
+        write_guard.replace(
+            width, // source width
+            Texel { x: 0, y: 0 },
+            &pixel_data,
         );
 
-        // Guard is dropped here, marking the texture as dirty
+        // Properly async drop the guard
+        write_guard.async_drop().await;
     }
 
     println!("Rendering frame to trigger copy operation...");

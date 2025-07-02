@@ -529,6 +529,14 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     {
         self.underlying.replace(src_width, dst_texel, data);
     }
+
+    /// Asynchronously drops the guard, properly releasing the resource.
+    ///
+    /// This method must be called before the guard is dropped. Failure to call
+    /// this method will result in a panic when the guard's Drop implementation runs.
+    pub async fn async_drop(self) {
+        self.underlying.async_drop().await;
+    }
 }
 
 impl<Format: PixelFormat> Mappable for CPUWriteGuard<'_, Format> {

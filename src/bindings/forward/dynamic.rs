@@ -100,7 +100,7 @@ let uniforms = dynamic::buffer::Buffer::<CameraUniforms>::new(
     GPUBufferUsage::VertexShaderRead,
     "camera_uniforms",
     |_i| current_camera
-).expect("Failed to create uniform buffer");
+).await.expect("Failed to create uniform buffer");
 let mut uniform_write = uniforms.access_write().await;
 uniform_write.write(&[current_camera], 0);
 
@@ -111,7 +111,7 @@ let particles = dynamic::buffer::Buffer::<Particle>::new(
     GPUBufferUsage::VertexShaderRead,
     "particles",
     |i| active_particles[i]
-).expect("Failed to create particle buffer");
+).await.expect("Failed to create particle buffer");
 let mut particle_write = particles.access_write().await;
 particle_write.write(&active_particles, 0);
 

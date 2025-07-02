@@ -85,7 +85,7 @@ let uniforms = forward::dynamic::buffer::Buffer::<CameraMatrix>::new(
     GPUBufferUsage::VertexShaderRead,
     "uniforms",
     |_i| camera_matrix
-).expect("Failed to create uniform buffer");
+).await.expect("Failed to create uniform buffer");
 let mut uniform_write = uniforms.access_write().await;
 uniform_write.write(&[camera_matrix], 0);
 

@@ -66,7 +66,7 @@
 //!         y: 0.0,
 //!         z: 0.0,
 //!     }
-//! ).expect("Failed to create buffer");
+//! ).await.expect("Failed to create buffer");
 //!
 //! // Update buffer data
 //! let mut write_guard = buffer.access_write().await;
@@ -181,7 +181,7 @@ impl Debug for Shared {
 ///     GPUBufferUsage::VertexShaderRead,
 ///     "float_data",
 ///     |i| i as f32 * 0.1  // Initialize with scaled index
-/// ).expect("Failed to create buffer");
+/// ).await.expect("Failed to create buffer");
 /// # });
 /// # }
 /// ```
@@ -256,7 +256,7 @@ impl<Element> CPUWriteAccess<'_, Element> {
     /// test_executors::sleep_on(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
-    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).expect("Failed to create buffer");
+    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).await.expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
     ///
     /// // Write 3 floats starting at index 5
@@ -505,7 +505,7 @@ impl<Element> Buffer<Element> {
     ///     GPUBufferUsage::FragmentShaderRead,
     ///     "index_buffer",
     ///     |i| i as f32
-    /// ).expect("Failed to create buffer");
+    /// ).await.expect("Failed to create buffer");
     /// # });
     /// # }
     /// ```
@@ -577,7 +577,7 @@ impl<Element> Buffer<Element> {
     /// test_executors::sleep_on(async {
     /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// let device = engine.bound_device();
-    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).expect("Failed to create buffer");
+    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).await.expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
     ///
     /// // Update buffer contents

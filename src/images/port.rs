@@ -435,7 +435,7 @@ impl Port {
     ///     another_view,
     ///     WorldCoord::new(0.0, 0.0, 5.0),
     ///     (800, 600, 1.0)
-    /// ).expect("Failed to create port");
+    /// ).await.expect("Failed to create port");
     /// # });
     /// # }
     /// ```
