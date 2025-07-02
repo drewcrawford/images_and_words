@@ -13,6 +13,8 @@ use images_and_words::images::view::View;
 use std::sync::Arc;
 use std::time::Duration;
 
+use std::time::Instant;
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 #[allow(dead_code)]
@@ -93,94 +95,77 @@ fn main() {
                 // We'll test buffer access directly and use a timeout at the async function level
 
                 // Test multiple buffer write operations in sequence
+                // Keep all operations on the main thread to avoid WgpuCell thread access issues
                 let mut iteration = 0;
-                let start_time = std::time::Instant::now();
+                let start_time = Instant::now();
                 let max_test_duration = Duration::from_secs(1);
 
                 println!("Beginning buffer access test...");
 
-                let (send, rend) = std::sync::mpsc::channel();
-
-                test_executors::spawn_on("buffer thread", async move {
-                    // Reproduce the pattern from the reproducer
-                    loop {
-                        iteration += 1;
-                        println!("=== Iteration {} ===", iteration);
-
-                        // Check if we've exceeded our time limit
-                        if start_time.elapsed() > max_test_duration {
-                            panic!(
-                                "❌ Test timed out after {:?}! This indicates the buffer access hang bug is present. \
-                 The Buffer::access_write().await calls are taking too long, \
-                 which matches the behavior described in the reproducer.",
-                                max_test_duration
-                            );
-                        }
-
-                        println!("Requesting buffer write access");
-
-                        let access_start = std::time::Instant::now();
-
-                        // This is where the hang occurs in the reproducer
-                        let mut write = test_buffer.access_write().await;
-
-                        let access_time = access_start.elapsed();
-                        println!("Got buffer write access (took {:?})", access_time);
-
-                        // If any single access takes more than 1 second, that's suspicious
-                        if access_time > Duration::from_secs(1) {
-                            panic!(
-                                "❌ Buffer access took {:?} which is unexpectedly long! \
-                 This suggests the hang issue is present.",
-                                access_time
-                            );
-                        }
-
-                        // Write some test data
-                        for i in 0..4 {
-                            let data = TestData {
-                                x: (i as f32) * 10.0 + (iteration as f32),
-                                y: (i as f32) * 20.0 + (iteration as f32),
-                                z: (i as f32) * 30.0 + (iteration as f32),
-                            };
-                            write.write(&[data], i);
-                        }
-
-                        println!("Completed buffer write, dropping write access");
-                        write.async_drop().await;
-
-                        // Small delay like in the reproducer
-                        portable_async_sleep::async_sleep(Duration::from_millis(10)).await;
-
-                        // After a few iterations, exit successfully if no hang occurred
-                        if iteration >= 3 {
-                            println!("✅ Completed {} iterations without hanging", iteration);
-                            send.send(()).unwrap();
-                            break;
-                        }
-                    }
-
-                    println!("✅ Test passed - no hang detected in buffer access operations");
-                });
-
-                let start = std::time::Instant::now();
-                let mut iterations = 0;
+                // Reproduce the pattern from the reproducer
                 loop {
-                    if port.needs_render() {
-                        port.force_render().await;
-                        iterations += 1;
+                    iteration += 1;
+                    println!("=== Iteration {} ===", iteration);
+
+                    // Check if we've exceeded our time limit
+                    if start_time.elapsed() > max_test_duration {
+                        panic!(
+                            "❌ Test timed out after {:?}! This indicates the buffer access hang bug is present. \
+             The Buffer::access_write().await calls are taking too long, \
+             which matches the behavior described in the reproducer.",
+                            max_test_duration
+                        );
                     }
 
-                    if rend.try_recv().is_ok() {
-                        println!("Received completion signal after {} iterations", iterations);
+                    println!("Requesting buffer write access");
+
+                    let access_start = std::time::Instant::now();
+
+                    // This is where the hang occurs in the reproducer
+                    let mut write = test_buffer.access_write().await;
+
+                    let access_time = access_start.elapsed();
+                    println!("Got buffer write access (took {:?})", access_time);
+
+                    // If any single access takes more than 1 second, that's suspicious
+                    if access_time > Duration::from_secs(1) {
+                        panic!(
+                            "❌ Buffer access took {:?} which is unexpectedly long! \
+             This suggests the hang issue is present.",
+                            access_time
+                        );
+                    }
+
+                    // Write some test data
+                    for i in 0..4 {
+                        let data = TestData {
+                            x: (i as f32) * 10.0 + (iteration as f32),
+                            y: (i as f32) * 20.0 + (iteration as f32),
+                            z: (i as f32) * 30.0 + (iteration as f32),
+                        };
+                        write.write(&[data], i);
+                    }
+
+                    println!("Completed buffer write, dropping write access");
+                    write.async_drop().await;
+
+                    // Small delay like in the reproducer
+                    portable_async_sleep::async_sleep(Duration::from_millis(10)).await;
+
+                    // After a few iterations, exit successfully if no hang occurred
+                    if iteration >= 3 {
+                        println!("✅ Completed {} iterations without hanging", iteration);
                         break;
                     }
-                    if start.elapsed() > max_test_duration {
+                    if start_time.elapsed() > max_test_duration {
                         panic!(
                             "❌ Test timed out waiting for buffer access operations to complete! This indicates the hang issue is present."
                         );
                     }
                 }
+
+                println!("✅ Test passed - no hang detected in buffer access operations");
+                std::process::exit(0);
             });
         })
     });

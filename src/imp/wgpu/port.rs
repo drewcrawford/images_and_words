@@ -1232,6 +1232,10 @@ impl Port {
         match surface {
             None => {
                 println!("Port surface not initialized");
+                // For test views, set a default surface format if not already set
+                if self.pass_config.requested.surface_format.is_none() {
+                    self.pass_config.requested.surface_format = Some(TextureFormat::Bgra8UnormSrgb);
+                }
             }
             Some(surface) => {
                 let extra_usage = if self.dump_framebuffer {
