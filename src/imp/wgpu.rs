@@ -64,9 +64,8 @@ pub async fn copy_mappable_to_gpuable_buffer(
     copy_len: usize,
     copy_info: &mut CopyInfo<'_>,
 ) {
-    source.copy_data().await;
     copy_info.command_encoder.copy_buffer_to_buffer(
-        source.outdated_wgpu_buffer().get(),
+        source.wgpu_buffer().get(),
         source_offset as u64,
         &dest.buffer,
         dest_offset as u64,

@@ -496,9 +496,8 @@ pub(super) async fn copy_texture_internal<Format: crate::pixel_formats::sealed::
         .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         .unwrap();
-    source.imp.copy_data().await;
     let source_base = TexelCopyBufferInfoBase {
-        buffer: source.imp.outdated_wgpu_buffer().get(),
+        buffer: source.imp.wgpu_buffer().get(),
         layout: wgpu::TexelCopyBufferLayout {
             offset: 0,
             bytes_per_row: Some(aligned_bytes_per_row),

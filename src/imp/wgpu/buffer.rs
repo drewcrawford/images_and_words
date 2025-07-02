@@ -26,7 +26,7 @@ pub struct MappableBuffer {
 }
 
 impl MappableBuffer {
-    pub(crate) fn outdated_wgpu_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+    pub(crate) fn wgpu_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
         &self.wgpu_buffer
     }
     pub(crate) async fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]>(
@@ -60,13 +60,15 @@ impl MappableBuffer {
         //prepare for port
         let debug_name = debug_name.to_string();
         let move_device = bound_device.clone();
+        let internal_buffer = Arc::new(internal_buffer);
+        let move_internal_buffer = internal_buffer.clone();
         //here we must use threads
         let buffer = WgpuCell::new_on_thread(move || async move {
             let descriptor = BufferDescriptor {
                 label: Some(&debug_name),
                 size: allocated_size,
                 usage: buffer_usage,
-                mapped_at_creation: false,
+                mapped_at_creation: true,
             };
             let buffer = move_device
                 .0
@@ -75,15 +77,23 @@ impl MappableBuffer {
                 .unwrap()
                 .device
                 .create_buffer(&descriptor);
+            let mut entire_map = buffer
+                .slice(0..requested_size as u64)
+                .get_mapped_range_mut();
+            //copy all data
+            entire_map.copy_from_slice(&internal_buffer);
+            drop(internal_buffer);
+            drop(entire_map);
+            buffer.unmap();
             buffer
         })
         .await;
-
+        let internal_buffer = Arc::try_unwrap(move_internal_buffer).unwrap();
         Ok(MappableBuffer {
             internal_buffer,
             wgpu_buffer: buffer,
             bound_device,
-            wgpu_buffer_is_dirty: true,
+            wgpu_buffer_is_dirty: false,
         })
     }
 
@@ -91,7 +101,7 @@ impl MappableBuffer {
         self.internal_buffer.as_ref()
     }
 
-    pub(crate) async fn copy_data(&mut self) {
+    async fn copy_data(&mut self) {
         if !self.wgpu_buffer_is_dirty {
             return;
         }
@@ -143,7 +153,7 @@ impl MappableBuffer {
         //since we use a CPU view, this is a no-op
     }
     pub async fn unmap(&mut self) {
-        //since we use a CPU view, this is a no-op
+        self.copy_data().await;
     }
 
     pub fn byte_len(&self) -> usize {
