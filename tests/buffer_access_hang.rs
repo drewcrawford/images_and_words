@@ -147,7 +147,7 @@ fn main() {
                         }
 
                         println!("Completed buffer write, dropping write access");
-                        drop(write);
+                        write.async_drop().await;
 
                         // Small delay like in the reproducer
                         portable_async_sleep::async_sleep(Duration::from_millis(10)).await;
