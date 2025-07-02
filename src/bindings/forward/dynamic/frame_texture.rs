@@ -66,7 +66,7 @@ write_guard.replace(
 );
 
 // Buffer is automatically enqueued when guard is dropped
-drop(write_guard);
+write_guard.async_drop().await;
 # });
 # });
 # }
@@ -283,6 +283,7 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 ///     Texel { x: 10, y: 20 }, // destination
 ///     &[Unorm4 { r: 255, g: 128, b: 0, a: 255 }] // orange pixel
 /// );
+/// guard.async_drop().await;
 ///
 /// // Texture is automatically enqueued when guard goes out of scope
 /// # });
@@ -461,7 +462,7 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// // Write frame to texture
 /// let mut guard = video_texture.dequeue().await;
 /// guard.replace(1920, Texel::ZERO, &frame_data);
-/// drop(guard); // Enqueue for GPU
+/// guard.async_drop().await; // Enqueue for GPU
 /// # });
 /// # });
 /// # }
@@ -529,6 +530,7 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     ///     Texel { x: 0, y: 10 },
     ///     &pixels // full row of pixels
     /// );
+    /// guard.async_drop().await;
     /// # });
     /// # });
     /// # }
@@ -677,6 +679,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// let mut guard = texture.dequeue().await;
     ///
     /// // Modify the texture through the guard...
+    /// guard.async_drop().await;
     /// // Buffer is automatically enqueued when guard is dropped
     /// # });
     /// # });

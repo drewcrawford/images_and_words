@@ -89,6 +89,7 @@ let uniforms = forward::dynamic::buffer::Buffer::<CameraMatrix>::new(
 ).await.expect("Failed to create uniform buffer");
 let mut uniform_write = uniforms.access_write().await;
 uniform_write.write(&[camera_matrix], 0);
+uniform_write.async_drop().await;
 
 // Static texture - loaded from file
 # let width = 256;

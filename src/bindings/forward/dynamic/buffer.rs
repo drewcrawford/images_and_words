@@ -76,6 +76,7 @@
 //!     y: 2.0,
 //!     z: 3.0,
 //! }], 0);
+//! write_guard.async_drop().await;
 //! # });
 //! # });
 //! # }
@@ -266,6 +267,7 @@ impl<Element> CPUWriteAccess<'_, Element> {
     ///
     /// // Write 3 floats starting at index 5
     /// write_guard.write(&[1.0, 2.0, 3.0], 5);
+    /// write_guard.async_drop().await;
     /// # });
     /// # });
     /// # }
@@ -591,6 +593,7 @@ impl<Element> Buffer<Element> {
     ///
     /// // Update buffer contents
     /// write_guard.write(&[1.0, 2.0, 3.0], 0);
+    /// write_guard.async_drop().await;
     ///
     /// // Guard automatically marks buffer as dirty when dropped
     /// # });
