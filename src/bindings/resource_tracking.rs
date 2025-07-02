@@ -459,7 +459,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     where
         Resource: sealed::Mappable,
     {
-        if !self.async_dropped {
+        if !self.async_dropped && !std::thread::panicking() {
             panic!(
                 "Drop called without async_drop - you must call async_drop() before dropping the guard"
             );
