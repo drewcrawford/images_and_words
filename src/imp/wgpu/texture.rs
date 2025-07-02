@@ -334,18 +334,14 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             }
         }
 
-        let texture = bound_device
-            .0
-            .wgpu
-            .lock()
-            .unwrap()
-            .device
-            .create_texture_with_data(
-                &bound_device.0.wgpu.lock().unwrap().queue,
-                &descriptor,
-                TextureDataOrder::default(),
-                pixel_as_bytes(&src_buf),
-            );
+        let held_lock = bound_device.0.wgpu.lock().unwrap();
+
+        let texture = held_lock.device.create_texture_with_data(
+            &held_lock.queue,
+            &descriptor,
+            TextureDataOrder::default(),
+            pixel_as_bytes(&src_buf),
+        );
         Ok(Self {
             format: PhantomData,
             imp: texture,
