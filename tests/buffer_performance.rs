@@ -57,6 +57,7 @@ fn main() {
                     w: 0.0,
                 },
             )
+            .await
             .expect("Failed to create test buffer");
 
             println!("=== Testing buffer write performance ===");

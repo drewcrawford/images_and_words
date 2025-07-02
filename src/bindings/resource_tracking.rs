@@ -69,6 +69,23 @@ where
         unsafe { &*self.tracker.resource.get() }
     }
 }
+
+impl<'a, Resource> CPUReadGuard<'a, Resource>
+where
+    Resource: sealed::Mappable,
+{
+    /// Asynchronously drops the guard, properly unmapping the resource
+    ///
+    /// This method must be called before the guard is dropped. Failure to call
+    /// this method will result in a panic when the guard's Drop implementation runs.
+    pub async fn async_drop(self) {
+        unsafe {
+            self.tracker.async_unuse_cpu().await;
+        }
+        // Guard is consumed, so Drop won't run
+        std::mem::forget(self);
+    }
+}
 impl<Resource> Drop for CPUReadGuard<'_, Resource>
 where
     Resource: sealed::Mappable,
@@ -115,6 +132,23 @@ where
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.tracker.resource.get() }
+    }
+}
+
+impl<'a, Resource> CPUWriteGuard<'a, Resource>
+where
+    Resource: sealed::Mappable,
+{
+    /// Asynchronously drops the guard, properly unmapping the resource
+    ///
+    /// This method must be called before the guard is dropped. Failure to call
+    /// this method will result in a panic when the guard's Drop implementation runs.
+    pub async fn async_drop(self) {
+        unsafe {
+            self.tracker.async_unuse_cpu().await;
+        }
+        // Guard is consumed, so Drop won't run
+        std::mem::forget(self);
     }
 }
 
@@ -228,6 +262,7 @@ pub(crate) mod sealed {
 struct ResourceTrackerInternal<Resource> {
     state: AtomicU8,
     resource: UnsafeCell<Resource>,
+    async_dropped: bool,
 }
 
 impl<Resource> Debug for ResourceTrackerInternal<Resource> {
@@ -269,6 +304,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
         Self {
             state: AtomicU8::new(initial_state),
             resource: UnsafeCell::new(resource),
+            async_dropped: false,
         }
     }
     // /// Acquires the resource for CPU read access
@@ -375,18 +411,21 @@ impl<Resource> ResourceTrackerInternal<Resource> {
         }
     }
 
-    /// Releases CPU access to the resource
+    /// Releases CPU access to the resource asynchronously
     ///
     /// # Safety
     ///
     /// Caller must ensure that they hold a valid CPU lock (read or write).
     /// This is enforced by the guard types which are the only callers.
-    unsafe fn unuse_cpu(&self)
+    async unsafe fn async_unuse_cpu(&self)
     where
         Resource: sealed::Mappable,
     {
         unsafe {
-            (*self.resource.get()).unmap();
+            (*self.resource.get()).unmap().await;
+            // Set the flag using raw pointer access since we need to mutate
+            let self_mut = self as *const Self as *mut Self;
+            (*self_mut).async_dropped = true;
             let old_state = self
                 .state
                 .fetch_update(
@@ -395,15 +434,37 @@ impl<Resource> ResourceTrackerInternal<Resource> {
                     |current| match current {
                         CPU_READ => Some(UNUSED),
                         CPU_WRITE => Some(PENDING_WRITE_TO_GPU),
-                        _ => panic!("unuse_cpu called from invalid state: {}", current),
+                        _ => panic!("async_unuse_cpu called from invalid state: {}", current),
                     },
                 )
-                .expect("unuse_cpu state transition failed");
+                .expect("async_unuse_cpu state transition failed");
             assert!(
                 old_state == CPU_READ || old_state == CPU_WRITE,
                 "Resource was not in CPU use"
             );
         }
+    }
+
+    /// Releases CPU access to the resource
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that they hold a valid CPU lock (read or write).
+    /// This is enforced by the guard types which are the only callers.
+    ///
+    /// # Panics
+    ///
+    /// Panics if async_drop was not called first on the associated guard.
+    unsafe fn unuse_cpu(&self)
+    where
+        Resource: sealed::Mappable,
+    {
+        if !self.async_dropped {
+            panic!(
+                "Drop called without async_drop - you must call async_drop() before dropping the guard"
+            );
+        }
+        // State transition already handled in async_unuse_cpu
     }
     /// Releases GPU access to the resource
     ///

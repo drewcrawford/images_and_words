@@ -63,6 +63,35 @@ where
     }
 }
 
+impl<'a, Element, U> CPUReadGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: Clone,
+{
+    /// Asynchronously drops the guard, properly unmapping the resource
+    ///
+    /// This method must be called before the guard is dropped. Failure to call
+    /// this method will result in a panic when the guard's Drop implementation runs.
+    pub async fn async_drop(mut self) {
+        if let Some(inner_guard) = self.imp.take() {
+            inner_guard.async_drop().await;
+        }
+
+        // Handle the wake list notifications
+        let wakers_to_send: Vec<r#continue::Sender<()>> = {
+            let mut locked_wake_list = self.buffer.wake_list.lock().unwrap();
+            locked_wake_list.drain(..).collect()
+        };
+
+        for waker in wakers_to_send {
+            waker.send(());
+        }
+
+        // Guard is consumed, so Drop won't run
+        std::mem::forget(self);
+    }
+}
+
 #[derive(Debug)]
 pub struct CPUWriteGuard<'a, Element, U>
 where
@@ -117,6 +146,38 @@ where
     type Target = Element;
     fn deref(&self) -> &Self::Target {
         self.imp.as_ref().expect("No imp??")
+    }
+}
+
+impl<'a, Element, U> CPUWriteGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: Clone,
+{
+    /// Asynchronously drops the guard, properly unmapping the resource
+    ///
+    /// This method must be called before the guard is dropped. Failure to call
+    /// this method will result in a panic when the guard's Drop implementation runs.
+    pub async fn async_drop(mut self) {
+        if let Some(inner_guard) = self.imp.take() {
+            inner_guard.async_drop().await;
+        }
+
+        // Mark that GPU side needs updating
+        self.buffer.gpu_side_is_dirty.mark_dirty(true);
+
+        // Handle the wake list notifications
+        let wakers_to_send: Vec<r#continue::Sender<()>> = {
+            let mut locked_wake_list = self.buffer.wake_list.lock().unwrap();
+            locked_wake_list.drain(..).collect()
+        };
+
+        for waker in wakers_to_send {
+            waker.send(());
+        }
+
+        // Guard is consumed, so Drop won't run
+        std::mem::forget(self);
     }
 }
 

@@ -66,6 +66,7 @@ fn main() {
                             z: 0.0,
                         },
                     )
+                    .await
                     .expect("Failed to create test buffer"),
                 );
 
