@@ -309,7 +309,8 @@ async fn run_animated_rendering_with_engine_arc(
                 cosine_time: elapsed.cos(),
             };
             uniform_guard.write(&[animation_data], 0);
-            // Guard automatically marks buffer as dirty when dropped
+            // Properly async drop the guard to unmap the resource
+            uniform_guard.async_drop().await;
         }
 
         // Render the frame

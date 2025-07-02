@@ -274,6 +274,14 @@ impl<Element> CPUWriteAccess<'_, Element> {
         };
         self.guard.deref_mut().write(bytes, offset);
     }
+
+    /// Asynchronously drops the write access guard, properly unmapping the resource
+    ///
+    /// This method must be called before the guard is dropped. Failure to call
+    /// this method will result in a panic when the guard's Drop implementation runs.
+    pub async fn async_drop(self) {
+        self.guard.async_drop().await;
+    }
 }
 impl<Element> Mappable for CPUWriteAccess<'_, Element> {
     async fn map_read(&mut self) {
