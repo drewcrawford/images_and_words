@@ -35,7 +35,7 @@ use std::cell::UnsafeCell;
 use std::fmt::{Debug, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::sync::atomic::AtomicU8;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 const UNUSED: u8 = 0;
 const CPU_READ: u8 = 1;
@@ -258,7 +258,7 @@ pub(crate) mod sealed {
 struct ResourceTrackerInternal<Resource> {
     state: AtomicU8,
     resource: UnsafeCell<Resource>,
-    async_dropped: bool,
+    async_dropped: AtomicBool,
 }
 
 impl<Resource> Debug for ResourceTrackerInternal<Resource> {
@@ -300,7 +300,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
         Self {
             state: AtomicU8::new(initial_state),
             resource: UnsafeCell::new(resource),
-            async_dropped: false,
+            async_dropped: AtomicBool::new(false),
         }
     }
     // /// Acquires the resource for CPU read access
@@ -424,9 +424,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
                 "DEBUG: async_unuse_cpu unmap completed for tracker: {:?}",
                 self
             );
-            // Set the flag using raw pointer access since we need to mutate
-            let self_mut = self as *const Self as *mut Self;
-            (*self_mut).async_dropped = true;
+            self.async_dropped.store(true, Ordering::Relaxed);
             let old_state = self
                 .state
                 .fetch_update(
@@ -460,7 +458,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     where
         Resource: sealed::Mappable,
     {
-        if !self.async_dropped && !std::thread::panicking() {
+        if !self.async_dropped.load(Ordering::Relaxed) && !std::thread::panicking() {
             panic!(
                 "Drop called without async_drop - you must call async_drop() before dropping the guard"
             );

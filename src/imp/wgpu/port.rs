@@ -1140,6 +1140,8 @@ impl Port {
                 }
                 move_tx.unmap();
             });
+            //for map_async to work, we need to combine with needs_poll, maybe others?
+            device.0.set_needs_poll()
         }
 
         if let Some(depth_tx) = depth_dump_buf {
@@ -1178,6 +1180,8 @@ impl Port {
                 }
                 move_depth_tx.unmap();
             });
+            //for map_async to work, we need to combine with needs_poll, maybe others?
+            device.0.set_needs_poll()
         }
         frame_guard_for_callback.mark_cpu_complete();
     }

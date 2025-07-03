@@ -122,13 +122,20 @@ where
     /// This method must be called before the guard is dropped. Failure to call
     /// this method will result in a panic when the guard's Drop implementation runs.
     pub async fn async_drop(mut self) {
-        println!("mb async drop");
+        logwise::info_sync!("mb async drop {f}", f = self.buffer.debug_label.clone());
         if let Some(inner_guard) = self.imp.take() {
             inner_guard.async_drop().await;
         }
-        println!("dropped underlying guard");
+        logwise::info_sync!(
+            "dropped underlying guard {f}",
+            f = self.buffer.debug_label.clone()
+        );
 
         // Mark that GPU side needs updating
+        logwise::info_sync!(
+            "marking gpu side dirty for {f}",
+            f = self.buffer.debug_label.clone()
+        );
         self.buffer.gpu_side_is_dirty.mark_dirty(true);
 
         // Handle the wake list notifications
@@ -140,7 +147,10 @@ where
         for waker in wakers_to_send {
             waker.send(());
         }
-        println!("finished async drop");
+        logwise::info_sync!(
+            "finished async drop for {f}",
+            f = self.buffer.debug_label.clone()
+        );
     }
 }
 
@@ -218,6 +228,7 @@ where
     wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
     gpu: U,
     gpu_side_is_dirty: DirtySender,
+    debug_label: String,
 }
 
 impl<T, U> Multibuffer<T, U>
@@ -234,7 +245,8 @@ where
             mappable: tracker,
             gpu,
             wake_list: Arc::new(Mutex::new(Vec::new())),
-            gpu_side_is_dirty: DirtySender::new(false, debug_label),
+            gpu_side_is_dirty: DirtySender::new(false, debug_label.clone()),
+            debug_label,
         }
     }
 
@@ -302,7 +314,10 @@ where
             Ok(gpu_guard) => {
                 // Resource was in PENDING_WRITE_TO_GPU state, need to copy
                 self.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
-                println!("Multibuffer: GPU resource is dirty, copying to GPU");
+                logwise::info_sync!(
+                    "Multibuffer: GPU resource {f} is dirty, copying to GPU",
+                    f = self.debug_label.clone()
+                );
 
                 // TODO: This copy will be pushed down to the callers
                 // Previously: copy_from_buffer(0, 0, gpu_guard.byte_len(), copy_info, gpu_guard)
@@ -316,7 +331,10 @@ where
             }
             Err(_) => {
                 // Resource is not in PENDING_WRITE_TO_GPU state, no copy needed
-                println!("Multibuffer: GPU resource is not dirty, no copy needed");
+                logwise::info_sync!(
+                    "Multibuffer: GPU resource {f} not dirty, no copy needed",
+                    f = self.debug_label.clone()
+                );
                 GPUGuard {
                     wake_list: self.wake_list.clone(),
                     dirty_guard: None,

@@ -46,9 +46,9 @@ async fn copy_buffer_data_threadsafe(
     wgpu_buffer: Arc<SyncCell<WgpuCell<wgpu::Buffer>>>,
     bound_device: Arc<BoundDevice>,
 ) {
-    println!(
-        "copy_buffer_data_threadsafe called with {} bytes",
-        internal_buffer_data.len()
+    logwise::info_sync!(
+        "copy_buffer_data_threadsafe called with {f} bytes",
+        f = internal_buffer_data.len()
     );
     logwise::perfwarn_begin!("copy_buffer_data_threadsafe");
     let specified_length = internal_buffer_data.len() as u64;
@@ -62,6 +62,7 @@ async fn copy_buffer_data_threadsafe(
     });
     // Signal the polling thread that we need to poll
     bound_device.0.set_needs_poll();
+    logwise::info_sync!("will await");
     r.await;
     logwise::warn_sync!("Resuming from await");
     wgpu_buffer.with(|wgpu_cell| {
@@ -186,7 +187,10 @@ impl MappableBuffer {
         //since we use a CPU view, this is a no-op
     }
     pub async fn unmap(&mut self) {
-        println!("wgpu::MappableBuffer::unmap called");
+        logwise::info_sync!(
+            "wgpu::MappableBuffer::unmap called on {f}",
+            f = self.debug_label.clone()
+        );
         if !self.wgpu_buffer_is_dirty {
             return;
         }
@@ -204,10 +208,16 @@ impl MappableBuffer {
                 s.send(());
             });
         });
-        println!("wgpu::MappableBuffer::unmap awaiting...");
+        logwise::info_sync!(
+            "wgpu::MappableBuffer::unmap awaiting... on {f}",
+            f = self.debug_label.clone()
+        );
 
         r.await; //wait for unmap to finish
-        println!("wgpu::MappableBuffer::unmap finished");
+        logwise::info_sync!(
+            "wgpu::MappableBuffer::unmap finished on {f}",
+            f = self.debug_label.clone()
+        );
     }
 
     pub fn byte_len(&self) -> usize {
