@@ -1,4 +1,32 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
+
+//! Buffer copy operations for the wgpu backend.
+//!
+//! This module provides three levels of buffer copying functionality:
+//!
+//! ## Copy Functions Overview
+//!
+//! 1. **`copy_from_buffer_internal`** - Low-level unsafe implementation
+//!    - Records copy command without resource management
+//!    - Used internally by higher-level functions
+//!    - Requires manual lifetime and synchronization management
+//!
+//! 2. **`copy_from_buffer`** - Standalone async operation
+//!    - Takes ownership of source buffer for lifetime safety
+//!    - Creates own command encoder and waits for completion
+//!    - Best for one-off operations like static buffer initialization
+//!
+//! 3. **`copy_mappable_to_gpuable_buffer`** - Batched render pipeline operation  
+//!    - Uses existing command encoder from render pipeline
+//!    - Allows batching multiple copies for efficiency
+//!    - Best for dynamic buffer updates during render passes
+//!
+//! ## Usage Guidelines
+//!
+//! - Use `copy_from_buffer` when you need guaranteed completion and can transfer ownership
+//! - Use `copy_mappable_to_gpuable_buffer` when batching operations in render pipelines
+//! - The choice depends on whether you need immediate completion vs. batched efficiency
+
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
@@ -17,35 +45,38 @@ async fn copy_buffer_data_threadsafe(
     wgpu_buffer: Arc<Mutex<WgpuCell<wgpu::Buffer>>>,
     bound_device: Arc<BoundDevice>,
 ) {
+    logwise::perfwarn_begin!("copy_buffer_data_threadsafe");
     let specified_length = internal_buffer_data.len() as u64;
     let (s, r) = r#continue::continuation();
-    wgpu_buffer
-        .lock()
-        .unwrap()
-        .map_async(MapMode::Write, 0..specified_length, |c| {
-            c.unwrap();
-            s.send(());
-        });
-    bound_device
+    let wgpu_lock = wgpu_buffer.lock().unwrap();
+
+    wgpu_lock.map_async(MapMode::Write, 0..specified_length, |c| {
+        logwise::warn_sync!("In callback");
+        c.unwrap();
+        s.send(());
+    });
+    let poll_status = bound_device
         .0
         .wgpu
         .lock()
         .unwrap()
         .device
-        .poll(PollType::Wait)
+        .poll(PollType::Poll) //?
         .unwrap();
+    println!(
+        "Beginning await with poll status: {:?}",
+        poll_status.is_queue_empty()
+    );
     r.await;
-    {
-        let wgpu_buffer_guard = wgpu_buffer.lock().unwrap();
-        let mut entire_map = wgpu_buffer_guard
-            .get()
-            .slice(0..specified_length)
-            .get_mapped_range_mut();
-        //copy all data
-        entire_map.copy_from_slice(&internal_buffer_data);
-        drop(entire_map);
-        wgpu_buffer_guard.get().unmap();
-    }
+    logwise::warn_sync!("Resuming from await");
+    let mut entire_map = wgpu_lock
+        .get()
+        .slice(0..specified_length)
+        .get_mapped_range_mut();
+    //copy all data
+    entire_map.copy_from_slice(&internal_buffer_data);
+    drop(entire_map);
+    wgpu_lock.get().unmap();
 }
 
 /**
@@ -63,6 +94,7 @@ pub struct MappableBuffer {
     wgpu_buffer_is_dirty: bool,
 
     bound_device: Arc<BoundDevice>,
+    debug_label: String,
 }
 
 impl MappableBuffer {
@@ -99,6 +131,7 @@ impl MappableBuffer {
 
         //prepare for port
         let debug_name = debug_name.to_string();
+        let debug_name_2 = debug_name.clone();
         let move_device = bound_device.clone();
         let internal_buffer = Arc::new(internal_buffer);
         let move_internal_buffer = internal_buffer.clone();
@@ -134,6 +167,7 @@ impl MappableBuffer {
             wgpu_buffer: Arc::new(Mutex::new(buffer)),
             bound_device,
             wgpu_buffer_is_dirty: false,
+            debug_label: debug_name_2,
         })
     }
 
@@ -167,7 +201,7 @@ impl MappableBuffer {
         let internal_buffer_data = self.internal_buffer.clone();
         let wgpu_buffer = self.wgpu_buffer.clone();
         let bound_device = self.bound_device.clone();
-
+        println!("Unmapping buffer: {}", self.debug_label);
         app_window::wgpu::wgpu_begin_context(async move {
             app_window::wgpu::wgpu_in_context(async move {
                 copy_buffer_data_threadsafe(internal_buffer_data, wgpu_buffer, bound_device).await;
@@ -231,8 +265,8 @@ pub(super) enum StorageType {
 }
 
 impl PartialEq for GPUableBuffer {
-    fn eq(&self, _other: &Self) -> bool {
-        self.inner.lock().unwrap().get().buffer == _other.inner.lock().unwrap().get().buffer
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
     }
 }
 
@@ -325,11 +359,30 @@ impl GPUableBuffer {
         let inner = self.inner.lock().unwrap();
         f(&inner.get().buffer)
     }
-    /// Copy from buffer, taking the source buffer to ensure it lives long enough
+    /// Copy from a mappable buffer to this GPU buffer with full synchronization.
     ///
-    /// This creates a command encoder to do the copy.
+    /// This function is designed for standalone operations that need guaranteed completion.
+    /// It takes ownership of the source buffer to ensure proper lifetime management,
+    /// creates its own command encoder, submits the command, and waits for GPU completion.
     ///
-    /// This function suspends until the copy operation is completed.
+    /// # Use Cases
+    /// - Static buffer initialization (uploading data once)
+    /// - One-off buffer copies where you need guaranteed completion
+    /// - Operations where you want fire-and-forget semantics
+    ///
+    /// # Contrast with `copy_mappable_to_gpuable_buffer`
+    /// - Takes ownership of source buffer (ensures lifetime safety)
+    /// - Creates its own command encoder and submits immediately
+    /// - Waits for GPU completion before returning (full synchronization)
+    /// - Designed for standalone operations
+    ///
+    /// For batched operations in render pipelines, use `copy_mappable_to_gpuable_buffer` instead.
+    ///
+    /// # Arguments
+    /// * `source` - The mappable buffer to copy from (ownership transferred)
+    /// * `source_offset` - Byte offset in the source buffer
+    /// * `dest_offset` - Byte offset in this buffer
+    /// * `copy_len` - Number of bytes to copy
     pub(crate) async fn copy_from_buffer(
         &self,
         source: MappableBuffer,
@@ -390,12 +443,23 @@ impl GPUableBuffer {
             .expect("Poll failed");
         r.await;
     }
-    /**
-    copies from the source buffer to this buffer
-
-    # Warning
-    This does no resource tracking - ensure that the source buffer is not deallocated before the copy is complete!
-    */
+    /// Internal unsafe buffer copy implementation.
+    ///
+    /// This function records a buffer copy command in the provided command encoder
+    /// without any resource management or synchronization. It's the low-level
+    /// implementation used by `copy_from_buffer`.
+    ///
+    /// # Safety
+    /// - The caller must ensure the source buffer remains alive until the copy operation completes
+    /// - The caller must ensure proper command encoder submission and synchronization
+    /// - No bounds checking is performed on offsets or copy length
+    ///
+    /// # Arguments
+    /// * `source` - The mappable buffer to copy from
+    /// * `source_offset` - Byte offset in the source buffer
+    /// * `dest_offset` - Byte offset in this buffer
+    /// * `copy_len` - Number of bytes to copy
+    /// * `command_encoder` - The command encoder to record the copy operation
     unsafe fn copy_from_buffer_internal(
         &self,
         source: &MappableBuffer,

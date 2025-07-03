@@ -55,7 +55,33 @@ impl<T> BackendSend for T {}
 #[cfg(not(target_arch = "wasm32"))]
 impl<T: Send> BackendSend for T {}
 
-/// Helper function to copy from a mappable buffer to a GPU buffer
+/// Copy from a mappable buffer to a GPU buffer within an existing command encoder.
+///
+/// This function is designed for batched operations in render pipelines where multiple
+/// buffer copies need to be grouped together for efficiency. It records the copy command
+/// in the provided command encoder but does not wait for completion.
+///
+/// # Use Cases
+/// - Dynamic buffer updates during render passes
+/// - Batching multiple buffer copies for performance
+/// - Operations where the caller manages command submission and synchronization
+///
+/// # Contrast with `copy_from_buffer`
+/// - This function uses an existing command encoder (via `CopyInfo`)
+/// - Takes a mutable reference to source (caller manages lifetime)
+/// - Does not wait for GPU completion (fire-and-forget)
+/// - Designed for render pipeline integration
+///
+/// For standalone operations that need guaranteed completion, use
+/// `GPUableBuffer::copy_from_buffer` instead.
+///
+/// # Arguments
+/// * `source` - The mappable buffer to copy from (must remain alive until command submission)
+/// * `dest` - The GPU buffer to copy to
+/// * `source_offset` - Byte offset in the source buffer
+/// * `dest_offset` - Byte offset in the destination buffer  
+/// * `copy_len` - Number of bytes to copy
+/// * `copy_info` - Contains the command encoder to record the copy operation
 pub fn copy_mappable_to_gpuable_buffer(
     source: &mut MappableBuffer,
     dest: &GPUableBuffer,
