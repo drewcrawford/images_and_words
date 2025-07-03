@@ -31,8 +31,9 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use app_window::wgpu::WgpuCell;
+use send_cells::SyncCell;
 use std::mem::MaybeUninit;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use wgpu::MapMode;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label};
 
@@ -42,31 +43,33 @@ This function takes owned/cloned data that can be moved across thread boundaries
 */
 async fn copy_buffer_data_threadsafe(
     internal_buffer_data: Box<[u8]>,
-    wgpu_buffer: Arc<Mutex<WgpuCell<wgpu::Buffer>>>,
+    wgpu_buffer: Arc<SyncCell<WgpuCell<wgpu::Buffer>>>,
     bound_device: Arc<BoundDevice>,
 ) {
     logwise::perfwarn_begin!("copy_buffer_data_threadsafe");
     let specified_length = internal_buffer_data.len() as u64;
     let (s, r) = r#continue::continuation();
-    let wgpu_lock = wgpu_buffer.lock().unwrap();
-
-    wgpu_lock.map_async(MapMode::Write, 0..specified_length, |c| {
-        logwise::warn_sync!("In callback");
-        c.unwrap();
-        s.send(());
+    wgpu_buffer.with(|wgpu_cell| {
+        wgpu_cell.map_async(MapMode::Write, 0..specified_length, |c| {
+            logwise::warn_sync!("In callback");
+            c.unwrap();
+            s.send(());
+        });
     });
     // Signal the polling thread that we need to poll
     bound_device.0.set_needs_poll();
     r.await;
     logwise::warn_sync!("Resuming from await");
-    let mut entire_map = wgpu_lock
-        .get()
-        .slice(0..specified_length)
-        .get_mapped_range_mut();
-    //copy all data
-    entire_map.copy_from_slice(&internal_buffer_data);
-    drop(entire_map);
-    wgpu_lock.get().unmap();
+    wgpu_buffer.with(|wgpu_cell| {
+        let mut entire_map = wgpu_cell
+            .get()
+            .slice(0..specified_length)
+            .get_mapped_range_mut();
+        //copy all data
+        entire_map.copy_from_slice(&internal_buffer_data);
+        drop(entire_map);
+        wgpu_cell.get().unmap();
+    });
 }
 
 /**
@@ -79,7 +82,7 @@ pub struct MappableBuffer {
     internal_buffer: Box<[u8]>,
     //note that wgpu also requires us to use this 'staging' buffer since MAP_WRITE is only
     //compatible with COPY_SRC.
-    wgpu_buffer: Arc<Mutex<WgpuCell<wgpu::Buffer>>>,
+    wgpu_buffer: Arc<SyncCell<WgpuCell<wgpu::Buffer>>>,
     /// Whether the buffer is dirty and needs to be written back to the GPU.
     wgpu_buffer_is_dirty: bool,
 
@@ -88,7 +91,7 @@ pub struct MappableBuffer {
 }
 
 impl MappableBuffer {
-    pub(crate) fn wgpu_buffer(&self) -> &Mutex<WgpuCell<wgpu::Buffer>> {
+    pub(crate) fn wgpu_buffer(&self) -> &SyncCell<WgpuCell<wgpu::Buffer>> {
         &*self.wgpu_buffer
     }
     pub(crate) async fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]>(
@@ -136,10 +139,7 @@ impl MappableBuffer {
             let buffer = move_device
                 .0
                 .wgpu
-                .lock()
-                .unwrap()
-                .device
-                .create_buffer(&descriptor);
+                .with(|wgpu_cell| wgpu_cell.get().device.create_buffer(&descriptor));
             let mut entire_map = buffer
                 .slice(0..requested_size as u64)
                 .get_mapped_range_mut();
@@ -154,7 +154,7 @@ impl MappableBuffer {
         let internal_buffer = Arc::try_unwrap(move_internal_buffer).unwrap();
         Ok(MappableBuffer {
             internal_buffer,
-            wgpu_buffer: Arc::new(Mutex::new(buffer)),
+            wgpu_buffer: Arc::new(SyncCell::new(buffer)),
             bound_device,
             wgpu_buffer_is_dirty: false,
             debug_label: debug_name_2,
@@ -191,12 +191,15 @@ impl MappableBuffer {
         let internal_buffer_data = self.internal_buffer.clone();
         let wgpu_buffer = self.wgpu_buffer.clone();
         let bound_device = self.bound_device.clone();
-        println!("Unmapping buffer: {}", self.debug_label);
+        //we need to wait for the unmap to complete here
+        let (s, r) = r#continue::continuation();
         app_window::wgpu::wgpu_begin_context(async move {
             app_window::wgpu::wgpu_in_context(async move {
                 copy_buffer_data_threadsafe(internal_buffer_data, wgpu_buffer, bound_device).await;
+                s.send(());
             });
         });
+        r.await; //wait for unmap to finish
     }
 
     pub fn byte_len(&self) -> usize {
@@ -242,7 +245,7 @@ A buffer that can (only) be mapped to GPU.
 */
 #[derive(Debug, Clone)]
 pub struct GPUableBuffer {
-    inner: Arc<Mutex<WgpuCell<GPUableBufferInner>>>,
+    inner: Arc<SyncCell<WgpuCell<GPUableBufferInner>>>,
     storage_type: StorageType,
 }
 
@@ -289,10 +292,7 @@ impl GPUableBuffer {
             let buffer = move_device
                 .0
                 .wgpu
-                .lock()
-                .unwrap()
-                .device
-                .create_buffer(&descriptor);
+                .with(|wgpu_cell| wgpu_cell.get().device.create_buffer(&descriptor));
             GPUableBufferInner {
                 buffer,
                 bound_device,
@@ -301,7 +301,7 @@ impl GPUableBuffer {
         .await;
 
         GPUableBuffer {
-            inner: Arc::new(Mutex::new(inner)),
+            inner: Arc::new(SyncCell::new(inner)),
             storage_type,
         }
     }
@@ -316,10 +316,7 @@ impl GPUableBuffer {
                 if bound_device
                     .0
                     .wgpu
-                    .lock()
-                    .unwrap()
-                    .device
-                    .limits()
+                    .with(|wgpu_cell| wgpu_cell.get().device.limits())
                     .max_uniform_buffer_binding_size as usize
                     > size
                 {
@@ -338,16 +335,14 @@ impl GPUableBuffer {
     }
 
     pub(super) fn buffer(&self) -> wgpu::Buffer {
-        let inner = self.inner.lock().unwrap();
-        inner.get().buffer.clone()
+        self.inner.with(|inner| inner.get().buffer.clone())
     }
 
     pub(super) fn with_buffer<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&wgpu::Buffer) -> R,
     {
-        let inner = self.inner.lock().unwrap();
-        f(&inner.get().buffer)
+        self.inner.with(|inner| f(&inner.get().buffer))
     }
     /// Copy from a mappable buffer to this GPU buffer with full synchronization.
     ///
@@ -380,20 +375,16 @@ impl GPUableBuffer {
         dest_offset: usize,
         copy_len: usize,
     ) {
-        let bound_device = {
-            let inner = self.inner.lock().unwrap();
-            inner.get().bound_device.clone()
-        };
+        let bound_device = self.inner.with(|inner| inner.get().bound_device.clone());
 
-        let mut encoder = bound_device
-            .0
-            .wgpu
-            .lock()
-            .unwrap()
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Label::from("wgpu::GPUableBuffer::copy_from_buffer"),
-            });
+        let mut encoder = bound_device.0.wgpu.with(|wgpu_cell| {
+            wgpu_cell
+                .get()
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Label::from("wgpu::GPUableBuffer::copy_from_buffer"),
+                })
+        });
         //safety: we take the source, so nobody can deallocate it
         unsafe {
             self.copy_from_buffer_internal(
@@ -409,20 +400,13 @@ impl GPUableBuffer {
         let _submission_index = bound_device
             .0
             .wgpu
-            .lock()
-            .unwrap()
-            .queue
-            .submit(std::iter::once(command));
+            .with(|wgpu_cell| wgpu_cell.get().queue.submit(std::iter::once(command)));
         let (s, r) = r#continue::continuation();
-        bound_device
-            .0
-            .wgpu
-            .lock()
-            .unwrap()
-            .queue
-            .on_submitted_work_done(|| {
+        bound_device.0.wgpu.with(|wgpu_cell| {
+            wgpu_cell.get().queue.on_submitted_work_done(|| {
                 s.send(());
             });
+        });
         // Signal the polling thread that we need to poll
         bound_device.0.set_needs_poll();
         r.await;
@@ -452,14 +436,17 @@ impl GPUableBuffer {
         copy_len: usize,
         command_encoder: &mut CommandEncoder,
     ) {
-        let inner = self.inner.lock().unwrap();
-        command_encoder.copy_buffer_to_buffer(
-            &source.wgpu_buffer.lock().unwrap().get(),
-            source_offset as u64,
-            &inner.get().buffer,
-            dest_offset as u64,
-            copy_len as u64,
-        );
+        self.inner.with(|inner| {
+            source.wgpu_buffer.with(|source_wgpu_cell| {
+                command_encoder.copy_buffer_to_buffer(
+                    &source_wgpu_cell.get(),
+                    source_offset as u64,
+                    &inner.get().buffer,
+                    dest_offset as u64,
+                    copy_len as u64,
+                );
+            });
+        });
     }
 }
 

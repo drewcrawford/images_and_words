@@ -351,14 +351,15 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             }
         }
 
-        let held_lock = bound_device.0.wgpu.lock().unwrap();
-
-        let texture = held_lock.device.create_texture_with_data(
-            &held_lock.queue,
-            &descriptor,
-            TextureDataOrder::default(),
-            pixel_as_bytes(&src_buf),
-        );
+        let texture = bound_device.0.wgpu.with(|wgpu_cell| {
+            let held_wgpu = wgpu_cell.get();
+            held_wgpu.device.create_texture_with_data(
+                &held_wgpu.queue,
+                &descriptor,
+                TextureDataOrder::default(),
+                pixel_as_bytes(&src_buf),
+            )
+        });
         Ok(Self {
             format: PhantomData,
             imp: texture,
@@ -411,10 +412,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         let texture = bound_device
             .0
             .wgpu
-            .lock()
-            .unwrap()
-            .device
-            .create_texture(&descriptor);
+            .with(|wgpu_cell| wgpu_cell.get().device.create_texture(&descriptor));
         Ok(Self {
             format: PhantomData,
             imp: texture,
@@ -522,30 +520,31 @@ pub(super) fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelF
         .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         .unwrap();
-    let source_buffer_guard = source.imp.wgpu_buffer().lock().unwrap();
-    let source_base = TexelCopyBufferInfoBase {
-        buffer: source_buffer_guard.get(),
-        layout: wgpu::TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(aligned_bytes_per_row),
-            rows_per_image: Some(source.height as u32),
-        },
-    };
-    let dest_base = TexelCopyTextureInfoBase {
-        texture: &dest.imp,
-        mip_level: 0,
-        origin: Default::default(),
-        aspect: Default::default(),
-    };
-    copy_info.command_encoder.copy_buffer_to_texture(
-        source_base,
-        dest_base,
-        Extent3d {
-            width: source.width as u32,
-            height: source.height as u32,
-            depth_or_array_layers: 1,
-        },
-    );
+    source.imp.wgpu_buffer().with(|source_buffer_guard| {
+        let source_base = TexelCopyBufferInfoBase {
+            buffer: source_buffer_guard.get(),
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(aligned_bytes_per_row),
+                rows_per_image: Some(source.height as u32),
+            },
+        };
+        let dest_base = TexelCopyTextureInfoBase {
+            texture: &dest.imp,
+            mip_level: 0,
+            origin: Default::default(),
+            aspect: Default::default(),
+        };
+        copy_info.command_encoder.copy_buffer_to_texture(
+            source_base,
+            dest_base,
+            Extent3d {
+                width: source.width as u32,
+                height: source.height as u32,
+                depth_or_array_layers: 1,
+            },
+        );
+    });
 }
 
 #[derive(Debug, Clone)]

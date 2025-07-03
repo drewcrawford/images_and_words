@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::imp::Error;
 use app_window::wgpu::WgpuCell;
+use send_cells::SyncCell;
+use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread::{self, JoinHandle};
 use wgpu::{Limits, PollType, Trace};
@@ -19,7 +20,7 @@ pub(super) struct Wgpu {
 
 #[derive(Debug)]
 pub struct BoundDevice {
-    pub(crate) wgpu: Arc<Mutex<WgpuCell<Wgpu>>>,
+    pub(crate) wgpu: Arc<SyncCell<WgpuCell<Wgpu>>>,
     #[cfg(not(target_arch = "wasm32"))]
     poll_thread: Option<JoinHandle<()>>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -64,7 +65,7 @@ impl BoundDevice {
             //on non-wasm platforms we should be able to clone out of the cell directly
             let device = wgpu.device.clone();
             let poll_shutdown = Arc::new(AtomicBool::new(false));
-            let wgpu_mutex = Arc::new(Mutex::new(wgpu));
+            let wgpu_mutex = Arc::new(SyncCell::new(wgpu));
             let shutdown_clone = poll_shutdown.clone();
 
             let (poll_sender, poll_receiver): (Sender<()>, Receiver<()>) = mpsc::channel();
@@ -95,7 +96,7 @@ impl BoundDevice {
         #[cfg(target_arch = "wasm32")]
         {
             Ok(BoundDevice {
-                wgpu: Arc::new(wgpu.into()),
+                wgpu: Arc::new(SyncCell::new(wgpu)),
             })
         }
     }
