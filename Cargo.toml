@@ -94,3 +94,4 @@ some_executor = {path = "../some_executor"}
 # for debugging
 wgpu = {path = "../wgpu/wgpu"}
 portable_async_sleep = {path = "../portable_async_sleep"}
+vectormatrix = {path = "../vectormatrix"}

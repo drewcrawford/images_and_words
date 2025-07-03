@@ -33,8 +33,8 @@ use crate::images::BoundDevice;
 use app_window::wgpu::WgpuCell;
 use std::mem::MaybeUninit;
 use std::sync::{Arc, Mutex};
+use wgpu::MapMode;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label};
-use wgpu::{MapMode, PollType};
 
 /**
 Copy buffer data in a thread-safe manner.
@@ -55,18 +55,8 @@ async fn copy_buffer_data_threadsafe(
         c.unwrap();
         s.send(());
     });
-    let poll_status = bound_device
-        .0
-        .wgpu
-        .lock()
-        .unwrap()
-        .device
-        .poll(PollType::Poll) //?
-        .unwrap();
-    println!(
-        "Beginning await with poll status: {:?}",
-        poll_status.is_queue_empty()
-    );
+    // Signal the polling thread that we need to poll
+    bound_device.0.set_needs_poll();
     r.await;
     logwise::warn_sync!("Resuming from await");
     let mut entire_map = wgpu_lock
@@ -416,7 +406,7 @@ impl GPUableBuffer {
         }
 
         let command = encoder.finish();
-        let submission_index = bound_device
+        let _submission_index = bound_device
             .0
             .wgpu
             .lock()
@@ -433,14 +423,8 @@ impl GPUableBuffer {
             .on_submitted_work_done(|| {
                 s.send(());
             });
-        bound_device
-            .0
-            .wgpu
-            .lock()
-            .unwrap()
-            .device
-            .poll(PollType::WaitForSubmissionIndex(submission_index))
-            .expect("Poll failed");
+        // Signal the polling thread that we need to poll
+        bound_device.0.set_needs_poll();
         r.await;
     }
     /// Internal unsafe buffer copy implementation.

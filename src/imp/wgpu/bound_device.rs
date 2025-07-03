@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::imp::Error;
 use app_window::wgpu::WgpuCell;
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use wgpu::{Limits, Trace};
+#[cfg(not(target_arch = "wasm32"))]
+use std::thread::{self, JoinHandle};
+use wgpu::{Limits, PollType, Trace};
 
 #[derive(Debug)]
 pub(super) struct Wgpu {
@@ -13,7 +19,13 @@ pub(super) struct Wgpu {
 
 #[derive(Debug)]
 pub struct BoundDevice {
-    pub(crate) wgpu: Mutex<WgpuCell<Wgpu>>,
+    pub(crate) wgpu: Arc<Mutex<WgpuCell<Wgpu>>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    poll_thread: Option<JoinHandle<()>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    poll_shutdown: Arc<AtomicBool>,
+    #[cfg(not(target_arch = "wasm32"))]
+    poll_trigger: Sender<()>,
 }
 
 impl BoundDevice {
@@ -47,6 +59,70 @@ impl BoundDevice {
             }
         })
         .await;
-        Ok(BoundDevice { wgpu: wgpu.into() })
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            //on non-wasm platforms we should be able to clone out of the cell directly
+            let device = wgpu.device.clone();
+            let poll_shutdown = Arc::new(AtomicBool::new(false));
+            let wgpu_mutex = Arc::new(Mutex::new(wgpu));
+            let shutdown_clone = poll_shutdown.clone();
+
+            let (poll_sender, poll_receiver): (Sender<()>, Receiver<()>) = mpsc::channel();
+
+            let poll_thread = thread::Builder::new()
+                .name("wgpu_poll".to_string())
+                .spawn(move || {
+                    while !shutdown_clone.load(Ordering::Relaxed) {
+                        // Wait for a signal that polling is needed
+                        match poll_receiver.recv() {
+                            Ok(_) => {
+                                // Poll until the queue is empty
+                                let _ = device.poll(PollType::Wait);
+                            }
+                            Err(_) => break, // Channel closed, exit thread
+                        }
+                    }
+                })
+                .expect("Failed to spawn wgpu polling thread");
+
+            Ok(BoundDevice {
+                wgpu: wgpu_mutex,
+                poll_thread: Some(poll_thread),
+                poll_shutdown,
+                poll_trigger: poll_sender,
+            })
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            Ok(BoundDevice {
+                wgpu: Arc::new(wgpu.into()),
+            })
+        }
+    }
+
+    /// Signal the polling thread that GPU work may be ready
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn set_needs_poll(&self) {
+        // Send a signal to the polling thread (ignore if channel is full/closed)
+        let _ = self.poll_trigger.send(());
+    }
+
+    /// No-op on wasm32 where polling is not needed
+    #[cfg(target_arch = "wasm32")]
+    pub fn set_needs_poll(&self) {
+        // On wasm32, polling is handled automatically
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Drop for BoundDevice {
+    fn drop(&mut self) {
+        // Signal the polling thread to shut down
+        self.poll_shutdown.store(true, Ordering::Relaxed);
+
+        // Wait for the polling thread to finish
+        if let Some(handle) = self.poll_thread.take() {
+            let _ = handle.join();
+        }
     }
 }
