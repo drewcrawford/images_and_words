@@ -637,7 +637,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
         )
         .await;
 
-        let multibuffer = Multibuffer::new(cpu, gpu, true);
+        let multibuffer = Multibuffer::new(cpu, gpu, true, config.debug_name.to_string());
         let shared = Arc::new(Shared { multibuffer });
         Self {
             shared,

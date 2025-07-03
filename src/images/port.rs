@@ -335,7 +335,7 @@ impl PortReporterImpl {
                 self.fps.set(fps);
 
                 let min_elapsed_ms = (min_interval * 1000.0) as i32;
-                println!("Calculated min elapsed ms: {}", min_elapsed_ms);
+                // println!("Calculated min elapsed ms: {}", min_elapsed_ms);
                 self.min_elapsed_ms.set(min_elapsed_ms);
             }
 
@@ -620,6 +620,7 @@ impl Port {
         loop {
             let receiver = DirtyAggregateReceiver::new(self.collect_dirty_receivers());
             receiver.wait_for_dirty().await;
+            println!("Rendering frame due to {:?}", receiver.who_is_dirty());
             self.force_render().await;
         }
     }

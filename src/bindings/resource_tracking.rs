@@ -418,7 +418,12 @@ impl<Resource> ResourceTrackerInternal<Resource> {
         Resource: sealed::Mappable,
     {
         unsafe {
+            println!("DEBUG: async_unuse_cpu called on tracker: {:?}", self);
             (*self.resource.get()).unmap().await;
+            println!(
+                "DEBUG: async_unuse_cpu unmap completed for tracker: {:?}",
+                self
+            );
             // Set the flag using raw pointer access since we need to mutate
             let self_mut = self as *const Self as *mut Self;
             (*self_mut).async_dropped = true;

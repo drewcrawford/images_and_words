@@ -31,27 +31,6 @@ where
     buffer: &'a Multibuffer<Element, U>,
 }
 
-impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U>
-where
-    Element: Mappable,
-    U: Clone,
-{
-    fn drop(&mut self) {
-        _ = self.imp.take().expect("Dropped CPUReadGuard already");
-        //wake up the waiting threads
-        // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
-        let wakers_to_send: Vec<r#continue::Sender<()>> = {
-            let mut locked_wake_list = self.buffer.wake_list.lock().unwrap();
-            locked_wake_list.drain(..).collect()
-        }; // MutexGuard is dropped here, so the lock is released.
-
-        // Step 2: Iterate and send notifications *after* the lock is released.
-        for waker in wakers_to_send {
-            waker.send(());
-        }
-    }
-}
-
 impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U>
 where
     Element: Mappable,
@@ -85,6 +64,19 @@ where
 
         for waker in wakers_to_send {
             waker.send(());
+        }
+    }
+}
+
+impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: Clone,
+{
+    fn drop(&mut self) {
+        // If we haven't taken the guard, panic
+        if self.imp.is_some() && !std::thread::panicking() {
+            panic!("Dropped CPUReadGuard without calling async_drop");
         }
     }
 }
@@ -130,9 +122,11 @@ where
     /// This method must be called before the guard is dropped. Failure to call
     /// this method will result in a panic when the guard's Drop implementation runs.
     pub async fn async_drop(mut self) {
+        println!("mb async drop");
         if let Some(inner_guard) = self.imp.take() {
             inner_guard.async_drop().await;
         }
+        println!("dropped underlying guard");
 
         // Mark that GPU side needs updating
         self.buffer.gpu_side_is_dirty.mark_dirty(true);
@@ -145,6 +139,20 @@ where
 
         for waker in wakers_to_send {
             waker.send(());
+        }
+        println!("finished async drop");
+    }
+}
+
+impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U>
+where
+    Element: Mappable,
+    U: Clone,
+{
+    fn drop(&mut self) {
+        // If we haven't taken the guard, panic
+        if self.imp.is_some() && !std::thread::panicking() {
+            panic!("Dropped CPUWriteGuard without calling async_drop");
         }
     }
 }
@@ -217,7 +225,7 @@ where
     T: Mappable,
     U: Clone,
 {
-    pub fn new(element: T, gpu: U, initial_write_to_gpu: bool) -> Self {
+    pub fn new(element: T, gpu: U, initial_write_to_gpu: bool, debug_label: String) -> Self {
         let tracker = ResourceTracker::new(element, initial_write_to_gpu);
         // Don't immediately lock for GPU - start in UNUSED state
         // The resource will transition to PENDING_WRITE_TO_GPU when first written
@@ -226,7 +234,7 @@ where
             mappable: tracker,
             gpu,
             wake_list: Arc::new(Mutex::new(Vec::new())),
-            gpu_side_is_dirty: DirtySender::new(false),
+            gpu_side_is_dirty: DirtySender::new(false, debug_label),
         }
     }
 
@@ -294,6 +302,7 @@ where
             Ok(gpu_guard) => {
                 // Resource was in PENDING_WRITE_TO_GPU state, need to copy
                 self.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
+                println!("Multibuffer: GPU resource is dirty, copying to GPU");
 
                 // TODO: This copy will be pushed down to the callers
                 // Previously: copy_from_buffer(0, 0, gpu_guard.byte_len(), copy_info, gpu_guard)
@@ -307,6 +316,7 @@ where
             }
             Err(_) => {
                 // Resource is not in PENDING_WRITE_TO_GPU state, no copy needed
+                println!("Multibuffer: GPU resource is not dirty, no copy needed");
                 GPUGuard {
                     wake_list: self.wake_list.clone(),
                     dirty_guard: None,

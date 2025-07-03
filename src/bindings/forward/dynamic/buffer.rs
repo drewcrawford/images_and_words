@@ -553,7 +553,12 @@ impl<Element> Buffer<Element> {
 
         Ok(Self {
             shared: Arc::new(Shared {
-                multibuffer: Multibuffer::new(mappable_buffer, gpu_buffer, true),
+                multibuffer: Multibuffer::new(
+                    mappable_buffer,
+                    gpu_buffer,
+                    true,
+                    debug_name.to_string(),
+                ),
             }),
             count: size,
             debug_name: debug_name.to_string(),

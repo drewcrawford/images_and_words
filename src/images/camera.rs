@@ -42,7 +42,7 @@ impl Camera {
         );
         Self {
             shared: Arc::new(Mutex::new(Shared {
-                dirty_sender: DirtySender::new(false),
+                dirty_sender: DirtySender::new(false, "projection_dirty"),
                 window_size_scale: window_size,
                 camera_position: initial_position,
                 projection: initial_projection,
