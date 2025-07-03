@@ -56,15 +56,12 @@
 use crate::entry_point::EntryPoint;
 #[cfg(feature = "app_window")]
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
+use send_cells::UnsafeSendCell;
 
 #[derive(Debug)]
 enum OSImpl {
     #[cfg(feature = "app_window")]
-    AppWindow(
-        app_window::surface::Surface,
-        RawWindowHandle,
-        RawDisplayHandle,
-    ),
+    AppWindow(app_window::surface::Surface),
     #[cfg(any(test, feature = "testing"))]
     Testing,
 }
@@ -136,8 +133,8 @@ impl View {
         {
             let (_window_handle, _display_handle): (RawWindowHandle, RawDisplayHandle) =
                 match &self.os_impl {
-                    OSImpl::AppWindow(_, window_handle, display_handle) => {
-                        (*window_handle, *display_handle)
+                    OSImpl::AppWindow(surface) => {
+                        (surface.raw_window_handle(), surface.raw_display_handle())
                     }
                     #[cfg(any(test, feature = "testing"))]
                     OSImpl::Testing => {
@@ -147,7 +144,11 @@ impl View {
                 };
             self.imp = Some(
                 unsafe {
-                    crate::imp::View::from_surface(_entry_point, _window_handle, _display_handle)
+                    crate::imp::View::from_surface(
+                        _entry_point,
+                        UnsafeSendCell::new(_window_handle),
+                        UnsafeSendCell::new(_display_handle),
+                    )
                 }
                 .await?,
             );
@@ -185,7 +186,7 @@ impl View {
         #[cfg(feature = "app_window")]
         {
             match &self.os_impl {
-                OSImpl::AppWindow(surface, _, _) => {
+                OSImpl::AppWindow(surface) => {
                     let (size, scale) = surface.size_main();
                     (size.width() as u16, size.height() as u16, scale)
                 }
@@ -241,10 +242,8 @@ impl View {
     /// This method is only available when the `app_window` feature is enabled.
     #[cfg(feature = "app_window")]
     pub fn from_surface(surface: app_window::surface::Surface) -> Result<Self, Error> {
-        let handle = surface.raw_window_handle();
-        let display_handle = surface.raw_display_handle();
         Ok(View {
-            os_impl: OSImpl::AppWindow(surface, handle, display_handle),
+            os_impl: OSImpl::AppWindow(surface),
             imp: None,
         })
     }

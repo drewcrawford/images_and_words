@@ -122,20 +122,24 @@ where
     /// This method must be called before the guard is dropped. Failure to call
     /// this method will result in a panic when the guard's Drop implementation runs.
     pub async fn async_drop(mut self) {
-        logwise::info_sync!("mb async drop {f}", f = self.buffer.debug_label.clone());
+        let t = logwise::perfwarn_begin!("mb async drop");
+
+        // logwise::info_sync!("mb async drop {f}", f = self.buffer.debug_label.clone());
         if let Some(inner_guard) = self.imp.take() {
+            let t = logwise::perfwarn_begin!("mb inner_guard async_drop");
             inner_guard.async_drop().await;
+            drop(t);
         }
-        logwise::info_sync!(
-            "dropped underlying guard {f}",
-            f = self.buffer.debug_label.clone()
-        );
+        // logwise::info_sync!(
+        //     "dropped underlying guard {f}",
+        //     f = self.buffer.debug_label.clone()
+        // );
 
         // Mark that GPU side needs updating
-        logwise::info_sync!(
-            "marking gpu side dirty for {f}",
-            f = self.buffer.debug_label.clone()
-        );
+        // logwise::info_sync!(
+        //     "marking gpu side dirty for {f}",
+        //     f = self.buffer.debug_label.clone()
+        // );
         self.buffer.gpu_side_is_dirty.mark_dirty(true);
 
         // Handle the wake list notifications
@@ -147,10 +151,11 @@ where
         for waker in wakers_to_send {
             waker.send(());
         }
-        logwise::info_sync!(
-            "finished async drop for {f}",
-            f = self.buffer.debug_label.clone()
-        );
+        // logwise::info_sync!(
+        //     "finished async drop for {f}",
+        //     f = self.buffer.debug_label.clone()
+        // );
+        drop(t);
     }
 }
 
@@ -285,6 +290,11 @@ where
             let r = self.mappable.cpu_write().await;
             match r {
                 Ok(guard) => {
+                    //before anything else, clear our dirty bit.
+                    //this is because we might be reaquiring the same buffer after a previous write.
+                    //use of this buffer will probably require the WGPU context, and we don't want it
+                    //to get stuck trying to copy this.
+                    self.gpu_side_is_dirty.mark_dirty(false);
                     //Someone else will send a nonsense value to the sender later, that's fine.
                     return CPUWriteGuard {
                         imp: Some(guard),
@@ -331,10 +341,10 @@ where
             }
             Err(_) => {
                 // Resource is not in PENDING_WRITE_TO_GPU state, no copy needed
-                logwise::info_sync!(
-                    "Multibuffer: GPU resource {f} not dirty, no copy needed",
-                    f = self.debug_label.clone()
-                );
+                // logwise::info_sync!(
+                //     "Multibuffer: GPU resource {f} not dirty, no copy needed",
+                //     f = self.debug_label.clone()
+                // );
                 GPUGuard {
                     wake_list: self.wake_list.clone(),
                     dirty_guard: None,

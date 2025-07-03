@@ -63,7 +63,8 @@ impl BoundDevice {
         #[cfg(not(target_arch = "wasm32"))]
         {
             //on non-wasm platforms we should be able to clone out of the cell directly
-            let device = wgpu.device.clone();
+            let jailbreak = unsafe { wgpu.get_unchecked() }.clone();
+            let device = jailbreak.device.clone();
             let poll_shutdown = Arc::new(AtomicBool::new(false));
             let wgpu_mutex = Arc::new(SyncCell::new(wgpu));
             let shutdown_clone = poll_shutdown.clone();

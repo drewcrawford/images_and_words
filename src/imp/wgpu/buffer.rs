@@ -30,7 +30,7 @@
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
-use app_window::wgpu::{WgpuCell, wgpu_begin_context, wgpu_in_context};
+use app_window::wgpu::{WgpuCell, wgpu_begin_context, wgpu_in_context, wgpu_smuggle};
 use send_cells::SyncCell;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
@@ -46,11 +46,11 @@ async fn copy_buffer_data_threadsafe(
     wgpu_buffer: Arc<SyncCell<WgpuCell<wgpu::Buffer>>>,
     bound_device: Arc<BoundDevice>,
 ) {
-    logwise::info_sync!(
-        "copy_buffer_data_threadsafe called with {f} bytes",
-        f = internal_buffer_data.len()
-    );
-    logwise::perfwarn_begin!("copy_buffer_data_threadsafe");
+    // logwise::info_sync!(
+    //     "copy_buffer_data_threadsafe called with {f} bytes",
+    //     f = internal_buffer_data.len()
+    // );
+    let copy = logwise::perfwarn_begin!("copy_buffer_data_threadsafe");
     let specified_length = internal_buffer_data.len() as u64;
     let (s, r) = r#continue::continuation();
     wgpu_buffer.with(|wgpu_cell| {
@@ -62,9 +62,9 @@ async fn copy_buffer_data_threadsafe(
     });
     // Signal the polling thread that we need to poll
     bound_device.0.set_needs_poll();
-    logwise::info_sync!("will await");
+    //logwise::info_sync!("will await");
     r.await;
-    logwise::warn_sync!("Resuming from await");
+    //logwise::warn_sync!("Resuming from await");
     wgpu_buffer.with(|wgpu_cell| {
         let mut entire_map = wgpu_cell
             .get()
@@ -75,6 +75,7 @@ async fn copy_buffer_data_threadsafe(
         drop(entire_map);
         wgpu_cell.get().unmap();
     });
+    drop(copy);
 }
 
 /**
@@ -187,10 +188,11 @@ impl MappableBuffer {
         //since we use a CPU view, this is a no-op
     }
     pub async fn unmap(&mut self) {
-        logwise::info_sync!(
-            "wgpu::MappableBuffer::unmap called on {f}",
-            f = self.debug_label.clone()
-        );
+        let unmap_perf = logwise::perfwarn_begin!("wgpu::MappableBuffer::unmap");
+        // logwise::info_sync!(
+        //     "wgpu::MappableBuffer::unmap called on {f}",
+        //     f = self.debug_label.clone()
+        // );
         if !self.wgpu_buffer_is_dirty {
             return;
         }
@@ -202,22 +204,30 @@ impl MappableBuffer {
         let bound_device = self.bound_device.clone();
         //we need to wait for the unmap to complete here
         let (s, r) = r#continue::continuation();
+        let context_calls = logwise::perfwarn_begin!("wgpu::MappableBuffer::context calls");
+        let begin_context_begun = logwise::perfwarn_begin!("wgpu::MappableBuffer::begin_context");
+        let begin_in_context = logwise::perfwarn_begin!("wgpu::MappableBuffer::in_context");
         app_window::wgpu::wgpu_begin_context(async move {
+            drop(begin_context_begun);
             app_window::wgpu::wgpu_in_context(async move {
+                drop(begin_in_context);
                 copy_buffer_data_threadsafe(internal_buffer_data, wgpu_buffer, bound_device).await;
                 s.send(());
             });
         });
-        logwise::info_sync!(
-            "wgpu::MappableBuffer::unmap awaiting... on {f}",
-            f = self.debug_label.clone()
-        );
-
+        drop(context_calls);
+        // logwise::info_sync!(
+        //     "wgpu::MappableBuffer::unmap awaiting... on {f}",
+        //     f = self.debug_label.clone()
+        // );
+        let await_perf = logwise::perfwarn_begin!("wgpu::MappableBuffer::unmap await");
         r.await; //wait for unmap to finish
-        logwise::info_sync!(
-            "wgpu::MappableBuffer::unmap finished on {f}",
-            f = self.debug_label.clone()
-        );
+        drop(await_perf);
+        // logwise::info_sync!(
+        //     "wgpu::MappableBuffer::unmap finished on {f}",
+        //     f = self.debug_label.clone()
+        // );
+        drop(unmap_perf);
     }
 
     pub fn byte_len(&self) -> usize {
@@ -340,24 +350,28 @@ impl GPUableBuffer {
         usage: GPUBufferUsage,
         debug_name: &str,
     ) -> Self {
-        let storage_type = match usage {
-            GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
-                if bound_device
-                    .0
-                    .wgpu
-                    .with(|wgpu_cell| wgpu_cell.get().device.limits())
-                    .max_uniform_buffer_binding_size as usize
-                    > size
-                {
-                    StorageType::Uniform
-                } else {
-                    StorageType::Storage
+        let debug_name = debug_name.to_string();
+        wgpu_smuggle(move || async move {
+            let storage_type = match usage {
+                GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
+                    if bound_device
+                        .0
+                        .wgpu
+                        .with(|wgpu_cell| wgpu_cell.get().device.limits())
+                        .max_uniform_buffer_binding_size as usize
+                        > size
+                    {
+                        StorageType::Uniform
+                    } else {
+                        StorageType::Storage
+                    }
                 }
-            }
-            GPUBufferUsage::VertexBuffer => StorageType::Vertex,
-            GPUBufferUsage::Index => StorageType::Index,
-        };
-        Self::new_imp(bound_device, size, debug_name, storage_type).await
+                GPUBufferUsage::VertexBuffer => StorageType::Vertex,
+                GPUBufferUsage::Index => StorageType::Index,
+            };
+            Self::new_imp(bound_device, size, &debug_name, storage_type).await
+        })
+        .await
     }
     pub(super) fn storage_type(&self) -> StorageType {
         self.storage_type

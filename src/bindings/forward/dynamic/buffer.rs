@@ -288,6 +288,7 @@ impl<Element> CPUWriteAccess<'_, Element> {
     /// This method must be called before the guard is dropped. Failure to call
     /// this method will result in a panic when the guard's Drop implementation runs.
     pub async fn async_drop(self) {
+        let _ = logwise::perfwarn_begin!("dynamic buffer async_drop");
         self.guard.async_drop().await;
     }
 }

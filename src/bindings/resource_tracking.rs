@@ -417,13 +417,10 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     where
         Resource: sealed::Mappable,
     {
+        let interval = logwise::perfwarn_begin!("rt async_unuse_cpu");
         unsafe {
-            println!("DEBUG: async_unuse_cpu called on tracker: {:?}", self);
             (*self.resource.get()).unmap().await;
-            println!(
-                "DEBUG: async_unuse_cpu unmap completed for tracker: {:?}",
-                self
-            );
+
             self.async_dropped.store(true, Ordering::Relaxed);
             let old_state = self
                 .state
@@ -442,6 +439,8 @@ impl<Resource> ResourceTrackerInternal<Resource> {
                 "Resource was not in CPU use"
             );
         }
+        logwise::info_sync!("DEBUG: async_unuse_cpu finished on tracker");
+        drop(interval);
     }
 
     /// Releases CPU access to the resource
