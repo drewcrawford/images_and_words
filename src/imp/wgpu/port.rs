@@ -100,7 +100,7 @@ impl<T> RenderInput<T> {
 }
 
 #[derive(Debug)]
-pub struct Port {
+pub struct PortInternal {
     engine: Arc<crate::images::Engine>,
     pass_config: RenderInput<PassConfig>,
     prepared_passes: Vec<PreparedPass>,
@@ -793,7 +793,7 @@ impl BindGroupGuard {
     }
 }
 
-impl Port {
+impl PortInternal {
     pub(crate) async fn new(
         engine: &Arc<crate::images::Engine>,
         view: crate::images::view::View,
@@ -854,7 +854,7 @@ impl Port {
                 WgpuCell::new(s)
             })
             .await;
-        Ok(Port {
+        Ok(PortInternal {
             engine: engine.clone(),
             camera_buffer,
             camera,
@@ -1198,12 +1198,6 @@ impl Port {
             self.pass_config.requested.pass_descriptors.len()
         );
     }
-    pub async fn render_frame(&mut self) {
-        wgpu_smuggle(|| async move {
-            self.render_frame_internal().await;
-        })
-        .await
-    }
     async fn render_frame_internal(&mut self) {
         self.update_camera_buffer().await;
         //basically we want to bunch up all our awaits here,
@@ -1462,5 +1456,42 @@ impl Port {
             depth_dump_buf,
             depth_dump_buff_bytes_per_row,
         );
+    }
+}
+
+#[derive(Debug)]
+pub struct Port {
+    internal: Option<PortInternal>,
+}
+
+impl Port {
+    pub(crate) async fn new(
+        engine: &Arc<crate::images::Engine>,
+        view: crate::images::view::View,
+        camera: Camera,
+        port_reporter_send: PortReporterSend,
+    ) -> Result<Self, Error> {
+        let internal = PortInternal::new(engine, view, camera, port_reporter_send).await?;
+        Ok(Port {
+            internal: Some(internal),
+        })
+    }
+
+    pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
+        self.internal
+            .as_mut()
+            .expect("Port internal missing")
+            .add_fixed_pass(descriptor)
+            .await;
+    }
+
+    pub async fn render_frame(&mut self) {
+        let mut internal = self.internal.take().expect("Port internal missing");
+        internal = wgpu_smuggle(|| async move {
+            internal.render_frame_internal().await;
+            internal
+        })
+        .await;
+        self.internal = Some(internal);
     }
 }
