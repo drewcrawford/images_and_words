@@ -8,6 +8,7 @@ use crate::imp::{Error, MappableBuffer};
 use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
 use crate::pixel_formats::pixel_as_bytes;
 use crate::pixel_formats::sealed::PixelFormat;
+use app_window::wgpu::WgpuCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -206,7 +207,7 @@ Design note, we want to track the format in types here.  For a format-less versi
 */
 pub struct GPUableTexture<Format> {
     format: PhantomData<Format>,
-    imp: wgpu::Texture,
+    imp: WgpuCell<wgpu::Texture>,
     width: u32,
     height: u32,
     debug_name: String,
@@ -250,6 +251,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             config.visible_to,
             config.mipmaps,
         );
+        //config is quite annoying to use
         //todo: could optimize probably?
         let pixels = config.width as usize * config.height as usize;
         let mut src_buf = Vec::with_capacity(pixels);
@@ -351,15 +353,35 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
             }
         }
 
-        let texture = bound_device.0.wgpu.with(|wgpu_cell| {
-            let held_wgpu = wgpu_cell.get();
-            held_wgpu.device.create_texture_with_data(
-                &held_wgpu.queue,
-                &descriptor,
-                TextureDataOrder::default(),
-                pixel_as_bytes(&src_buf),
-            )
-        });
+        let move_device_cell = bound_device.0.device.clone();
+        let move_queue_cell = bound_device.0.queue.clone();
+        //texture descriptor has internal references so porting it is a bit tricky
+        let debug_name = config.debug_name.to_string();
+        let config_width = config.width;
+        let config_height = config.height;
+        let config_visible_to = config.visible_to;
+        let config_mipmaps = config.mipmaps;
+
+        let texture = move_device_cell
+            .with(move |device| {
+                move_queue_cell.assume(move |q| {
+                    let descriptor = Self::get_descriptor(
+                        &debug_name,
+                        config_width,
+                        config_height,
+                        config.visible_to,
+                        config.mipmaps,
+                    );
+                    let texture = device.create_texture_with_data(
+                        q,
+                        &descriptor,
+                        TextureDataOrder::default(),
+                        pixel_as_bytes(&src_buf),
+                    );
+                    WgpuCell::new(texture)
+                })
+            })
+            .await;
         Ok(Self {
             format: PhantomData,
             imp: texture,
@@ -402,20 +424,31 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         bound_device: &crate::images::BoundDevice,
         config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
-        let descriptor = Self::get_descriptor(
-            config.debug_name,
-            config.width,
-            config.height,
-            config.visible_to,
-            config.mipmaps,
-        );
-        let texture = bound_device
+        let config_debug_name = config.debug_name.to_string();
+        let config_width = config.width;
+        let config_height = config.height;
+        let config_visible_to = config.visible_to;
+        let config_mipmaps = config.mipmaps;
+
+        let cell = bound_device
             .0
-            .wgpu
-            .with(|wgpu_cell| wgpu_cell.get().device.create_texture(&descriptor));
+            .device
+            .with(move |device| {
+                let descriptor = Self::get_descriptor(
+                    &config_debug_name,
+                    config_width,
+                    config_height,
+                    config_visible_to,
+                    config_mipmaps,
+                );
+                let texture = device.create_texture(&descriptor);
+                WgpuCell::new(texture)
+            })
+            .await;
+
         Ok(Self {
             format: PhantomData,
-            imp: texture,
+            imp: cell,
             width: config.width as u32,
             height: config.height as u32,
             debug_name: config.debug_name.to_string(),
@@ -520,36 +553,38 @@ pub(super) fn copy_texture_internal<Format: crate::pixel_formats::sealed::PixelF
         .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
         .unwrap();
-    source.imp.wgpu_buffer().with(|source_buffer_guard| {
+    source.imp.wgpu_buffer().assume(|source_buffer_guard| {
         let source_base = TexelCopyBufferInfoBase {
-            buffer: source_buffer_guard.get(),
+            buffer: source_buffer_guard,
             layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(aligned_bytes_per_row),
                 rows_per_image: Some(source.height as u32),
             },
         };
-        let dest_base = TexelCopyTextureInfoBase {
-            texture: &dest.imp,
-            mip_level: 0,
-            origin: Default::default(),
-            aspect: Default::default(),
-        };
-        copy_info.command_encoder.copy_buffer_to_texture(
-            source_base,
-            dest_base,
-            Extent3d {
-                width: source.width as u32,
-                height: source.height as u32,
-                depth_or_array_layers: 1,
-            },
-        );
+        dest.imp.assume(|imp| {
+            let dest_base = TexelCopyTextureInfoBase {
+                texture: imp,
+                mip_level: 0,
+                origin: Default::default(),
+                aspect: Default::default(),
+            };
+            copy_info.command_encoder.copy_buffer_to_texture(
+                source_base,
+                dest_base,
+                Extent3d {
+                    width: source.width as u32,
+                    height: source.height as u32,
+                    depth_or_array_layers: 1,
+                },
+            );
+        });
     });
 }
 
 #[derive(Debug, Clone)]
 pub struct RenderSide {
-    pub(super) texture: wgpu::Texture,
+    pub(super) texture: WgpuCell<wgpu::Texture>,
 }
 
 impl PartialEq for RenderSide {

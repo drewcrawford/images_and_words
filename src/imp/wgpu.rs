@@ -90,13 +90,15 @@ pub fn copy_mappable_to_gpuable_buffer(
     copy_len: usize,
     copy_info: &mut CopyInfo<'_>,
 ) {
-    source.wgpu_buffer().with(|source_buffer_guard| {
-        copy_info.command_encoder.copy_buffer_to_buffer(
-            source_buffer_guard.get(),
-            source_offset as u64,
-            &dest.buffer(),
-            dest_offset as u64,
-            copy_len as u64,
-        );
+    source.wgpu_buffer().assume(move |source_buffer_guard| {
+        dest.buffer().assume(move |dest_buffer_guard| {
+            copy_info.command_encoder.copy_buffer_to_buffer(
+                source_buffer_guard,
+                source_offset as u64,
+                dest_buffer_guard,
+                dest_offset as u64,
+                copy_len as u64,
+            );
+        });
     });
 }

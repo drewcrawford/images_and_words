@@ -12,6 +12,7 @@ use crate::imp;
 use crate::imp::wgpu::buffer::StorageType;
 use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
+use app_window::wgpu::WgpuCell;
 use send_cells::send_cell::SendCell;
 use std::collections::HashMap;
 use std::num::NonZero;
@@ -110,7 +111,7 @@ pub struct Port {
     scaled_size: RenderInput<Option<(u32, u32)>>,
     camera_buffer: Buffer<CameraProjection>,
     camera: Camera,
-    mipmapped_sampler: wgpu::Sampler,
+    mipmapped_sampler: WgpuCell<wgpu::Sampler>,
 }
 
 /**
@@ -134,7 +135,7 @@ impl PreparedPass {
         descriptor: PassDescriptor,
         enable_depth: bool,
         camera_buffer: &Buffer<CameraProjection>,
-        mipmapped_sampler: &wgpu::Sampler,
+        mipmapped_sampler: &WgpuCell<wgpu::Sampler>,
         copy_info: &mut CopyInfo<'_>,
         pass_config: &PassConfig,
     ) -> PreparedPass {
@@ -170,7 +171,7 @@ impl PreparedPass {
                     BindingType::Buffer {
                         ty: buffer_binding_type,
                         has_dynamic_offset: false,
-                        min_binding_size: NonZero::new(imp.with_buffer(|buffer| buffer.size())),
+                        min_binding_size: NonZero::new(imp.buffer().assume(|b| b.size())),
                     }
                 }
                 BindTarget::Camera => {
@@ -223,37 +224,28 @@ impl PreparedPass {
         }
         // println!("Will create bind group layout {:?}", layouts);
 
-        let bind_group_layout = bind_device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell
-                .get()
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some(descriptor.name()),
-                    entries: layouts.as_slice(),
-                })
+        let bind_group_layout = bind_device.0.device.assume(|device| {
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some(descriptor.name()),
+                entries: layouts.as_slice(),
+            })
         });
 
-        let pipeline_layout = bind_device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell
-                .get()
-                .device
-                .create_pipeline_layout(&PipelineLayoutDescriptor {
-                    label: Some(descriptor.name()),
-                    bind_group_layouts: &[&bind_group_layout],
-                    push_constant_ranges: &[], //not yet supported
-                })
+        let pipeline_layout = bind_device.0.device.assume(|device| {
+            device.create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: Some(descriptor.name()),
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[], //not yet supported
+            })
         });
 
-        let vertex_module = bind_device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell
-                .get()
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some(descriptor.vertex_shader.label),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        &descriptor.vertex_shader.wgsl_code,
-                    )),
-                })
+        let vertex_module = bind_device.0.device.assume(|device| {
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(descriptor.vertex_shader.label),
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                    &descriptor.vertex_shader.wgsl_code,
+                )),
+            })
         });
 
         //calculate vertex buffers
@@ -349,16 +341,13 @@ impl PreparedPass {
             alpha_to_coverage_enabled: false,
         };
 
-        let fragment_module = bind_device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell
-                .get()
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some(descriptor.fragment_shader.label),
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        &descriptor.fragment_shader.wgsl_code,
-                    )),
-                })
+        let fragment_module = bind_device.0.device.assume(|device| {
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(descriptor.fragment_shader.label),
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                    &descriptor.fragment_shader.wgsl_code,
+                )),
+            })
         });
         let blend = if descriptor.alpha {
             Some(BlendState::ALPHA_BLENDING)
@@ -391,12 +380,10 @@ impl PreparedPass {
             multiview: None,
             cache: None, //todo, caching?
         };
-        let pipeline = bind_device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell
-                .get()
-                .device
-                .create_render_pipeline(&render_descriptor)
-        });
+        let pipeline = bind_device
+            .0
+            .device
+            .assume(|device| device.create_render_pipeline(&render_descriptor));
 
         // Create the BindGroupGuard using the constructed bind_group_layout
         let (bind_group_guard, acquired_guards) = BindGroupGuard::new(
@@ -440,7 +427,7 @@ pub struct AcquiredGuards {
     buffer_guards: HashMap<u32, Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
     _copy_guards: Vec<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
     // Texture guards, keyed by bind index
-    texture_guards: HashMap<u32, crate::bindings::forward::dynamic::frame_texture::GPUAccess>,
+    texture_guards: HashMap<u32, Arc<crate::bindings::forward::dynamic::frame_texture::GPUAccess>>,
     // Texture copy guards that need to be kept alive during GPU operations
     _texture_copy_guards: Vec<Box<dyn crate::bindings::forward::dynamic::frame_texture::DynGuard>>,
     camera_guard: Option<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
@@ -552,7 +539,7 @@ impl AcquiredGuards {
                         texture_copy_guards.push(dirty_guard);
                     }
 
-                    texture_guards.insert(*bind_index, gpu_access);
+                    texture_guards.insert(*bind_index, Arc::new(gpu_access));
                 }
 
                 _ => {} // Other targets handled later
@@ -578,12 +565,13 @@ pub struct BindGroupGuard {
     bind_group: BindGroup,
     #[allow(dead_code)] // guards keep resources alive during GPU execution
     guards: Vec<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
-    vertex_buffers: Vec<(u32, wgpu::Buffer)>,
+    guards_textures: Vec<Arc<crate::bindings::forward::dynamic::frame_texture::GPUAccess>>,
+    vertex_buffers: Vec<(u32, WgpuCell<wgpu::Buffer>)>,
     dynamic_vertex_buffers: Vec<(
         u32,
         Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>,
     )>,
-    index_buffer: Option<wgpu::Buffer>,
+    index_buffer: Option<WgpuCell<wgpu::Buffer>>,
 }
 
 impl BindGroupGuard {
@@ -593,16 +581,25 @@ impl BindGroupGuard {
         bind_style: &crate::bindings::bind_style::BindStyle,
         name: &str,
         bind_group_layout: &wgpu::BindGroupLayout,
-        mipmapped_sampler: &wgpu::Sampler,
+        mipmapped_sampler: &WgpuCell<wgpu::Sampler>,
         acquired_guards: &mut AcquiredGuards,
         _copy_info: &mut CopyInfo,
     ) -> Self {
         let mut entries = Vec::new();
-        let build_buffers = StableAddressVec::with_capactiy(5);
-        let build_texture_views = StableAddressVec::with_capactiy(5);
+        //these need to be kept alive during GPU execution
+        let build_dynamic_buffers_gpu = StableAddressVec::with_capactiy(5);
+        let build_dynamic_textures_gpu = StableAddressVec::with_capactiy(5);
 
-        let gpu_guard_buffers = StableAddressVec::with_capactiy(5);
-        let gpu_guard_textures = StableAddressVec::with_capactiy(5);
+        //these are only used for the bind group
+        let build_static_texture_views = StableAddressVec::with_capactiy(5);
+        let mut build_static_buffers = StableAddressVec::with_capactiy(5);
+        let mut build_dynamic_texture_views = StableAddressVec::with_capactiy(5);
+
+        let mut clone_buffers = StableAddressVec::with_capactiy(5);
+
+        let mut camera_buffers = StableAddressVec::with_capactiy(5);
+
+        let sampler_guards = StableAddressVec::with_capactiy(5);
 
         for (pass_index, info) in &bind_style.binds {
             let resource = match &info.target {
@@ -612,34 +609,36 @@ impl BindGroupGuard {
                         .buffer_guards
                         .remove(pass_index)
                         .expect("Dynamic buffer guard should be in acquired_guards");
-                    let stored_guard = gpu_guard_buffers.push(build_buffer);
-                    let gpu_buffer = stored_guard.gpu_buffer.buffer();
-                    let stored_buffer = build_buffers.push(gpu_buffer);
+                    let guard = build_dynamic_buffers_gpu.push(build_buffer);
+                    let clone_buffer = clone_buffers.push(
+                        guard
+                            .gpu_buffer
+                            .buffer()
+                            .clone()
+                            .assume(|wgpu_guard| wgpu_guard.clone()),
+                    );
                     BindingResource::Buffer(BufferBinding {
-                        buffer: stored_buffer,
+                        buffer: clone_buffer,
                         offset: 0,
                         size: Some(NonZero::new(buf.byte_size as u64).unwrap()),
                     })
                 }
                 BindTarget::StaticBuffer(buf) => {
-                    let gpu_buffer = buf.buffer();
-                    let stored_buffer = build_buffers.push(gpu_buffer);
+                    let gpu_buffer = buf.buffer().lock();
+                    let stored_buffer = build_static_buffers.push(gpu_buffer);
                     BindingResource::Buffer(BufferBinding {
                         buffer: stored_buffer,
                         offset: 0,
-                        size: Some(NonZero::new(buf.with_buffer(|buffer| buffer.size())).unwrap()),
+                        size: Some(NonZero::new(stored_buffer.size()).unwrap()),
                     })
                 }
                 BindTarget::Camera => {
-                    let gpu_buffer = acquired_guards
-                        .camera_guard
-                        .as_ref()
-                        .expect("camera")
-                        .gpu_buffer
-                        .buffer();
-                    let stored_buffer = build_buffers.push(gpu_buffer);
+                    let gpu_buffer = acquired_guards.camera_guard.as_ref().unwrap().clone();
+                    let stored_buffer = build_dynamic_buffers_gpu.push(gpu_buffer);
+                    let camera_clone = stored_buffer.gpu_buffer.buffer().assume(|e| e.clone());
+                    let camera_clone = camera_buffers.push(camera_clone);
                     BindingResource::Buffer(BufferBinding {
-                        buffer: stored_buffer,
+                        buffer: &camera_clone,
                         offset: 0,
                         size: Some(
                             NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap(),
@@ -650,8 +649,8 @@ impl BindGroupGuard {
                     todo!()
                 }
                 BindTarget::StaticTexture(texture_render_side, _sampler_type) => {
-                    let view = build_texture_views.push(texture_render_side.texture.create_view(
-                        &wgpu::TextureViewDescriptor {
+                    let view = texture_render_side.texture.assume(|texture| {
+                        texture.create_view(&wgpu::TextureViewDescriptor {
                             label: None,
                             format: None,
                             dimension: None,
@@ -661,8 +660,9 @@ impl BindGroupGuard {
                             mip_level_count: None,
                             base_array_layer: 0,
                             array_layer_count: None,
-                        },
-                    ));
+                        })
+                    });
+                    let view = build_static_texture_views.push(view);
                     BindingResource::TextureView(view)
                 }
                 BindTarget::DynamicTexture(_texture) => {
@@ -673,11 +673,11 @@ impl BindGroupGuard {
                         .expect("Dynamic texture guard should be in acquired_guards");
 
                     // Store the guard
-                    let guard = gpu_guard_textures.push(gpu_access);
+                    let guard = build_dynamic_textures_gpu.push(gpu_access);
 
                     // Use the render_side from GPUAccess
-                    let view = build_texture_views.push(guard.render_side.texture.create_view(
-                        &wgpu::TextureViewDescriptor {
+                    let view = guard.render_side.texture.assume(|texture| {
+                        texture.create_view(&wgpu::TextureViewDescriptor {
                             label: None,
                             format: None,
                             dimension: None,
@@ -687,12 +687,16 @@ impl BindGroupGuard {
                             mip_level_count: None,
                             base_array_layer: 0,
                             array_layer_count: None,
-                        },
-                    ));
-                    BindingResource::TextureView(view)
+                        })
+                    });
+                    let view = build_dynamic_texture_views.push(view);
+                    BindingResource::TextureView(&view)
                 }
                 BindTarget::Sampler(sampler) => match sampler {
-                    SamplerType::Mipmapped => BindingResource::Sampler(mipmapped_sampler),
+                    SamplerType::Mipmapped => {
+                        let guard = sampler_guards.push(mipmapped_sampler.assume(|e| e.clone()));
+                        BindingResource::Sampler(guard)
+                    }
                 },
                 BindTarget::VB(..) | BindTarget::DynamicVB(..) => {
                     continue; //not considered as a binding
@@ -705,15 +709,13 @@ impl BindGroupGuard {
             };
             entries.push(entry);
         }
-        let bind_group = bind_device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell
-                .get()
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some(name),
-                    layout: bind_group_layout,
-                    entries: entries.as_slice(),
-                })
+
+        let bind_group = bind_device.0.device.assume(|device| {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(name),
+                layout: bind_group_layout,
+                entries: entries.as_slice(),
+            })
         });
 
         //find vertex buffers
@@ -730,7 +732,7 @@ impl BindGroupGuard {
                 | BindTarget::Sampler(_) => {}
                 BindTarget::VB(_layout, render_side) => {
                     let buffer = render_side.buffer();
-                    vertex_buffers.push((*b, buffer));
+                    vertex_buffers.push((*b, buffer.clone()));
                 }
                 BindTarget::DynamicVB(..) => {
                     // Remove the guard from the acquired guards map
@@ -744,19 +746,21 @@ impl BindGroupGuard {
         }
 
         let index_buffer = if let Some(buffer) = &bind_style.index_buffer {
-            let buffer = buffer.buffer();
+            let buffer = buffer.buffer().clone();
             Some(buffer)
         } else {
             None
         };
 
         // Convert StableAddressVec to Vec
-        let gpu_guard_buffers = gpu_guard_buffers.into_vec();
+        let gpu_guard_buffers = build_dynamic_buffers_gpu.into_vec();
+        let gpu_guard_texture_views = build_dynamic_textures_gpu.into_vec();
         // dynamic_vertex_buffers is already in the correct format
 
         BindGroupGuard {
             bind_group,
             guards: gpu_guard_buffers,
+            guards_textures: gpu_guard_texture_views,
             vertex_buffers,
             dynamic_vertex_buffers,
             index_buffer,
@@ -769,7 +773,7 @@ impl BindGroupGuard {
         name: &str,
         bind_group_layout: &wgpu::BindGroupLayout,
         camera_buffer: &Buffer<CameraProjection>,
-        mipmapped_sampler: &wgpu::Sampler,
+        mipmapped_sampler: &WgpuCell<wgpu::Sampler>,
         copy_info: &mut CopyInfo<'_>,
     ) -> (Self, AcquiredGuards) {
         // First acquire guards and perform copies
@@ -828,11 +832,12 @@ impl Port {
         )
         .await
         .expect("Create camera buffer");
-        let mipmapped_sampler = engine.bound_device().0.wgpu.with(|wgpu_cell| {
-            wgpu_cell
-                .get()
-                .device
-                .create_sampler(&wgpu::SamplerDescriptor {
+        let mipmapped_sampler = engine
+            .bound_device()
+            .0
+            .device
+            .with(|device| {
+                let s = device.create_sampler(&wgpu::SamplerDescriptor {
                     label: Some("mipmapped sampler"),
                     address_mode_u: wgpu::AddressMode::ClampToEdge,
                     address_mode_v: wgpu::AddressMode::ClampToEdge,
@@ -845,8 +850,10 @@ impl Port {
                     compare: None,
                     anisotropy_clamp: 1,
                     border_color: None,
-                })
-        });
+                });
+                WgpuCell::new(s)
+            })
+            .await;
         Ok(Port {
             engine: engine.clone(),
             camera_buffer,
@@ -873,24 +880,21 @@ impl Port {
 
         let device = self.engine.bound_device().as_ref();
         let scaled_size = self.scaled_size.requested.unwrap();
-        let depth_texture = device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell
-                .get()
-                .device
-                .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("depth texture"),
-                    size: wgpu::Extent3d {
-                        width: scaled_size.0,
-                        height: scaled_size.1,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Depth16Unorm,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | depth_extra_usage,
-                    view_formats: &[],
-                })
+        let depth_texture = device.0.device.assume(|device| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("depth texture"),
+                size: wgpu::Extent3d {
+                    width: scaled_size.0,
+                    height: scaled_size.1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth16Unorm,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | depth_extra_usage,
+                view_formats: &[],
+            })
         });
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor {
@@ -985,8 +989,8 @@ impl Port {
             .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
             .unwrap();
 
-        let buf = device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell.get().device.create_buffer(&BufferDescriptor {
+        let buf = device.0.device.assume(|device| {
+            device.create_buffer(&BufferDescriptor {
                 label: "dump framebuffer".into(),
                 size: (scaled_size.1 * wgpu_bytes_per_row_256) as u64,
                 usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -1023,8 +1027,8 @@ impl Port {
             .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
             .unwrap();
 
-        let depth_buf = device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell.get().device.create_buffer(&BufferDescriptor {
+        let depth_buf = device.0.device.assume(|device| {
+            device.create_buffer(&BufferDescriptor {
                 label: "dump depth buffer".into(),
                 size: (scaled_size.1 * depth_wgpu_bytes_per_row_256) as u64,
                 usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -1082,17 +1086,15 @@ impl Port {
         //this closure requires Send but I don't think we actually do on wgpu
         let frame_bind_groups = SendCell::new(frame_bind_groups);
         let frame_acquired_guards = SendCell::new(frame_acquired_guards);
-        device.0.wgpu.with(|wgpu_cell| {
-            wgpu_cell.get().queue.on_submitted_work_done(move || {
+
+        device.0.queue.assume(|queue| {
+            queue.on_submitted_work_done(move || {
                 std::mem::drop(frame_bind_groups);
                 std::mem::drop(frame_acquired_guards);
                 callback_guard.mark_gpu_complete();
             });
+            queue.submit(std::iter::once(encoded));
         });
-        device
-            .0
-            .wgpu
-            .with(|wgpu_cell| wgpu_cell.get().queue.submit(std::iter::once(encoded)));
         if let Some(f) = frame {
             f.present();
         }
@@ -1236,8 +1238,8 @@ impl Port {
                         .engine
                         .bound_device()
                         .0
-                        .wgpu
-                        .with(|wgpu_cell| surface.get_capabilities(&wgpu_cell.get().adapter));
+                        .adapter
+                        .assume(|adapter| surface.get_capabilities(adapter));
 
                     let device = self.engine.bound_device().as_ref();
                     let scaled_size = self.scaled_size.requested.unwrap();
@@ -1245,10 +1247,9 @@ impl Port {
                     // Update the surface format to match what we'll actually use
                     let preferred_format = surface_capabilities.formats[0];
                     self.pass_config.requested.surface_format = Some(preferred_format);
-
-                    device.0.wgpu.with(|wgpu_cell| {
+                    device.0.device.assume(|device| {
                         surface.configure(
-                            &wgpu_cell.get().device,
+                            device,
                             &wgpu::SurfaceConfiguration {
                                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT | extra_usage,
                                 format: preferred_format,
@@ -1275,28 +1276,25 @@ impl Port {
             None => {
                 let scaled_size = self.scaled_size.requested.unwrap();
                 let device = self.engine.bound_device().as_ref();
-                let texture = device.0.wgpu.with(|wgpu_cell| {
-                    wgpu_cell
-                        .get()
-                        .device
-                        .create_texture(&wgpu::TextureDescriptor {
-                            label: Some("dummy texture"),
-                            size: wgpu::Extent3d {
-                                width: scaled_size.0,
-                                height: scaled_size.1,
-                                depth_or_array_layers: 1,
-                            },
-                            mip_level_count: 1,
-                            sample_count: 1,
-                            dimension: wgpu::TextureDimension::D2,
-                            format: self
-                                .pass_config
-                                .requested
-                                .surface_format
-                                .expect("configured format"),
-                            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                            view_formats: &[],
-                        })
+                let texture = device.0.device.assume(|device| {
+                    device.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("dummy texture"),
+                        size: wgpu::Extent3d {
+                            width: scaled_size.0,
+                            height: scaled_size.1,
+                            depth_or_array_layers: 1,
+                        },
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: self
+                            .pass_config
+                            .requested
+                            .surface_format
+                            .expect("configured format"),
+                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                        view_formats: &[],
+                    })
                 });
                 wgpu_view = texture.create_view(&wgpu::TextureViewDescriptor {
                     label: Some("dummy view"),
@@ -1345,13 +1343,10 @@ impl Port {
 
         let mut encoder = {
             let device = self.engine.bound_device().as_ref();
-            device.0.wgpu.with(|wgpu_cell| {
-                wgpu_cell
-                    .get()
-                    .device
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                        label: Some("wgpu port"),
-                    })
+            device.0.device.assume(|device| {
+                device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("wgpu port"),
+                })
             })
         };
 
@@ -1420,15 +1415,20 @@ impl Port {
             render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
 
             for (v, buffer) in &bind_group.vertex_buffers {
-                render_pass.set_vertex_buffer(*v, buffer.slice(..));
+                buffer.assume(|buffer| {
+                    render_pass.set_vertex_buffer(*v, buffer.slice(..));
+                })
             }
             for (v, buffer) in &bind_group.dynamic_vertex_buffers {
-                let gpu_buffer = buffer.gpu_buffer.buffer();
-                let buffer_slice = gpu_buffer.slice(..);
-                render_pass.set_vertex_buffer(*v, buffer_slice);
+                buffer.gpu_buffer.buffer().assume(|buffer| {
+                    let buffer_slice = buffer.slice(..);
+                    render_pass.set_vertex_buffer(*v, buffer_slice);
+                });
             }
             if let Some(buffer) = &bind_group.index_buffer {
-                render_pass.set_index_buffer(buffer.slice(..), wgpu::IndexFormat::Uint16);
+                buffer.assume(|buffer| {
+                    render_pass.set_index_buffer(buffer.slice(..), wgpu::IndexFormat::Uint16);
+                });
                 render_pass.draw_indexed(0..prepared.vertex_count, 0, 0..1);
             } else {
                 render_pass.draw(0..prepared.vertex_count, 0..1);

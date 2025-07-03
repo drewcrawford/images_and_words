@@ -382,7 +382,8 @@ impl GPUAccess {
 }
 
 /// Trait for type-erased guard that provides access to source texture for copying
-pub(crate) trait DynGuard: Debug + BackendSend {
+pub(crate) trait DynGuard: Debug + Send + Sync {
+    //pretty sure we actually want Send here - cell should be used for our cell issues
     /// Perform the copy from the stored source to the given destination
     #[allow(dead_code)] //nop implementation does not use
     fn perform_copy(

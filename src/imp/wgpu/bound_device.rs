@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::imp::Error;
-use app_window::wgpu::WgpuCell;
+use app_window::wgpu::{WgpuCell, wgpu_smuggle};
 use send_cells::SyncCell;
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
@@ -12,15 +12,10 @@ use std::thread::{self, JoinHandle};
 use wgpu::{Limits, PollType, Trace};
 
 #[derive(Debug)]
-pub(super) struct Wgpu {
-    pub(super) device: wgpu::Device,
-    pub(super) queue: wgpu::Queue,
-    pub(super) adapter: wgpu::Adapter,
-}
-
-#[derive(Debug)]
 pub struct BoundDevice {
-    pub(crate) wgpu: Arc<SyncCell<WgpuCell<Wgpu>>>,
+    pub(super) device: WgpuCell<wgpu::Device>,
+    pub(super) queue: WgpuCell<wgpu::Queue>,
+    pub(super) adapter: WgpuCell<wgpu::Adapter>,
     #[cfg(not(target_arch = "wasm32"))]
     poll_thread: Option<JoinHandle<()>>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -34,7 +29,8 @@ impl BoundDevice {
         unbound_device: crate::images::device::UnboundDevice,
         _entry_point: Arc<crate::entry_point::EntryPoint>,
     ) -> Result<Self, Error> {
-        let wgpu = WgpuCell::new_on_thread(|| {
+        let move_adapter = unbound_device.0.adapter.clone();
+        let (mut device, mut queue) = wgpu_smuggle(|| {
             async move {
                 let label = wgpu::Label::from("Bound Device");
                 let descriptor = wgpu::DeviceDescriptor {
@@ -45,28 +41,26 @@ impl BoundDevice {
                     memory_hints: Default::default(),
                     trace: Trace::Off,
                 };
-                let (device, q) = unbound_device
-                    .0
-                    .adapter
-                    .request_device(&descriptor)
-                    .await
-                    .expect("Failed to create device");
-
-                Wgpu {
-                    device,
-                    queue: q,
-                    adapter: unbound_device.0.adapter.get().clone(),
-                }
+                let (device, queue) = move_adapter
+                    .assume_async(|a: &wgpu::Adapter| {
+                        let a_clone = a.clone();
+                        async move {
+                            a_clone
+                                .request_device(&descriptor)
+                                .await
+                                .expect("failed to create device")
+                        }
+                    })
+                    .await;
+                (WgpuCell::new(device), WgpuCell::new(queue))
             }
         })
         .await;
         #[cfg(not(target_arch = "wasm32"))]
         {
             //on non-wasm platforms we should be able to clone out of the cell directly
-            let jailbreak = unsafe { wgpu.get_unchecked() }.clone();
-            let device = jailbreak.device.clone();
+            let jailbreak_device = device.with(|wgpu| wgpu.clone()).await;
             let poll_shutdown = Arc::new(AtomicBool::new(false));
-            let wgpu_mutex = Arc::new(SyncCell::new(wgpu));
             let shutdown_clone = poll_shutdown.clone();
 
             let (poll_sender, poll_receiver): (Sender<()>, Receiver<()>) = mpsc::channel();
@@ -79,7 +73,7 @@ impl BoundDevice {
                         match poll_receiver.recv() {
                             Ok(_) => {
                                 // Poll until the queue is empty
-                                let _ = device.poll(PollType::Wait);
+                                let _ = jailbreak_device.poll(PollType::Wait);
                             }
                             Err(_) => break, // Channel closed, exit thread
                         }
@@ -88,7 +82,9 @@ impl BoundDevice {
                 .expect("Failed to spawn wgpu polling thread");
 
             Ok(BoundDevice {
-                wgpu: wgpu_mutex,
+                device: device,
+                queue: queue,
+                adapter: unbound_device.0.adapter,
                 poll_thread: Some(poll_thread),
                 poll_shutdown,
                 poll_trigger: poll_sender,
