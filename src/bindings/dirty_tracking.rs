@@ -13,55 +13,39 @@ use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-// This represents the shared state between different LateBoundSenders
-#[derive(Debug)]
-struct SharedSend(Mutex<Option<r#continue::Sender<()>>>);
-
-impl SharedSend {
+struct OneShot {
+    c: Option<r#continue::Sender<()>>,
+}
+impl Drop for OneShot {
+    fn drop(&mut self) {
+        // continue API requires us to send from all senders
+        if let Some(sender) = self.c.take() {
+            sender.send(()); //send a signal to avoid deadlocks
+        }
+    }
+}
+impl OneShot {
     fn new() -> Self {
-        SharedSend(Mutex::new(None))
+        OneShot { c: None }
     }
-
-    fn set_sender(&self, sender: r#continue::Sender<()>) {
-        *self.0.lock().unwrap() = Some(sender);
+    fn set(&mut self, sender: r#continue::Sender<()>) {
+        self.c = Some(sender);
     }
-
-    fn r#continue(&self) {
-        if let Some(sender) = self.0.lock().unwrap().take() {
+    fn send(&mut self) {
+        if let Some(sender) = self.c.take() {
             sender.send(());
         }
     }
 }
 
-#[derive(Debug)]
-struct LateBoundSender(Arc<SharedSend>);
-
-impl LateBoundSender {
-    fn new() -> Self {
-        LateBoundSender(Arc::new(SharedSend::new()))
-    }
-
-    fn set_sender(&self, sender: r#continue::Sender<()>) {
-        self.0.set_sender(sender);
-    }
-
-    fn clone_shared(&self) -> Self {
-        LateBoundSender(Arc::clone(&self.0))
-    }
-
-    fn r#continue(&self) {
-        self.0.r#continue();
-    }
+struct SendState {
+    dirty: bool,
+    continuation: Arc<Mutex<OneShot>>,
 }
-
-#[derive(Debug)]
 struct SharedSendReceive {
-    //each dirty can be independently set and unset
-    dirty: AtomicBool,
-    continuation: Mutex<LateBoundSender>,
     debug_label: String,
+    send_state: Mutex<SendState>,
 }
-
 #[derive(Clone)]
 pub struct DirtySender {
     shared: Arc<SharedSendReceive>,
@@ -71,31 +55,30 @@ impl std::fmt::Debug for DirtySender {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DirtySender")
             .field("label", &self.shared.debug_label)
-            .field(
-                "dirty",
-                &self.shared.dirty.load(std::sync::atomic::Ordering::Relaxed),
-            )
             .finish()
     }
 }
 
 impl DirtySender {
     pub fn new(dirty: bool, label: impl Into<String>) -> Self {
-        let s = LateBoundSender::new();
         DirtySender {
             shared: Arc::new(SharedSendReceive {
-                dirty: AtomicBool::new(dirty),
-                continuation: Mutex::new(s),
                 debug_label: label.into(),
+                send_state: Mutex::new(SendState {
+                    dirty,
+                    continuation: Arc::new(Mutex::new(OneShot::new())),
+                }),
             }),
         }
     }
     pub fn mark_dirty(&self, dirty: bool) {
-        self.shared.dirty.store(dirty, Ordering::Relaxed);
+        let mut l = self.shared.send_state.lock().unwrap();
+        l.dirty = dirty;
         if dirty {
-            if let Ok(continuation) = self.shared.continuation.lock() {
-                continuation.r#continue();
-            }
+            let continuation = l.continuation.lock().unwrap().c.take();
+            drop(l); //allow lock to be retaken
+            //send continuation if it exists
+            continuation.map(|c| c.send(()));
         }
     }
 }
@@ -108,10 +91,6 @@ impl std::fmt::Debug for DirtyReceiver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DirtyReceiver")
             .field("label", &self.shared.debug_label)
-            .field(
-                "dirty",
-                &self.shared.dirty.load(std::sync::atomic::Ordering::Relaxed),
-            )
             .finish()
     }
 }
@@ -125,13 +104,8 @@ impl DirtyReceiver {
     pub fn debug_label(&self) -> &str {
         &self.shared.debug_label
     }
-    fn attach_continuation(&self, continuation: &LateBoundSender) {
-        if let Ok(mut cont) = self.shared.continuation.lock() {
-            *cont = continuation.clone_shared();
-        }
-    }
     pub fn is_dirty(&self) -> bool {
-        self.shared.dirty.load(Ordering::Relaxed)
+        self.shared.send_state.lock().unwrap().dirty
     }
 }
 
@@ -176,9 +150,7 @@ impl DirtyAggregateReceiver {
     #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {
         // Check if any of the receivers are dirty
-        self.receivers
-            .iter()
-            .any(|receiver| receiver.shared.dirty.load(Ordering::Relaxed))
+        self.receivers.iter().any(|receiver| receiver.is_dirty())
     }
 
     ///Waits for a dirty signal.
@@ -189,25 +161,21 @@ impl DirtyAggregateReceiver {
         //instead let's use real dirty tracking to wait for the next frame
 
         let (sender, receiver) = r#continue::continuation();
-        let late_bound_sender = LateBoundSender::new();
-        late_bound_sender.set_sender(sender);
+        let o = Arc::new(Mutex::new(OneShot::new()));
+        o.lock().unwrap().set(sender);
 
-        //set continuation up first
-        for dirty_receiver in &self.receivers {
-            dirty_receiver.attach_continuation(&late_bound_sender);
-            // println!("attached continuation {late_bound_sender:?} to receiver {dirty_receiver:?}");
-        }
-        // println!("Attached all continuations");
-        //now check dirty value
         for receiver in &self.receivers {
-            if receiver.shared.dirty.load(Ordering::Relaxed) {
-                //mark future as ready to go immediately; this ensures we don't miss any messages
-                late_bound_sender.r#continue();
-                break; // Only need one to trigger
+            let shared = receiver.shared.clone();
+            let mut send_state = shared.send_state.lock().unwrap();
+            if send_state.dirty {
+                // we can return immediately
+                return;
+            } else {
+                // otherwise we need to set up a continuation
+                send_state.continuation = o.clone();
             }
+            //next receiver
         }
-        // println!("Waiting for continuation");
-        //wait for next receiver!
         receiver.await;
         // println!("Continuation received");
     }
