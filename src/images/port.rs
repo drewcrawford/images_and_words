@@ -92,6 +92,9 @@ impl FrameGuard {
 
 impl Drop for FrameGuard {
     fn drop(&mut self) {
+        if std::thread::panicking() {
+            return; //don't insert guard!
+        }
         let cpu_end = self.cpu_end.lock().unwrap().expect("CPU end time not set");
         let gpu_end = self.gpu_end.lock().unwrap().expect("GPU end time not set");
 

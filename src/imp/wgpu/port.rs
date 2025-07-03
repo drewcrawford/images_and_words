@@ -12,7 +12,7 @@ use crate::imp;
 use crate::imp::wgpu::buffer::StorageType;
 use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
-use app_window::wgpu::WgpuCell;
+use app_window::wgpu::{WgpuCell, wgpu_begin_context, wgpu_in_context, wgpu_smuggle};
 use send_cells::send_cell::SendCell;
 use std::collections::HashMap;
 use std::num::NonZero;
@@ -1084,11 +1084,12 @@ impl Port {
         let frame_guard_for_callback = frame_guard.clone();
         let callback_guard = frame_guard_for_callback.clone();
         //this closure requires Send but I don't think we actually do on wgpu
-        let frame_bind_groups = SendCell::new(frame_bind_groups);
         let frame_acquired_guards = SendCell::new(frame_acquired_guards);
 
         device.0.queue.assume(|queue| {
             queue.on_submitted_work_done(move || {
+                //at runtime, on non-wasm32 platforms, this is polled
+                //from a different thread
                 std::mem::drop(frame_bind_groups);
                 std::mem::drop(frame_acquired_guards);
                 callback_guard.mark_gpu_complete();
@@ -1198,6 +1199,12 @@ impl Port {
         );
     }
     pub async fn render_frame(&mut self) {
+        wgpu_smuggle(|| async move {
+            self.render_frame_internal().await;
+        })
+        .await
+    }
+    async fn render_frame_internal(&mut self) {
         self.update_camera_buffer().await;
         //basically we want to bunch up all our awaits here,
         //so we don't interrupt the frame
