@@ -30,7 +30,7 @@
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
-use app_window::wgpu::WgpuCell;
+use app_window::wgpu::{WgpuCell, wgpu_begin_context, wgpu_in_context};
 use send_cells::SyncCell;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
@@ -240,6 +240,17 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
 
     fn byte_len(&self) -> usize {
         self.byte_len()
+    }
+}
+
+impl Drop for MappableBuffer {
+    fn drop(&mut self) {
+        let clone_buffer = self.wgpu_buffer.clone();
+        wgpu_begin_context(async move {
+            wgpu_in_context(async move {
+                drop(clone_buffer); //ensure this is dropped in the wgpu context
+            })
+        })
     }
 }
 
@@ -463,6 +474,18 @@ impl GPUableBuffer {
                     dest_offset as u64,
                     copy_len as u64,
                 );
+            });
+        });
+    }
+}
+
+impl Drop for GPUableBuffer {
+    fn drop(&mut self) {
+        // Ensure the buffer is dropped in the wgpu context
+        let clone_inner = self.inner.clone();
+        wgpu_begin_context(async move {
+            wgpu_in_context(async move {
+                drop(clone_inner); // Ensure this is dropped in the wgpu context
             });
         });
     }

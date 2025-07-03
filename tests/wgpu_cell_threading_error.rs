@@ -78,14 +78,15 @@ fn main() {
 
                     let _ = sender.send(0);
                 });
+                std::thread::spawn(move || {
+                    // Wait for the spawned thread to complete
+                    let result = receiver
+                        .recv()
+                        .expect("Failed to receive result from spawned thread");
 
-                // Wait for the spawned thread to complete
-                let result = receiver
-                    .recv()
-                    .expect("Failed to receive result from spawned thread");
-
-                //exit the process
-                std::process::exit(result);
+                    //exit the process
+                    std::process::exit(result);
+                });
             });
         });
     });
