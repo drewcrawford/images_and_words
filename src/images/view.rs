@@ -54,9 +54,14 @@
 //! ```
 
 use crate::entry_point::EntryPoint;
+use raw_window_handle::{
+    DisplayHandle, HandleError, HasDisplayHandle, HasRawDisplayHandle, HasRawWindowHandle,
+    HasWindowHandle, WindowHandle,
+};
 #[cfg(feature = "app_window")]
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use send_cells::UnsafeSendCell;
+use std::sync::Arc;
 
 #[derive(Debug)]
 enum OSImpl {
@@ -100,10 +105,59 @@ impl std::fmt::Display for Error {
 #[derive(Debug)]
 pub struct View {
     #[allow(dead_code)] //nop implementation does not use
-    os_impl: OSImpl,
-    //late initialized once entrypoint is ready
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) imp: Option<crate::imp::View>,
+    //lazily created when we connect the entrypoint
+    pub(crate) gpu_impl: Option<crate::imp::View>,
+    //wgpu wants the windowing implementation to be dropped AFTER gpu implementation
+    windowing_impl: WindowingImpl,
+}
+
+#[derive(Debug, Clone)]
+enum WindowingImpl {
+    Testing,
+    #[cfg(feature = "app_window")]
+    AppWindow(Arc<app_window::surface::Surface>),
+}
+
+impl WindowingImpl {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        match self {
+            WindowingImpl::Testing => Err(HandleError::NotSupported),
+            #[cfg(feature = "app_window")]
+            WindowingImpl::AppWindow(surface) => Ok(surface.window_handle()),
+        }
+    }
+
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        match self {
+            WindowingImpl::Testing => Err(HandleError::NotSupported),
+            #[cfg(feature = "app_window")]
+            WindowingImpl::AppWindow(surface) => Ok(surface.display_handle()),
+        }
+    }
+}
+
+impl WindowingImpl {
+    async fn size_scale(&self) -> (u16, u16, f64) {
+        match self {
+            WindowingImpl::Testing => (800, 600, 1.0),
+            #[cfg(feature = "app_window")]
+            WindowingImpl::AppWindow(surface) => {
+                let (size, scale) = surface.size_scale().await;
+                (size.width() as u16, size.height() as u16, scale)
+            }
+        }
+    }
+
+    fn fast_size_scale(&self) -> (u16, u16, f64) {
+        match self {
+            WindowingImpl::Testing => (800, 600, 1.0),
+            #[cfg(feature = "app_window")]
+            WindowingImpl::AppWindow(surface) => {
+                let (size, scale) = surface.size_main();
+                (size.width() as u16, size.height() as u16, scale)
+            }
+        }
+    }
 }
 
 //we need this to port across to render thread
@@ -127,43 +181,33 @@ impl View {
     /// backend view could not be created.
     pub(crate) async fn provide_entry_point(
         &mut self,
-        _entry_point: &EntryPoint,
+        entry_point: &EntryPoint,
     ) -> Result<(), Error> {
-        #[cfg(feature = "app_window")]
-        {
-            let (_window_handle, _display_handle): (RawWindowHandle, RawDisplayHandle) =
-                match &self.os_impl {
-                    OSImpl::AppWindow(surface) => {
-                        (surface.raw_window_handle(), surface.raw_display_handle())
-                    }
-                    #[cfg(any(test, feature = "testing"))]
-                    OSImpl::Testing => {
-                        // For testing, imp is already set in for_testing()
-                        return Ok(());
-                    }
-                };
-            self.imp = Some(
-                unsafe {
-                    crate::imp::View::from_surface(
-                        _entry_point,
-                        UnsafeSendCell::new(_window_handle),
-                        UnsafeSendCell::new(_display_handle),
-                    )
-                }
-                .await?,
-            );
-            Ok(())
-        }
-        #[cfg(not(feature = "app_window"))]
-        {
-            match self.os_impl {
-                #[cfg(any(test, feature = "testing"))]
-                OSImpl::Testing => {
-                    // For testing, imp is already set in for_testing()
-                    Ok(())
-                }
-            }
-        }
+        let imp = crate::imp::View::from_surface(
+            entry_point,
+            ViewForImp {
+                windowing_impl: self.windowing_impl.clone(),
+            },
+        )
+        .await?;
+        self.gpu_impl = Some(imp);
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct ViewForImp {
+    windowing_impl: WindowingImpl,
+}
+
+impl HasWindowHandle for ViewForImp {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        self.windowing_impl.window_handle()
+    }
+}
+impl HasDisplayHandle for ViewForImp {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        self.windowing_impl.display_handle()
     }
 }
 
@@ -182,31 +226,8 @@ impl View {
     /// - `scale_factor` - The DPI scale factor (f64)
     ///
     /// For test views, this always returns (800, 600, 1.0).
-    pub(crate) fn size_scale(&self) -> (u16, u16, f64) {
-        #[cfg(feature = "app_window")]
-        {
-            match &self.os_impl {
-                OSImpl::AppWindow(surface) => {
-                    let (size, scale) = surface.size_main();
-                    (size.width() as u16, size.height() as u16, scale)
-                }
-                #[cfg(any(test, feature = "testing"))]
-                OSImpl::Testing => {
-                    // Return a dummy size for testing
-                    (800, 600, 1.0)
-                }
-            }
-        }
-        #[cfg(not(feature = "app_window"))]
-        {
-            match self.os_impl {
-                #[cfg(any(test, feature = "testing"))]
-                OSImpl::Testing => {
-                    // Return a dummy size for testing
-                    (800, 600, 1.0)
-                }
-            }
-        }
+    pub(crate) async fn size_scale(&self) -> (u16, u16, f64) {
+        self.windowing_impl.size_scale().await
     }
 
     /// Creates a view from an OS window surface.
@@ -243,9 +264,18 @@ impl View {
     #[cfg(feature = "app_window")]
     pub fn from_surface(surface: app_window::surface::Surface) -> Result<Self, Error> {
         Ok(View {
-            os_impl: OSImpl::AppWindow(surface),
-            imp: None,
+            gpu_impl: None,
+            windowing_impl: WindowingImpl::AppWindow(Arc::new(surface)),
         })
+    }
+
+    /**
+        Implements a fast, inline size-scale system.
+
+        This may require some coordination with the OS windowing system,
+    */
+    pub(crate) fn fast_size_scale(&self) -> (u16, u16, f64) {
+        self.windowing_impl.fast_size_scale()
     }
 
     /// Creates a view suitable for testing.

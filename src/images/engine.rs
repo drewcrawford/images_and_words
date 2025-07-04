@@ -6,7 +6,6 @@ use crate::images::port::Port;
 use crate::images::projection::WorldCoord;
 use crate::images::view::View;
 use crate::imp;
-use app_window::wgpu::wgpu_smuggle;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
@@ -37,12 +36,7 @@ impl Engine {
             .await
             .expect("Can't provide entry point");
 
-        let (initial_width, initial_height, initial_scale, view) =
-            wgpu_smuggle(move || async move {
-                let s = view.size_scale();
-                (s.0, s.1, s.2, view)
-            })
-            .await;
+        let (initial_width, initial_height, initial_scale) = view.size_scale().await;
 
         let unbound_device = UnboundDevice::pick(&view, &entry_point).await?;
         let bound_device = Arc::new(BoundDevice::bind(unbound_device, entry_point.clone()).await?);

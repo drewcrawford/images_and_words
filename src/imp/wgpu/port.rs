@@ -10,9 +10,10 @@ use crate::images::render_pass::{DrawCommand, PassDescriptor};
 use crate::images::vertex_layout::VertexFieldType;
 use crate::imp;
 use crate::imp::wgpu::buffer::StorageType;
+use crate::imp::wgpu::cell::WgpuCell;
+use crate::imp::wgpu::context::smuggle_async;
 use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
-use app_window::wgpu::{WgpuCell, wgpu_begin_context, wgpu_in_context, wgpu_smuggle};
 use send_cells::send_cell::SendCell;
 use std::collections::HashMap;
 use std::num::NonZero;
@@ -1206,20 +1207,14 @@ impl PortInternal {
         let frame_guard = self.port_reporter_send.create_frame_guard();
 
         let enable_depth = self.pass_config.requested.enable_depth;
-        let unscaled_size = self.view.size_scale();
+        let unscaled_size = self.view.fast_size_scale();
         // Setup frame reporting and surface configuration
         let current_scaled_size = (
             (unscaled_size.0 as f64 * unscaled_size.2) as u32,
             (unscaled_size.1 as f64 * unscaled_size.2) as u32,
         );
         self.scaled_size.update(Some(current_scaled_size));
-        let surface = self
-            .view
-            .imp
-            .as_ref()
-            .expect("View not initialized")
-            .surface
-            .as_ref();
+        let surface = self.view.gpu_impl.as_ref().unwrap().surface.as_ref();
         match surface {
             None => {
                 println!("Port surface not initialized");
@@ -1486,8 +1481,9 @@ impl Port {
     }
 
     pub async fn render_frame(&mut self) {
+        logwise::info_sync!("Rendering frame...");
         let mut internal = self.internal.take().expect("Port internal missing");
-        internal = wgpu_smuggle(|| async move {
+        internal = smuggle_async("render_frame".to_string(), || async move {
             internal.render_frame_internal().await;
             internal
         })

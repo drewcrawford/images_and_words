@@ -30,8 +30,10 @@
 use crate::bindings::buffer_access::MapType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
-use app_window::wgpu::{WgpuCell, wgpu_begin_context, wgpu_in_context, wgpu_smuggle};
+use crate::imp::wgpu::cell::WgpuCell;
+use crate::imp::wgpu::context::smuggle;
 use send_cells::SyncCell;
+use some_executor::task::Task;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 use wgpu::MapMode;
@@ -47,6 +49,7 @@ async fn copy_buffer_data_threadsafe(
     wgpu_buffer: WgpuCell<wgpu::Buffer>,
     bound_device: Arc<BoundDevice>,
 ) {
+    let p = logwise::perfwarn_begin!("copy_buffer_data_threadsafe");
     // logwise::info_sync!(
     //     "copy_buffer_data_threadsafe called with {f} bytes",
     //     f = internal_buffer_data.len()
@@ -73,6 +76,7 @@ async fn copy_buffer_data_threadsafe(
         wgpu_cell.unmap();
     });
     drop(copy);
+    drop(p);
 }
 
 /**
@@ -205,30 +209,10 @@ impl MappableBuffer {
         let wgpu_buffer = self.wgpu_buffer.clone();
         let bound_device = self.bound_device.clone();
         //we need to wait for the unmap to complete here
-        let (s, r) = r#continue::continuation();
-        let context_calls = logwise::perfwarn_begin!("wgpu::MappableBuffer::context calls");
-        let begin_context_begun = logwise::perfwarn_begin!("wgpu::MappableBuffer::begin_context");
-        let begin_in_context = logwise::perfwarn_begin!("wgpu::MappableBuffer::in_context");
-        app_window::wgpu::wgpu_begin_context(async move {
-            drop(begin_context_begun);
-            app_window::wgpu::wgpu_in_context(async move {
-                drop(begin_in_context);
-                copy_buffer_data_threadsafe(internal_buffer_data, wgpu_buffer, bound_device).await;
-                s.send(());
-            });
-        });
-        drop(context_calls);
-        // logwise::info_sync!(
-        //     "wgpu::MappableBuffer::unmap awaiting... on {f}",
-        //     f = self.debug_label.clone()
-        // );
-        let await_perf = logwise::perfwarn_begin!("wgpu::MappableBuffer::unmap await");
-        r.await; //wait for unmap to finish
-        drop(await_perf);
-        // logwise::info_sync!(
-        //     "wgpu::MappableBuffer::unmap finished on {f}",
-        //     f = self.debug_label.clone()
-        // );
+        crate::imp::wgpu::context::smuggle("unmap".to_string(), move || async move {
+            copy_buffer_data_threadsafe(internal_buffer_data, wgpu_buffer, bound_device).await;
+        })
+        .await;
         drop(unmap_perf);
     }
 
@@ -252,17 +236,6 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
 
     fn byte_len(&self) -> usize {
         self.byte_len()
-    }
-}
-
-impl Drop for MappableBuffer {
-    fn drop(&mut self) {
-        let clone_buffer = self.wgpu_buffer.clone();
-        wgpu_begin_context(async move {
-            wgpu_in_context(async move {
-                drop(clone_buffer); //ensure this is dropped in the wgpu context
-            })
-        })
     }
 }
 
@@ -346,27 +319,27 @@ impl GPUableBuffer {
         debug_name: &str,
     ) -> Self {
         let debug_name = debug_name.to_string();
-        wgpu_smuggle(move || async move {
-            let storage_type = match usage {
-                GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
-                    if bound_device
-                        .0
-                        .device
-                        .assume(|c| c.limits())
-                        .max_uniform_buffer_binding_size as usize
-                        > size
-                    {
-                        StorageType::Uniform
-                    } else {
-                        StorageType::Storage
-                    }
+        let move_bound_device = bound_device.clone();
+        let storage_type = smuggle("create buffer".to_string(), move || match usage {
+            GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
+                if move_bound_device
+                    .0
+                    .device
+                    .assume(|c| c.limits())
+                    .max_uniform_buffer_binding_size as usize
+                    > size
+                {
+                    StorageType::Uniform
+                } else {
+                    StorageType::Storage
                 }
-                GPUBufferUsage::VertexBuffer => StorageType::Vertex,
-                GPUBufferUsage::Index => StorageType::Index,
-            };
-            Self::new_imp(bound_device, size, &debug_name, storage_type).await
+            }
+            GPUBufferUsage::VertexBuffer => StorageType::Vertex,
+            GPUBufferUsage::Index => StorageType::Index,
         })
-        .await
+        .await;
+
+        Self::new_imp(bound_device, size, &debug_name, storage_type).await
     }
     pub(super) fn storage_type(&self) -> StorageType {
         self.storage_type
@@ -405,7 +378,7 @@ impl GPUableBuffer {
     ) {
         let bound_device = self.bound_device.clone();
         let clone_self = self.clone();
-        wgpu_smuggle(move || async move {
+        smuggle("copy_from_buffer".to_string(), move || {
             let mut encoder = bound_device.0.device.assume(|e| {
                 e.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Label::from("wgpu::GPUableBuffer::copy_from_buffer"),

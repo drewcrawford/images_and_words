@@ -1,55 +1,43 @@
-use app_window::wgpu::{wgpu_begin_context, wgpu_in_context, wgpu_smuggle};
+use crate::entry_point::EntryPoint;
+use crate::images::view::ViewForImp;
+use crate::imp::wgpu::context::smuggle;
 use r#continue::continuation;
+use std::sync::Arc;
 
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 #[derive(Debug)]
 pub struct View {
-    //to meet our thread requirements, we may need to send this to another thread
-    //as part of its creation, or to bind it to a device
+    //need surface to be dropped first here
     pub(super) surface: Option<wgpu::Surface<'static>>,
+    pub(super) parent: Arc<ViewForImp>,
 }
 
 impl View {
     /**
     Creates a new view for the given entry point.
-
-    This view will not be usable until it is bound to a device.
-
-    # Safety
-    This function is unsafe because the underlying surface is created with a raw window handle.
-    If the raw window handle is not valid or the display handle is incorrect, it may lead to undefined behavior.
-
-    # Threading
-    Typically, this function should be called from [app_window::wgpu::wgpu_in_context].
     */
-    #[cfg(feature = "app_window")]
-    pub async unsafe fn from_surface(
+    pub async fn from_surface(
         entrypoint: &crate::entry_point::EntryPoint,
-        raw_window_handle: send_cells::UnsafeSendCell<wgpu::rwh::RawWindowHandle>,
-        raw_display_handle: send_cells::UnsafeSendCell<wgpu::rwh::RawDisplayHandle>,
+        view: ViewForImp,
     ) -> Result<Self, super::Error> {
         let entrypoint = entrypoint.clone();
-
-        let surface = wgpu_smuggle(|| {
-            async move {
-                let target = wgpu::SurfaceTargetUnsafe::RawHandle {
-                    //safety: see function documentation
-                    raw_window_handle: unsafe { *raw_window_handle.get() },
-                    raw_display_handle: unsafe { *raw_display_handle.get() },
-                };
-                entrypoint.0.0.create_surface_unsafe(target)
-            }
+        let view_clone = Arc::new(view);
+        let view_clone2 = view_clone.clone();
+        let wgpu_surface = smuggle("create_surface".to_string(), move || {
+            entrypoint.0.0.create_surface(view_clone)
         })
-        .await
-        .expect("Can't create surface");
+        .await?;
 
         Ok(View {
-            surface: Some(surface).into(),
+            surface: Some(wgpu_surface),
+            parent: view_clone2,
         })
     }
 
-    #[cfg(any(test, feature = "testing"))]
-    pub fn for_testing() -> Self {
-        View { surface: None }
+    pub async fn provide_entry_point(
+        &mut self,
+        entry_point: &EntryPoint,
+    ) -> Result<(), crate::imp::Error> {
+        todo!()
     }
 }

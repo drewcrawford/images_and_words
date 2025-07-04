@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::imp::Error;
-use app_window::wgpu::{WgpuCell, wgpu_smuggle};
+use crate::imp::wgpu::cell::WgpuCell;
+use crate::imp::wgpu::context::{smuggle, smuggle_async};
 use send_cells::SyncCell;
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
@@ -30,30 +31,28 @@ impl BoundDevice {
         _entry_point: Arc<crate::entry_point::EntryPoint>,
     ) -> Result<Self, Error> {
         let move_adapter = unbound_device.0.adapter.clone();
-        let (mut device, mut queue) = wgpu_smuggle(|| {
-            async move {
-                let label = wgpu::Label::from("Bound Device");
-                let descriptor = wgpu::DeviceDescriptor {
-                    label,
-                    required_features: Default::default(),
-                    //todo: choose better limits?
-                    required_limits: Limits::downlevel_webgl2_defaults(),
-                    memory_hints: Default::default(),
-                    trace: Trace::Off,
-                };
-                let (device, queue) = move_adapter
-                    .assume_async(|a: &wgpu::Adapter| {
-                        let a_clone = a.clone();
-                        async move {
-                            a_clone
-                                .request_device(&descriptor)
-                                .await
-                                .expect("failed to create device")
-                        }
-                    })
-                    .await;
-                (WgpuCell::new(device), WgpuCell::new(queue))
-            }
+        let (mut device, mut queue) = smuggle_async("create device".to_string(), || async move {
+            let label = wgpu::Label::from("Bound Device");
+            let descriptor = wgpu::DeviceDescriptor {
+                label,
+                required_features: Default::default(),
+                //todo: choose better limits?
+                required_limits: Limits::downlevel_webgl2_defaults(),
+                memory_hints: Default::default(),
+                trace: Trace::Off,
+            };
+            let (device, queue) = move_adapter
+                .assume_async(|a: &wgpu::Adapter| {
+                    let a_clone = a.clone();
+                    async move {
+                        a_clone
+                            .request_device(&descriptor)
+                            .await
+                            .expect("failed to create device")
+                    }
+                })
+                .await;
+            (WgpuCell::new(device), WgpuCell::new(queue))
         })
         .await;
         #[cfg(not(target_arch = "wasm32"))]

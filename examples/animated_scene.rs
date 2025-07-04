@@ -54,6 +54,7 @@ use images_and_words::images::shader::{FragmentShader, VertexShader};
 use images_and_words::images::view::View;
 use std::sync::Arc;
 
+use some_executor::task::{Configuration, Task};
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
@@ -188,8 +189,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     logwise::info_sync!("Starting animated scene example with dynamic buffers...");
 
     app_window::application::main(|| {
-        app_window::wgpu::wgpu_begin_context(async move {
-            app_window::wgpu::wgpu_in_context(run_app_window_example())
+        _ = std::thread::Builder::new().spawn(|| {
+            Task::without_notifications(
+                "animated_scene".to_string(),
+                Configuration::default(),
+                run_app_window_example(),
+            )
+            .spawn_thread_local();
         })
     });
     Ok(())

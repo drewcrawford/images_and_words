@@ -51,8 +51,8 @@ use images_and_words::images::projection::WorldCoord;
 use images_and_words::images::render_pass::{DrawCommand, PassDescriptor};
 use images_and_words::images::shader::{FragmentShader, VertexShader};
 use images_and_words::images::view::View;
+use some_executor::task::{Configuration, Task};
 use std::sync::Arc;
-
 // Note: In this simplified example, we generate vertex data procedurally in the
 // vertex shader rather than using vertex buffers. This demonstrates the basic
 // rendering pipeline without the complexity of vertex buffer management.
@@ -142,15 +142,16 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 /// while maintaining the async execution model needed for the middleware.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     logwise::info_sync!("Running simple_scene example...");
-
     // Create actual window with proper threading
     app_window::application::main(|| {
-        // Hop on wgpu context
-        app_window::wgpu::wgpu_begin_context(async {
-            app_window::wgpu::wgpu_in_context(async {
-                run_app_window_example().await;
-            });
-        });
+        _ = std::thread::Builder::new().spawn(|| {
+            Task::without_notifications(
+                "simple_scene".to_string(),
+                Configuration::default(),
+                run_app_window_example(),
+            )
+            .spawn_thread_local();
+        })
     });
     Ok(())
 }
