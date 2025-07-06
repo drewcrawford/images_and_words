@@ -17,8 +17,7 @@
 //! # {
 //! # use images_and_words::images::{Engine, view::View};
 //! # use images_and_words::images::projection::WorldCoord;
-//! # app_window::wgpu::wgpu_begin_context(async {
-//! # app_window::wgpu::wgpu_in_context(async {
+//! # test_executors::spawn_local(async {
 //! let view = View::for_testing();
 //! let camera_position = WorldCoord::new(0.0, 0.0, 10.0);
 //! let engine = Engine::rendering_to(view, camera_position)
@@ -28,8 +27,7 @@
 //! // Access the main port
 //! let port = engine.main_port_mut();
 //! // Port is ready to accept render passes
-//! # });
-//! # });
+//! # }, "port_overview_doctest");
 //! # }
 //! ```
 //!
@@ -199,8 +197,7 @@ impl From<imp::Error> for Error {
 /// # {
 /// # use images_and_words::images::{Engine, view::View};
 /// # use images_and_words::images::projection::WorldCoord;
-/// # app_window::wgpu::wgpu_begin_context(async {
-/// # app_window::wgpu::wgpu_in_context(async {
+/// # test_executors::spawn_local(async {
 /// # let engine = Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 10.0))
 /// #     .await.expect("Failed to create engine");
 /// # let port = engine.main_port_mut();
@@ -216,8 +213,7 @@ impl From<imp::Error> for Error {
 /// // Get the drawable size
 /// let (width, height) = reporter.drawable_size();
 /// println!("Drawable size: {}x{}", width, height);
-/// # });
-/// # });
+/// # }, "port_method_doctest");
 /// # }
 /// ```
 #[derive(Clone, Debug)]
@@ -431,8 +427,7 @@ impl Port {
     /// # use std::sync::Arc;
     /// # use images_and_words::images::{Engine, view::View, port::Port};
     /// # use images_and_words::images::projection::WorldCoord;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
+    /// # test_executors::spawn_local(async {
     /// # let view = View::for_testing();
     /// # let engine = Arc::new(Engine::rendering_to(view, WorldCoord::new(0.0, 0.0, 10.0))
     /// #     .await
@@ -445,8 +440,7 @@ impl Port {
     ///     WorldCoord::new(0.0, 0.0, 5.0),
     ///     (800, 600, 1.0)
     /// ).await.expect("Failed to create port");
-    /// # });
-    /// # });
+    /// # }, "port_individual_doctest");
     /// # }
     /// ```
     pub async fn new(
@@ -484,8 +478,7 @@ impl Port {
     /// # use images_and_words::images::render_pass::{PassDescriptor, DrawCommand};
     /// # use images_and_words::images::shader::{VertexShader, FragmentShader};
     /// # use images_and_words::bindings::BindStyle;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
+    /// # test_executors::spawn_local(async {
     /// # let engine = Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 10.0))
     /// #     .await.expect("Failed to create engine");
     /// # let mut port = engine.main_port_mut();
@@ -509,8 +502,7 @@ impl Port {
     /// );
     ///
     /// port.add_fixed_pass(pass).await;
-    /// # });
-    /// # });
+    /// # }, "port_individual_doctest");
     /// # }
     /// ```
     ///
@@ -598,8 +590,7 @@ impl Port {
     /// # {
     /// # use images_and_words::images::{Engine, view::View};
     /// # use images_and_words::images::projection::WorldCoord;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
+    /// # test_executors::spawn_local(async {
     /// # let engine = Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 10.0))
     /// #     .await.expect("Failed to create engine");
     /// # let mut port = engine.main_port_mut();
@@ -608,8 +599,7 @@ impl Port {
     ///
     /// // Start rendering - this runs forever
     /// // port.start().await?;
-    /// # });
-    /// # });
+    /// # }, "port_individual_doctest");
     /// # }
     /// ```
     ///

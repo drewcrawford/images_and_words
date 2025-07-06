@@ -37,136 +37,135 @@ unsafe impl CRepr for TestData {}
 /// several successful iterations, likely due to issues with dirty tracking
 /// or resource contention in the GPU pipeline.
 fn main() {
-    app_window::application::main(|| {
-        app_window::wgpu::wgpu_begin_context(async {
-            app_window::wgpu::wgpu_in_context(async {
-                println!("=== Testing buffer access hang reproducer ===");
+    test_executors::spawn_local(
+        async move {
+            println!("=== Testing buffer access hang reproducer ===");
 
-                // Create a view for testing (bypasses surface requirement)
-                let view = View::for_testing();
+            // Create a view for testing (bypasses surface requirement)
+            let view = View::for_testing();
 
-                // Create an engine with a stationary camera
-                let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
-                let engine = Arc::new(
-                    Engine::rendering_to(view, initial_camera_position)
-                        .await
-                        .expect("Failed to create engine for testing"),
-                );
-                let device = engine.bound_device();
-                let mut port = engine.main_port_mut();
-
-                // Create a test buffer similar to what the reproducer uses
-                let test_buffer = Arc::new(
-                    Buffer::new(
-                        device.clone(),
-                        1024,
-                        GPUBufferUsage::FragmentShaderRead,
-                        "hang_test_buffer",
-                        |_| TestData {
-                            x: 0.0,
-                            y: 0.0,
-                            z: 0.0,
-                        },
-                    )
+            // Create an engine with a stationary camera
+            let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
+            let engine = Arc::new(
+                Engine::rendering_to(view, initial_camera_position)
                     .await
-                    .expect("Failed to create test buffer"),
-                );
+                    .expect("Failed to create engine for testing"),
+            );
+            let device = engine.bound_device();
+            let mut port = engine.main_port_mut();
 
-                println!("Created buffer: {:?}", test_buffer);
+            // Create a test buffer similar to what the reproducer uses
+            let test_buffer = Arc::new(
+                Buffer::new(
+                    device.clone(),
+                    1024,
+                    GPUBufferUsage::FragmentShaderRead,
+                    "hang_test_buffer",
+                    |_| TestData {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                )
+                .await
+                .expect("Failed to create test buffer"),
+            );
 
-                let vertex_shader = VertexShader::new("buffer_access_hang_test", "@vertex   fn vs_main()  -> @builtin(position) vec4<f32> { return vec4<f32>(1.0, 1.0, 1.0, 1.0); }".to_string());
-                let fragment_shader = FragmentShader::new("buffer_access_hang_test", "@fragment fn fs_main() -> @location(0) vec4<f32>       { return vec4<f32>(1.0, 0.0, 0.0, 1.0); }".to_string());
+            println!("Created buffer: {:?}", test_buffer);
 
-                let mut bind_style = BindStyle::new();
-                bind_style.bind_dynamic_buffer(BindSlot::new(0), Stage::Fragment, &test_buffer);
+            let vertex_shader = VertexShader::new("buffer_access_hang_test", "@vertex   fn vs_main()  -> @builtin(position) vec4<f32> { return vec4<f32>(1.0, 1.0, 1.0, 1.0); }".to_string());
+            let fragment_shader = FragmentShader::new("buffer_access_hang_test", "@fragment fn fs_main() -> @location(0) vec4<f32>       { return vec4<f32>(1.0, 0.0, 0.0, 1.0); }".to_string());
 
-                port.add_fixed_pass(PassDescriptor::new(
-                    "buffer_access_hang_test".to_string(),
-                    vertex_shader,
-                    fragment_shader,
-                    bind_style,
-                    DrawCommand::TriangleStrip(4),
-                    false,
-                    false,
-                ))
-                .await;
+            let mut bind_style = BindStyle::new();
+            bind_style.bind_dynamic_buffer(BindSlot::new(0), Stage::Fragment, &test_buffer);
 
-                // Simplify the test to avoid Send/Sync issues with executors
-                // We'll test buffer access directly and use a timeout at the async function level
+            port.add_fixed_pass(PassDescriptor::new(
+                "buffer_access_hang_test".to_string(),
+                vertex_shader,
+                fragment_shader,
+                bind_style,
+                DrawCommand::TriangleStrip(4),
+                false,
+                false,
+            ))
+            .await;
 
-                // Test multiple buffer write operations in sequence
-                // Keep all operations on the main thread to avoid WgpuCell thread access issues
-                let mut iteration = 0;
-                let start_time = Instant::now();
-                let max_test_duration = Duration::from_secs(1);
+            // Simplify the test to avoid Send/Sync issues with executors
+            // We'll test buffer access directly and use a timeout at the async function level
 
-                println!("Beginning buffer access test...");
+            // Test multiple buffer write operations in sequence
+            // Keep all operations on the main thread to avoid WgpuCell thread access issues
+            let mut iteration = 0;
+            let start_time = Instant::now();
+            let max_test_duration = Duration::from_secs(1);
 
-                // Reproduce the pattern from the reproducer
-                loop {
-                    iteration += 1;
-                    println!("=== Iteration {} ===", iteration);
+            println!("Beginning buffer access test...");
 
-                    // Check if we've exceeded our time limit
-                    if start_time.elapsed() > max_test_duration {
-                        panic!(
-                            "❌ Test timed out after {:?}! This indicates the buffer access hang bug is present. \
+            // Reproduce the pattern from the reproducer
+            loop {
+                iteration += 1;
+                println!("=== Iteration {} ===", iteration);
+
+                // Check if we've exceeded our time limit
+                if start_time.elapsed() > max_test_duration {
+                    panic!(
+                        "❌ Test timed out after {:?}! This indicates the buffer access hang bug is present. \
              The Buffer::access_write().await calls are taking too long, \
              which matches the behavior described in the reproducer.",
-                            max_test_duration
-                        );
-                    }
-
-                    println!("Requesting buffer write access");
-
-                    let access_start = std::time::Instant::now();
-
-                    // This is where the hang occurs in the reproducer
-                    let mut write = test_buffer.access_write().await;
-
-                    let access_time = access_start.elapsed();
-                    println!("Got buffer write access (took {:?})", access_time);
-
-                    // If any single access takes more than 1 second, that's suspicious
-                    if access_time > Duration::from_secs(1) {
-                        panic!(
-                            "❌ Buffer access took {:?} which is unexpectedly long! \
-             This suggests the hang issue is present.",
-                            access_time
-                        );
-                    }
-
-                    // Write some test data
-                    for i in 0..4 {
-                        let data = TestData {
-                            x: (i as f32) * 10.0 + (iteration as f32),
-                            y: (i as f32) * 20.0 + (iteration as f32),
-                            z: (i as f32) * 30.0 + (iteration as f32),
-                        };
-                        write.write(&[data], i);
-                    }
-
-                    println!("Completed buffer write, dropping write access");
-                    write.async_drop().await;
-
-                    // Small delay like in the reproducer
-                    portable_async_sleep::async_sleep(Duration::from_millis(10)).await;
-
-                    // After a few iterations, exit successfully if no hang occurred
-                    if iteration >= 3 {
-                        println!("✅ Completed {} iterations without hanging", iteration);
-                        break;
-                    }
-                    if start_time.elapsed() > max_test_duration {
-                        panic!(
-                            "❌ Test timed out waiting for buffer access operations to complete! This indicates the hang issue is present."
-                        );
-                    }
+                        max_test_duration
+                    );
                 }
 
-                println!("✅ Test passed - no hang detected in buffer access operations");
-                std::process::exit(0);
-            });
-        })
-    });
+                println!("Requesting buffer write access");
+
+                let access_start = std::time::Instant::now();
+
+                // This is where the hang occurs in the reproducer
+                let mut write = test_buffer.access_write().await;
+
+                let access_time = access_start.elapsed();
+                println!("Got buffer write access (took {:?})", access_time);
+
+                // If any single access takes more than 1 second, that's suspicious
+                if access_time > Duration::from_secs(1) {
+                    panic!(
+                        "❌ Buffer access took {:?} which is unexpectedly long! \
+             This suggests the hang issue is present.",
+                        access_time
+                    );
+                }
+
+                // Write some test data
+                for i in 0..4 {
+                    let data = TestData {
+                        x: (i as f32) * 10.0 + (iteration as f32),
+                        y: (i as f32) * 20.0 + (iteration as f32),
+                        z: (i as f32) * 30.0 + (iteration as f32),
+                    };
+                    write.write(&[data], i);
+                }
+
+                println!("Completed buffer write, dropping write access");
+                write.async_drop().await;
+
+                // Small delay like in the reproducer
+                portable_async_sleep::async_sleep(Duration::from_millis(10)).await;
+
+                // After a few iterations, exit successfully if no hang occurred
+                if iteration >= 3 {
+                    println!("✅ Completed {} iterations without hanging", iteration);
+                    break;
+                }
+                if start_time.elapsed() > max_test_duration {
+                    panic!(
+                        "❌ Test timed out waiting for buffer access operations to complete! This indicates the hang issue is present."
+                    );
+                }
+            }
+
+            println!("✅ Test passed - no hang detected in buffer access operations");
+            std::process::exit(0);
+        },
+        "buffer_access_hang_test",
+    );
 }

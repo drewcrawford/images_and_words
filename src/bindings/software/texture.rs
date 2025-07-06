@@ -503,8 +503,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::pixel_formats::{RGBA32Float, Float4};
     /// use images_and_words::{Priority, Strategy};
     ///
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
+    /// # test_executors::spawn_local(async {
     ///     // Create a complex procedural texture in parallel
     ///     let texture = Texture::<RGBA32Float>::new_with_parallel(
     ///         512, 512,
@@ -583,6 +582,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     Path::new("assets/texture.png"),
     ///     priority
     /// ).await;
+    /// # }, "software_texture_doctest");
     /// # }
     /// ```
     pub async fn new_from_path(path: &Path, priority: async_file::Priority) -> Self

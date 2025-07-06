@@ -1,6 +1,7 @@
 //SPDX-License-Identifier: MPL-2.0
 
 use super::context::{WGPU_STRATEGY, WGPUStrategy, begin};
+#[cfg(feature = "app_window")]
 use app_window::application::{is_main_thread, on_main_thread};
 use send_cells::UnsafeSendCell;
 use send_cells::unsafe_sync_cell::UnsafeSyncCell;
@@ -92,12 +93,14 @@ impl<T> WgpuCell<T> {
     #[inline]
     pub fn verify_thread() {
         match WGPU_STRATEGY {
+            #[cfg(feature = "app_window")]
             WGPUStrategy::MainThread => {
                 assert!(
                     is_main_thread(),
                     "WgpuCell accessed from non-main thread when strategy is MainThread"
                 );
             }
+            #[cfg(feature = "app_window")]
             WGPUStrategy::NotMainThread => {
                 assert!(
                     !is_main_thread(),
@@ -181,6 +184,7 @@ impl<T> WgpuCell<T> {
         T: 'static,
     {
         match WGPU_STRATEGY {
+            #[cfg(feature = "app_window")]
             WGPUStrategy::MainThread => {
                 if app_window::application::is_main_thread() {
                     self.assume(c)
@@ -205,6 +209,7 @@ impl<T> WgpuCell<T> {
                     .await
                 }
             }
+            #[cfg(feature = "app_window")]
             WGPUStrategy::NotMainThread => {
                 if !is_main_thread() {
                     // If we're not on the main thread, we can just call the closure directly
@@ -270,6 +275,7 @@ impl<T> WgpuCell<T> {
         T: 'static,
     {
         match WGPU_STRATEGY {
+            #[cfg(feature = "app_window")]
             WGPUStrategy::MainThread => {
                 if is_main_thread() {
                     WgpuCell::new(c().await)
@@ -293,6 +299,7 @@ impl<T> WgpuCell<T> {
                     v.lock().unwrap().take().expect("WgpuCell value missing")
                 }
             }
+            #[cfg(feature = "app_window")]
             WGPUStrategy::NotMainThread => {
                 if !is_main_thread() {
                     // If we're not on the main thread, we can just call the closure directly
@@ -400,12 +407,14 @@ impl<T: Future> Future for WgpuFuture<T> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // Verify we're polling from the correct thread
         match WGPU_STRATEGY {
+            #[cfg(feature = "app_window")]
             WGPUStrategy::MainThread => {
                 assert!(
                     is_main_thread(),
                     "WgpuFuture polled from non-main thread when strategy is MainThread"
                 );
             }
+            #[cfg(feature = "app_window")]
             WGPUStrategy::NotMainThread => {
                 assert!(
                     !is_main_thread(),
@@ -462,36 +471,6 @@ mod tests {
             let cell = WgpuCell::new(rc);
             assert_eq!(**cell.get(), 42);
         }
-    }
-
-    // Test that verifies thread checking works correctly on macOS/wasm
-    #[test]
-    #[cfg(any(target_os = "macos", target_arch = "wasm32"))]
-    fn test_main_thread_strategy() {
-        // On macOS/wasm, we should be using MainThread strategy
-        assert_eq!(WGPU_STRATEGY, WGPUStrategy::MainThread);
-
-        // Since tests run on non-main threads, accessing should panic
-        let result = std::panic::catch_unwind(|| {
-            let cell = WgpuCell::new(42);
-            let _ = cell.get(); // This should panic
-        });
-        assert!(
-            result.is_err(),
-            "Expected panic when accessing WgpuCell from non-main thread"
-        );
-    }
-
-    // Test for Linux NotMainThread strategy
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_not_main_thread_strategy() {
-        // On Linux, we should be using NotMainThread strategy
-        assert_eq!(WGPU_STRATEGY, WGPUStrategy::NotMainThread);
-
-        // Since tests run on non-main threads, accessing should work
-        let cell = WgpuCell::new(42);
-        assert_eq!(*cell.get(), 42); // This should work fine
     }
 
     struct TestFuture {

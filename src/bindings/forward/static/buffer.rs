@@ -33,9 +33,9 @@
 //! # use images_and_words::bindings::visible_to::GPUBufferUsage;
 //! # use images_and_words::images::projection::WorldCoord;
 //! # use images_and_words::images::view::View;
-//! # app_window::wgpu::wgpu_begin_context(async {
-//! # app_window::wgpu::wgpu_in_context(async {
-//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! # test_executors::spawn_local(async {
+//! # let view = images_and_words::images::View::for_testing();
+//! # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! # let device = engine.bound_device();
 //! // Define a vertex type
 //! #[repr(C)]
@@ -59,8 +59,7 @@
 //!         _ => unreachable!()
 //!     }
 //! ).await.expect("Failed to create buffer");
-//! # });
-//! # });
+//! # }, "static_buffer_creation_doctest");
 //! # }
 //! ```
 //!
@@ -108,9 +107,9 @@ use std::sync::Arc;
 /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
-/// # app_window::wgpu::wgpu_begin_context(async {
-/// # app_window::wgpu::wgpu_in_context(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # test_executors::spawn_local(async {
+/// # let view = images_and_words::images::View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let device = engine.bound_device();
 /// // Create a buffer of precomputed sine values
 /// let sine_lut = Buffer::new(
@@ -120,8 +119,7 @@ use std::sync::Arc;
 ///     "sine_lookup_table",
 ///     |i| (i as f32 * std::f32::consts::TAU / 256.0).sin()
 /// ).await.expect("Failed to create buffer");
-/// # });
-/// # });
+/// # }, "static_buffer_sine_lut_doctest");
 /// # }
 /// ```
 #[derive(Debug)]
@@ -231,9 +229,9 @@ impl<Element> Buffer<Element> {
     /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// # let device = engine.bound_device();
     /// // Create an index buffer for a quad (two triangles)
     /// let indices = Buffer::new(
@@ -247,8 +245,7 @@ impl<Element> Buffer<Element> {
     ///         _ => unreachable!()
     ///     }
     /// ).await.expect("Failed to create buffer");
-    /// # });
-    /// # });
+    /// # }, "static_buffer_quad_indices_doctest");
     /// # }
     /// ```
     ///

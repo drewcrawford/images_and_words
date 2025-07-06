@@ -24,70 +24,69 @@ unsafe impl CRepr for TestData {}
 
 fn main() {
     println!("=== Testing WgpuCell threading error reproduction ===");
-    app_window::application::main(|| {
-        app_window::wgpu::wgpu_begin_context(async {
-            app_window::wgpu::wgpu_in_context(async {
-                // Create a view for testing
-                let view = View::for_testing();
+    test_executors::spawn_local(
+        async move {
+            // Create a view for testing
+            let view = View::for_testing();
 
-                // Create an engine
-                let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
-                let engine = Arc::new(
-                    Engine::rendering_to(view, initial_camera_position)
-                        .await
-                        .expect("Failed to create engine for testing"),
-                );
-
-                let device = engine.bound_device();
-
-                // Create a test buffer
-                let test_buffer = Arc::new(
-                    Buffer::new(
-                        device.clone(),
-                        100,
-                        GPUBufferUsage::VertexBuffer,
-                        "threading_test_buffer",
-                        |i| TestData { value: i as f32 },
-                    )
+            // Create an engine
+            let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
+            let engine = Arc::new(
+                Engine::rendering_to(view, initial_camera_position)
                     .await
-                    .expect("Failed to create buffer"),
-                );
+                    .expect("Failed to create engine for testing"),
+            );
 
-                println!("Created buffer successfully");
+            let device = engine.bound_device();
 
-                // Now try to spawn a thread that gets write access and calls async_drop from a non-main thread
-                // This should trigger the WgpuCell threading error
-                let (sender, receiver) = std::sync::mpsc::channel();
-                let test_buffer_clone = test_buffer.clone();
+            // Create a test buffer
+            let test_buffer = Arc::new(
+                Buffer::new(
+                    device.clone(),
+                    100,
+                    GPUBufferUsage::VertexBuffer,
+                    "threading_test_buffer",
+                    |i| TestData { value: i as f32 },
+                )
+                .await
+                .expect("Failed to create buffer"),
+            );
 
-                std::thread::spawn(move || {
-                    println!("Getting write access from spawned thread (non-main thread)");
+            println!("Created buffer successfully");
 
-                    // This should trigger: "WgpuCell accessed from non-main thread when strategy is MainThread"
-                    test_executors::sleep_on(async move {
-                        let mut write_access = test_buffer_clone.access_write().await;
-                        println!("Obtained write access on non-main thread");
+            // Now try to spawn a thread that gets write access and calls async_drop from a non-main thread
+            // This should trigger the WgpuCell threading error
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let test_buffer_clone = test_buffer.clone();
 
-                        // Write some data
-                        write_access.write(&[TestData { value: 42.0 }], 0);
-                        println!("Wrote data to buffer");
+            std::thread::spawn(move || {
+                println!("Getting write access from spawned thread (non-main thread)");
 
-                        println!("Calling async_drop from spawned thread (non-main thread)");
-                        write_access.async_drop().await;
-                    });
+                // This should trigger: "WgpuCell accessed from non-main thread when strategy is MainThread"
+                test_executors::sleep_on(async move {
+                    let mut write_access = test_buffer_clone.access_write().await;
+                    println!("Obtained write access on non-main thread");
 
-                    let _ = sender.send(0);
+                    // Write some data
+                    write_access.write(&[TestData { value: 42.0 }], 0);
+                    println!("Wrote data to buffer");
+
+                    println!("Calling async_drop from spawned thread (non-main thread)");
+                    write_access.async_drop().await;
                 });
-                std::thread::spawn(move || {
-                    // Wait for the spawned thread to complete
-                    let result = receiver
-                        .recv()
-                        .expect("Failed to receive result from spawned thread");
 
-                    //exit the process
-                    std::process::exit(result);
-                });
+                let _ = sender.send(0);
             });
-        });
-    });
+            std::thread::spawn(move || {
+                // Wait for the spawned thread to complete
+                let result = receiver
+                    .recv()
+                    .expect("Failed to receive result from spawned thread");
+
+                //exit the process
+                std::process::exit(result);
+            });
+        },
+        "wgpu_cell_threading_error_test",
+    )
 }

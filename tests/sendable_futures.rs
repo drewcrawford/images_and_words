@@ -29,60 +29,59 @@ unsafe impl CRepr for TestData {}
 /// many async applications.
 
 fn main() {
-    app_window::application::main(|| {
-        app_window::wgpu::wgpu_begin_context(async {
-            app_window::wgpu::wgpu_in_context(async {
-                // Create a view for testing
-                let view = View::for_testing();
+    test_executors::spawn_local(
+        async move {
+            // Create a view for testing
+            let view = View::for_testing();
 
-                // Create an engine
-                let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
-                let engine = Arc::new(
-                    Engine::rendering_to(view, initial_camera_position)
-                        .await
-                        .expect("Failed to create engine for testing"),
-                );
+            // Create an engine
+            let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
+            let engine = Arc::new(
+                Engine::rendering_to(view, initial_camera_position)
+                    .await
+                    .expect("Failed to create engine for testing"),
+            );
 
-                let device = engine.bound_device();
+            let device = engine.bound_device();
 
-                // Create a test buffer
-                let test_buffer = Buffer::new(
-                    device.clone(),
-                    10,
-                    GPUBufferUsage::VertexBuffer,
-                    "cross_task_test_buffer",
-                    |i| TestData { value: i as f32 },
-                )
-                .await
-                .expect("Failed to create buffer");
+            // Create a test buffer
+            let test_buffer = Buffer::new(
+                device.clone(),
+                10,
+                GPUBufferUsage::VertexBuffer,
+                "cross_task_test_buffer",
+                |i| TestData { value: i as f32 },
+            )
+            .await
+            .expect("Failed to create buffer");
 
-                // Test sending the buffer and its access future across a task boundary
-                let buffer_clone = test_buffer.clone();
+            // Test sending the buffer and its access future across a task boundary
+            let buffer_clone = test_buffer.clone();
 
-                // Create a future that can be sent
-                let access_future = async move {
-                    let mut write_access = buffer_clone.access_write().await;
+            // Create a future that can be sent
+            let access_future = async move {
+                let mut write_access = buffer_clone.access_write().await;
 
-                    // Write some test data
-                    write_access.write(&[TestData { value: 42.0 }], 0);
+                // Write some test data
+                write_access.write(&[TestData { value: 42.0 }], 0);
 
-                    // Properly drop the write access guard
-                    write_access.async_drop().await;
+                // Properly drop the write access guard
+                write_access.async_drop().await;
 
-                    "success"
-                };
+                "success"
+            };
 
-                // This compilation test verifies the future is Send
-                fn assert_send<T: Send>(_: &T) {}
-                assert_send(&access_future);
+            // This compilation test verifies the future is Send
+            fn assert_send<T: Send>(_: &T) {}
+            assert_send(&access_future);
 
-                // Execute the future
-                let result = access_future.await;
-                assert_eq!(result, "success");
+            // Execute the future
+            let result = access_future.await;
+            assert_eq!(result, "success");
 
-                println!("Sendable futures test completed successfully");
-                std::process::exit(0);
-            })
-        });
-    });
+            println!("Sendable futures test completed successfully");
+            std::process::exit(0);
+        },
+        "sendable_futures_test",
+    );
 }

@@ -34,10 +34,10 @@ updated from the CPU side during runtime.
 # use images_and_words::images::projection::WorldCoord;
 # use images_and_words::images::view::View;
 # use images_and_words::Priority;
-# app_window::wgpu::wgpu_begin_context(async {
-# app_window::wgpu::wgpu_in_context(async {
-# let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-let device = engine.bound_device();
+# test_executors::spawn_local(async {
+# let view = images_and_words::images::View::for_testing();
+# let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+# let device = engine.bound_device();
 
 // Create a 256x256 RGBA texture
 let config = TextureConfig {
@@ -67,8 +67,7 @@ write_guard.replace(
 
 // Buffer is automatically enqueued when guard is dropped
 write_guard.async_drop().await;
-# });
-# });
+# }, "frame_texture_creation_doctest");
 # }
 ```
 
@@ -167,18 +166,17 @@ impl ErasedTextureRenderSide {
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// # app_window::wgpu::wgpu_begin_context(async {
-/// # app_window::wgpu::wgpu_in_context(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-/// let device = engine.bound_device();
+/// # test_executors::spawn_local(async {
+/// # let view = images_and_words::images::View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
 /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
 /// # let frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
 /// let mut bind_style = BindStyle::new();
 ///
 /// // Bind the texture to slot 0 for the fragment shader
 /// bind_style.bind_dynamic_texture(BindSlot::new(0), Stage::Fragment, &frame_texture);
-/// # });
-/// # });
+/// # }, "frame_texture_bind_style_doctest");
 /// # }
 /// ```
 pub(crate) struct TextureRenderSide<Format: PixelFormat> {
@@ -266,10 +264,10 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// # app_window::wgpu::wgpu_begin_context(async {
-/// # app_window::wgpu::wgpu_in_context(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-/// let device = engine.bound_device();
+/// # test_executors::spawn_local(async {
+/// # let view = images_and_words::images::View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
 /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
 /// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
 /// // Dequeue a buffer for writing
@@ -285,8 +283,7 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// guard.async_drop().await;
 ///
 /// // Texture is automatically enqueued when guard goes out of scope
-/// # });
-/// # });
+/// # }, "frame_texture_cpu_write_guard_doctest");
 /// # }
 /// ```
 #[derive(Debug)]
@@ -435,10 +432,10 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// # app_window::wgpu::wgpu_begin_context(async {
-/// # app_window::wgpu::wgpu_in_context(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-/// let device = engine.bound_device();
+/// # test_executors::spawn_local(async {
+/// # let view = images_and_words::images::View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
 ///
 /// // Create a texture for video playback
 /// let config = TextureConfig {
@@ -463,8 +460,7 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// let mut guard = video_texture.dequeue().await;
 /// guard.replace(1920, Texel::ZERO, &frame_data);
 /// guard.async_drop().await; // Enqueue for GPU
-/// # });
-/// # });
+/// # }, "frame_texture_struct_doctest");
 /// # }
 /// ```
 #[derive(Debug, Clone)]
@@ -514,10 +510,10 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
     /// # let mut frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
     /// # let mut guard = frame_texture.dequeue().await;
@@ -531,8 +527,7 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     ///     &pixels // full row of pixels
     /// );
     /// guard.async_drop().await;
-    /// # });
-    /// # });
+    /// # }, "frame_texture_replace_doctest");
     /// # }
     /// ```
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel])
@@ -591,10 +586,10 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     ///
     /// // Create a texture for height map data
     /// let config = TextureConfig {
@@ -615,8 +610,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///         (texel.x as f32 + texel.y as f32) / 1024.0
     ///     },
     /// ).await;
-    /// # });
-    /// # });
+    /// # }, "frame_texture_new_doctest");
     /// # }
     /// ```
     pub async fn new<I: Fn(Texel) -> Format::CPixel>(
@@ -669,10 +663,10 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
     /// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
     /// // Wait for an available buffer
@@ -681,8 +675,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// // Modify the texture through the guard...
     /// guard.async_drop().await;
     /// // Buffer is automatically enqueued when guard is dropped
-    /// # });
-    /// # });
+    /// # }, "frame_texture_dequeue_doctest");
     /// # }
     /// ```
     pub async fn dequeue(&mut self) -> CPUWriteGuard<Format> {

@@ -425,9 +425,9 @@ impl From<Unorm4> for PixelBGRA {
 /// # use images_and_words::Priority;
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
-/// # app_window::wgpu::wgpu_begin_context(async {
-/// # app_window::wgpu::wgpu_in_context(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # test_executors::spawn_local(async {
+/// # let view = images_and_words::images::View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let device = engine.bound_device();
 ///
 /// // Create a texture with this format
@@ -445,8 +445,7 @@ impl From<Unorm4> for PixelBGRA {
 ///     config,
 ///     |_| Unorm4 { r: 255, g: 128, b: 0, a: 255 }
 /// ).await.expect("Failed to create texture");
-/// # });
-/// # });
+/// # }, "pixel_formats_doctest");
 /// # }
 /// ```
 #[derive(Debug, Clone)]

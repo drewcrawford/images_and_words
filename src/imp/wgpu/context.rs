@@ -1,18 +1,22 @@
 /*!
 Holds threading primitives on wgpu */
 
+#[cfg(feature = "app_window")]
 use app_window::application::submit_to_main_thread;
 use r#continue::continuation;
 use logwise::context::Context;
 use some_executor::task::{Configuration, Task};
 
 pub(crate) enum WGPUStrategy {
+    #[cfg(feature = "app_window")]
     MainThread,
+    #[cfg(feature = "app_window")]
     NotMainThread,
     Relaxed,
 }
 
 impl WGPUStrategy {
+    #[cfg(feature = "app_window")]
     const fn from_appwindow_strategy(strategy: app_window::WGPUStrategy) -> Self {
         match strategy {
             app_window::WGPUStrategy::MainThread => WGPUStrategy::MainThread,
@@ -56,14 +60,20 @@ which is a bit complex to express in Rust.  How we do it is:
 * [`wgpu_in_context`]`: Uses a previously established context to run a future that is not Send.
 */
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(feature = "app_window")]
 pub const WGPU_STRATEGY: WGPUStrategy =
     WGPUStrategy::from_appwindow_strategy(app_window::WGPU_STRATEGY);
+
+#[cfg(feature = "testing")]
+pub const WGPU_STRATEGY: WGPUStrategy = WGPUStrategy::Relaxed;
 
 pub fn begin<F>(f: F)
 where
     F: FnOnce() + Send + 'static,
 {
     match WGPU_STRATEGY {
+        #[cfg(feature = "app_window")]
         WGPUStrategy::MainThread => {
             if app_window::application::is_main_thread() {
                 // If we're on the main thread, we can just call the function directly.
@@ -78,6 +88,7 @@ where
                 });
             }
         }
+        #[cfg(feature = "app_window")]
         WGPUStrategy::NotMainThread => {
             if app_window::application::is_main_thread() {
                 std::thread::Builder::new()

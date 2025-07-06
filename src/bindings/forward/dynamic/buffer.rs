@@ -42,10 +42,10 @@
 //! use images_and_words::bindings::visible_to::GPUBufferUsage;
 //! use images_and_words::images::projection::WorldCoord;
 //! use images_and_words::images::view::View;
-//! # app_window::wgpu::wgpu_begin_context(async {
-//! # app_window::wgpu::wgpu_in_context(async {
-//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-//! let device = engine.bound_device();
+//! # test_executors::spawn_local(async {
+//! # let view = images_and_words::images::View::for_testing();
+//! # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! # let device = engine.bound_device();
 //! // Define a C-compatible struct
 //! #[repr(C)]
 //! struct Vertex {
@@ -77,8 +77,7 @@
 //!     z: 3.0,
 //! }], 0);
 //! write_guard.async_drop().await;
-//! # });
-//! # });
+//! # }, "dynamic_buffer_creation_doctest");
 //! # }
 //! ```
 //!
@@ -174,10 +173,10 @@ impl Debug for Shared {
 /// use images_and_words::bindings::visible_to::GPUBufferUsage;
 /// use images_and_words::images::projection::WorldCoord;
 /// use images_and_words::images::view::View;
-/// # app_window::wgpu::wgpu_begin_context(async {
-/// # app_window::wgpu::wgpu_in_context(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-/// let device = engine.bound_device();
+/// # test_executors::spawn_local(async {
+/// # let view = images_and_words::images::View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
 /// // Create a buffer for float values
 /// let float_buffer = Buffer::<f32>::new(
 ///     device.clone(),
@@ -186,8 +185,7 @@ impl Debug for Shared {
 ///     "float_data",
 ///     |i| i as f32 * 0.1  // Initialize with scaled index
 /// ).await.expect("Failed to create buffer");
-/// # });
-/// # });
+/// # }, "dynamic_buffer_float_data_doctest");
 /// # }
 /// ```
 #[derive(Debug, Clone)]
@@ -258,18 +256,17 @@ impl<Element> CPUWriteAccess<'_, Element> {
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).await.expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
     ///
     /// // Write 3 floats starting at index 5
     /// write_guard.write(&[1.0, 2.0, 3.0], 5);
     /// write_guard.async_drop().await;
-    /// # });
-    /// # });
+    /// # }, "dynamic_buffer_write_doctest");
     /// # }
     /// ```
     pub fn write(&mut self, data: &[Element], dst_offset: usize)
@@ -504,10 +501,10 @@ impl<Element> Buffer<Element> {
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     /// // Create a buffer of 256 floats initialized to their index
     /// let buffer = Buffer::new(
     ///     device.clone(),
@@ -516,8 +513,7 @@ impl<Element> Buffer<Element> {
     ///     "index_buffer",
     ///     |i| i as f32
     /// ).await.expect("Failed to create buffer");
-    /// # });
-    /// # });
+    /// # }, "dynamic_buffer_new_doctest");
     /// # }
     /// ```
     pub async fn new(
@@ -590,10 +586,10 @@ impl<Element> Buffer<Element> {
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).await.expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
     ///
@@ -602,8 +598,7 @@ impl<Element> Buffer<Element> {
     /// write_guard.async_drop().await;
     ///
     /// // Guard automatically marks buffer as dirty when dropped
-    /// # });
-    /// # });
+    /// # }, "dynamic_buffer_access_write_doctest");
     /// # }
     /// ```
     pub async fn access_write(&self) -> CPUWriteAccess<'_, Element> {

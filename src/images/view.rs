@@ -39,8 +39,7 @@
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
 //! # #[cfg(feature = "testing")]
-//! # app_window::wgpu::wgpu_begin_context(async {
-//! # app_window::wgpu::wgpu_in_context(async {
+//! # test_executors::spawn_local(async {
 //! use images_and_words::images::{Engine, view::View};
 //! use images_and_words::images::projection::WorldCoord;
 //!
@@ -49,8 +48,7 @@
 //! let engine = Engine::rendering_to(view, camera_position)
 //!     .await
 //!     .expect("Failed to create engine");
-//! # });
-//! # });
+//! # }, "view_doctest");
 //! ```
 
 use crate::entry_point::EntryPoint;
@@ -308,8 +306,8 @@ impl View {
     #[cfg(any(test, feature = "testing"))]
     pub fn for_testing() -> Self {
         View {
-            os_impl: OSImpl::Testing,
-            imp: Some(crate::imp::View::for_testing()),
+            gpu_impl: None,
+            windowing_impl: WindowingImpl::Testing,
         }
     }
 }

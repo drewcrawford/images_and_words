@@ -24,10 +24,10 @@
 //! use images_and_words::images::view::View;
 //! use images_and_words::pixel_formats::RGBA8UNorm;
 //! use images_and_words::Priority;
-//! # app_window::wgpu::wgpu_begin_context(async {
-//! # app_window::wgpu::wgpu_in_context(async {
-//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-//! let device = engine.bound_device();
+//! # test_executors::spawn_local(async {
+//! # let view = images_and_words::images::View::for_testing();
+//! # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! # let device = engine.bound_device();
 //!
 //! // Create a 256x256 red texture
 //! let config = TextureConfig {
@@ -45,8 +45,7 @@
 //!     config,
 //!     |_texel| images_and_words::pixel_formats::Unorm4 { r: 255, g: 0, b: 0, a: 255 }  // RGBA red
 //! ).await.expect("Failed to create texture");
-//! # });
-//! # });
+//! # }, "static_texture_creation_doctest");
 //! # }
 //! ```
 //!
@@ -125,10 +124,10 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     ///
     /// // Create a gradient texture
     /// let config = TextureConfig {
@@ -150,8 +149,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///         images_and_words::pixel_formats::Unorm4 { r, g, b: 0, a: 255 }
     ///     }
     /// ).await.expect("Failed to create texture");
-    /// # });
-    /// # });
+    /// # }, "static_texture_gradient_doctest");
     /// # }
     /// ```
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(
@@ -198,10 +196,10 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     ///
     /// // Create a software texture first
     /// let soft_texture = SoftwareTexture::<RGBA8UNorm>::new_with(64, 64, |_texel| {
@@ -223,8 +221,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     &soft_texture,
     ///     config
     /// ).await.expect("Failed to create GPU texture");
-    /// # });
-    /// # });
+    /// # }, "static_texture_from_software_doctest");
     /// # }
     /// ```
     pub async fn from_software(
@@ -296,10 +293,10 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::images::view::View;
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
-    /// # app_window::wgpu::wgpu_begin_context(async {
-    /// # app_window::wgpu::wgpu_in_context(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = images_and_words::images::View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     ///
     /// // Create a 2x2 texture with red, green, blue, and white pixels
     /// let pixels = [
@@ -323,8 +320,7 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     &device,
     ///     config
     /// ).await.expect("Failed to create texture");
-    /// # });
-    /// # });
+    /// # }, "static_texture_from_slice_doctest");
     /// # }
     /// ```
     pub async fn new_slice(

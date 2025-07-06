@@ -39,20 +39,17 @@ async fn test_texture_alignment_ok_width_128() {
 }
 
 fn main() {
-    app_window::application::main(|| {
-        app_window::wgpu::wgpu_begin_context(async {
-            app_window::wgpu::wgpu_in_context(async {
-                // Run the tests
-                test_texture_alignment_error_width_100().await;
-                test_texture_alignment_error_width_63().await;
-                test_texture_alignment_error_width_150().await;
-                test_texture_alignment_ok_width_64().await;
-                test_texture_alignment_ok_width_128().await;
-
-                std::process::exit(0);
-            });
-        });
-    });
+    test_executors::spawn_local(
+        async move {
+            // Run the tests
+            test_texture_alignment_error_width_100().await;
+            test_texture_alignment_error_width_63().await;
+            test_texture_alignment_error_width_150().await;
+            test_texture_alignment_ok_width_64().await;
+            test_texture_alignment_ok_width_128().await;
+        },
+        "Texture Alignment Tests",
+    );
 }
 
 /// Helper function to test a specific problematic width
