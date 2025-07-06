@@ -28,7 +28,7 @@ where
 {
     //option so we can take on drop
     imp: Option<crate::bindings::resource_tracking::CPUReadGuard<'a, Element>>,
-    buffer: &'a Multibuffer<Element, U>,
+    _buffer: &'a Multibuffer<Element, U>,
 }
 
 impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U>
@@ -58,7 +58,7 @@ where
 
         // Handle the wake list notifications
         let wakers_to_send: Vec<r#continue::Sender<()>> = {
-            let mut locked_wake_list = self.buffer.wake_list.lock().unwrap();
+            let mut locked_wake_list = self._buffer.wake_list.lock().unwrap();
             locked_wake_list.drain(..).collect()
         };
 

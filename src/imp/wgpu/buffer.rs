@@ -32,12 +32,9 @@ use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp::wgpu::cell::WgpuCell;
 use crate::imp::wgpu::context::smuggle;
-use send_cells::SyncCell;
-use some_executor::task::Task;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 use wgpu::MapMode;
-use wgpu::util::BufferInitDescriptor;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label};
 
 /**
@@ -94,7 +91,7 @@ pub struct MappableBuffer {
     wgpu_buffer_is_dirty: bool,
 
     bound_device: Arc<BoundDevice>,
-    debug_label: String,
+    _debug_label: String,
 }
 
 impl MappableBuffer {
@@ -169,7 +166,7 @@ impl MappableBuffer {
             wgpu_buffer: buffer,
             bound_device,
             wgpu_buffer_is_dirty: false,
-            debug_label: debug_name_2,
+            _debug_label: debug_name_2,
         })
     }
 
@@ -209,7 +206,7 @@ impl MappableBuffer {
         let wgpu_buffer = self.wgpu_buffer.clone();
         let bound_device = self.bound_device.clone();
         //we need to wait for the unmap to complete here
-        crate::imp::wgpu::context::smuggle("unmap".to_string(), move || async move {
+        crate::imp::wgpu::context::smuggle_async("unmap".to_string(), move || async move {
             copy_buffer_data_threadsafe(internal_buffer_data, wgpu_buffer, bound_device).await;
         })
         .await;

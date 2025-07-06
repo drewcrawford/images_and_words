@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::imp::Error;
 use crate::imp::wgpu::cell::WgpuCell;
-use crate::imp::wgpu::context::{smuggle, smuggle_async};
-use send_cells::SyncCell;
+use crate::imp::wgpu::context::smuggle_async;
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,7 +30,7 @@ impl BoundDevice {
         _entry_point: Arc<crate::entry_point::EntryPoint>,
     ) -> Result<Self, Error> {
         let move_adapter = unbound_device.0.adapter.clone();
-        let (mut device, mut queue) = smuggle_async("create device".to_string(), || async move {
+        let (device, queue) = smuggle_async("create device".to_string(), || async move {
             let label = wgpu::Label::from("Bound Device");
             let descriptor = wgpu::DeviceDescriptor {
                 label,

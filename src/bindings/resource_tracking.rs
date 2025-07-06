@@ -359,7 +359,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
             std::sync::atomic::Ordering::Acquire,
             std::sync::atomic::Ordering::Relaxed,
             |current| match current {
-                UNUSED | PENDING_WRITE_TO_GPU => Some(CPU_WRITE),
+                UNUSED => Some(CPU_WRITE),
                 _ => None,
             },
         ) {

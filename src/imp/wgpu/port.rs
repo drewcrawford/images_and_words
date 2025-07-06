@@ -566,7 +566,7 @@ pub struct BindGroupGuard {
     bind_group: BindGroup,
     #[allow(dead_code)] // guards keep resources alive during GPU execution
     guards: Vec<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
-    guards_textures: Vec<Arc<crate::bindings::forward::dynamic::frame_texture::GPUAccess>>,
+    _guards_textures: Vec<Arc<crate::bindings::forward::dynamic::frame_texture::GPUAccess>>,
     vertex_buffers: Vec<(u32, WgpuCell<wgpu::Buffer>)>,
     dynamic_vertex_buffers: Vec<(
         u32,
@@ -593,12 +593,12 @@ impl BindGroupGuard {
 
         //these are only used for the bind group
         let build_static_texture_views = StableAddressVec::with_capactiy(5);
-        let mut build_static_buffers = StableAddressVec::with_capactiy(5);
-        let mut build_dynamic_texture_views = StableAddressVec::with_capactiy(5);
+        let build_static_buffers = StableAddressVec::with_capactiy(5);
+        let build_dynamic_texture_views = StableAddressVec::with_capactiy(5);
 
-        let mut clone_buffers = StableAddressVec::with_capactiy(5);
+        let clone_buffers = StableAddressVec::with_capactiy(5);
 
-        let mut camera_buffers = StableAddressVec::with_capactiy(5);
+        let camera_buffers = StableAddressVec::with_capactiy(5);
 
         let sampler_guards = StableAddressVec::with_capactiy(5);
 
@@ -761,7 +761,7 @@ impl BindGroupGuard {
         BindGroupGuard {
             bind_group,
             guards: gpu_guard_buffers,
-            guards_textures: gpu_guard_texture_views,
+            _guards_textures: gpu_guard_texture_views,
             vertex_buffers,
             dynamic_vertex_buffers,
             index_buffer,

@@ -107,7 +107,6 @@ use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureConfig;
 use crate::images::device::BoundDevice;
 use crate::imp;
-use crate::imp::BackendSend;
 use crate::multibuffer::Multibuffer;
 use crate::pixel_formats::sealed::PixelFormat;
 use std::fmt::{Debug, Formatter};

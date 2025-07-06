@@ -1,7 +1,6 @@
 use crate::entry_point::EntryPoint;
 use crate::images::view::ViewForImp;
 use crate::imp::wgpu::context::smuggle;
-use r#continue::continuation;
 use std::sync::Arc;
 
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
@@ -9,7 +8,7 @@ use std::sync::Arc;
 pub struct View {
     //need surface to be dropped first here
     pub(super) surface: Option<wgpu::Surface<'static>>,
-    pub(super) parent: Arc<ViewForImp>,
+    pub(super) _parent: Arc<ViewForImp>,
 }
 
 impl View {
@@ -30,14 +29,7 @@ impl View {
 
         Ok(View {
             surface: Some(wgpu_surface),
-            parent: view_clone2,
+            _parent: view_clone2,
         })
-    }
-
-    pub async fn provide_entry_point(
-        &mut self,
-        entry_point: &EntryPoint,
-    ) -> Result<(), crate::imp::Error> {
-        todo!()
     }
 }

@@ -359,8 +359,6 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture<Format> {
         let debug_name = config.debug_name.to_string();
         let config_width = config.width;
         let config_height = config.height;
-        let config_visible_to = config.visible_to;
-        let config_mipmaps = config.mipmaps;
 
         let texture = move_device_cell
             .with(move |device| {

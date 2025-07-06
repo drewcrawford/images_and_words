@@ -6,7 +6,6 @@ use send_cells::UnsafeSendCell;
 use send_cells::unsafe_sync_cell::UnsafeSyncCell;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -37,20 +36,20 @@ impl<'a, T> Deref for WgpuGuard<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.value }
+        &*self.value
     }
 }
 
 impl<'a, T> DerefMut for WgpuGuard<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *self.value }
+        &mut *self.value
     }
 }
 
 impl<'a, T: Debug> Debug for WgpuGuard<'a, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WgpuGuard")
-            .field("value", unsafe { &*self.value })
+            .field("value", &*self.value)
             .finish()
     }
 }
@@ -121,20 +120,6 @@ impl<T> WgpuCell<T> {
         WgpuGuard {
             _guard: guard,
             value,
-        }
-    }
-
-    #[inline]
-    pub unsafe fn get_unchecked(&self) -> &T {
-        unsafe {
-            self.shared
-                .as_ref()
-                .unwrap()
-                .inner
-                .as_ref()
-                .unwrap()
-                .get()
-                .get()
         }
     }
 

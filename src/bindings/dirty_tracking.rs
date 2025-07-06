@@ -10,7 +10,6 @@ Another distinction is that the receivers can be 'lately-bound' - that is, they 
 */
 
 use std::hash::Hash;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 struct OneShot {
@@ -30,11 +29,6 @@ impl OneShot {
     }
     fn set(&mut self, sender: r#continue::Sender<()>) {
         self.c = Some(sender);
-    }
-    fn send(&mut self) {
-        if let Some(sender) = self.c.take() {
-            sender.send(());
-        }
     }
 }
 

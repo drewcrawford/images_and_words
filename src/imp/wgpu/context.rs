@@ -2,8 +2,8 @@
 Holds threading primitives on wgpu */
 
 use app_window::application::submit_to_main_thread;
-use app_window::executor::already_on_main_thread_submit;
 use r#continue::continuation;
+use logwise::context::Context;
 use some_executor::task::{Configuration, Task};
 
 pub(crate) enum WGPUStrategy {
@@ -101,10 +101,16 @@ where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
 {
+    let prior_context = logwise::context::Context::current();
     let (s, r) = continuation();
-    begin(|| {
+    begin(move || {
+        let c = logwise::context::Context::new_task(Some(prior_context), "smuggle");
+        let id = c.context_id();
+        c.set_current();
+        logwise::info_sync!("smuggle {label}", label = label);
         let r = f();
         s.send(r);
+        Context::pop(id);
     });
     r.await
 }

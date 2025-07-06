@@ -55,21 +55,9 @@
 
 use crate::entry_point::EntryPoint;
 use raw_window_handle::{
-    DisplayHandle, HandleError, HasDisplayHandle, HasRawDisplayHandle, HasRawWindowHandle,
-    HasWindowHandle, WindowHandle,
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
 };
-#[cfg(feature = "app_window")]
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
-use send_cells::UnsafeSendCell;
 use std::sync::Arc;
-
-#[derive(Debug)]
-enum OSImpl {
-    #[cfg(feature = "app_window")]
-    AppWindow(app_window::surface::Surface),
-    #[cfg(any(test, feature = "testing"))]
-    Testing,
-}
 
 /// Error type for view operations.
 ///
@@ -267,6 +255,13 @@ impl View {
             gpu_impl: None,
             windowing_impl: WindowingImpl::AppWindow(Arc::new(surface)),
         })
+    }
+
+    pub fn testing() -> Self {
+        View {
+            gpu_impl: None,
+            windowing_impl: WindowingImpl::Testing,
+        }
     }
 
     /**
