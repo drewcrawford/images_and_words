@@ -22,7 +22,9 @@ pub(crate) use error::Error;
 pub use pixel_format::PixelFormat;
 pub use port::Port;
 pub use texture::RenderSide as TextureRenderSide;
-pub use texture::{GPUableTexture, MappableTexture};
+pub use texture::{
+    GPUableTexture, GPUableTexture2, GPUableTexture2Static, MappableTexture, MappableTexture2,
+};
 pub use unbound_device::UnboundDevice;
 pub use view::View;
 

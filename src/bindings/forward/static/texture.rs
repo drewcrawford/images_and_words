@@ -84,7 +84,7 @@ use std::sync::Arc;
 /// Textures can be safely shared between threads and are `Send + Sync`.
 #[derive(Debug, Clone)]
 pub struct Texture<Format> {
-    pub(crate) imp: imp::GPUableTexture<Format>,
+    pub(crate) imp: imp::GPUableTexture2Static<Format>,
     width: u16,
     height: u16,
 }
@@ -157,7 +157,7 @@ impl<Format: PixelFormat> Texture<Format> {
         config: TextureConfig<'_>,
         initialize_to: Initializer,
     ) -> Result<Self, Error> {
-        let imp = imp::GPUableTexture::new_initialize(device, config, initialize_to).await?;
+        let imp = imp::GPUableTexture2Static::new_with_data(device, config, initialize_to).await?;
         Ok(Self {
             imp,
             width: config.width,
