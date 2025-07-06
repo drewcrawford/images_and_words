@@ -516,13 +516,10 @@ impl AcquiredGuards {
                     let mut gpu_access = unsafe { texture.acquire_gpu_texture() };
 
                     // Handle the copy if there's a dirty guard
-                    if let Some(mut dirty_guard) = gpu_access.take_dirty_guard() {
-                        // Perform the texture copy using copy_from_mappable without hardcoding format
-                        if let Err(e) =
-                            dirty_guard.perform_copy(&mut *gpu_access.gpu_texture, copy_info)
-                        {
-                            panic!("Texture copy failed: {}", e);
-                        }
+                    if let Some(dirty_guard) = gpu_access.take_dirty_guard() {
+                        // TODO: Implement async texture copying similar to buffer copying
+                        // For now, we'll skip the copy and just keep the guard alive
+                        // This requires implementing the async copy pattern like buffers
                         texture_copy_guards.push(dirty_guard);
                     }
 

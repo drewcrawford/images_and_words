@@ -290,8 +290,8 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 pub struct CPUWriteGuard<'a, Format: PixelFormat> {
     underlying: crate::multibuffer::CPUWriteGuard<
         'a,
-        imp::MappableTexture<Format>,
-        imp::GPUableTexture<Format>,
+        imp::MappableTexture2<Format>,
+        imp::GPUableTexture2<Format>,
     >,
     width: u16,
     height: u16,
@@ -314,9 +314,10 @@ pub struct CPUReadGuard<Format: PixelFormat> {
 #[allow(dead_code)] //nop implementation does not use
 struct GPUGuard<Format: PixelFormat> {
     underlying:
-        crate::multibuffer::GPUGuard<imp::MappableTexture<Format>, imp::GPUableTexture<Format>>,
+        crate::multibuffer::GPUGuard<imp::MappableTexture2<Format>, imp::GPUableTexture2<Format>>,
     // Store the dirty guard separately so we can access the source texture
-    dirty_guard: Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableTexture<Format>>>,
+    dirty_guard:
+        Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableTexture2<Format>>>,
     render_side: imp::TextureRenderSide,
 }
 
@@ -332,17 +333,12 @@ impl<Format: PixelFormat> Debug for GPUGuard<Format> {
 impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
     fn perform_copy(
         &mut self,
-        destination: &mut dyn imp::GPUableTextureWrapped,
-        copy_info: &mut imp::CopyInfo,
+        _destination: &mut dyn imp::GPUableTextureWrapped,
+        _copy_info: &mut imp::CopyInfo<'_>,
     ) -> Result<(), String> {
-        if let Some(dirty_guard) = &mut self.dirty_guard {
-            // Dereference the dirty guard to get the MappableTexture
-            let source: &mut imp::MappableTexture<Format> = dirty_guard;
-            // Use the type-erased copy method
-            destination.copy_from_mappable(source, copy_info)
-        } else {
-            Err("perform_copy called on GPUGuard without dirty data".to_string())
-        }
+        // The sync copy interface is being removed.
+        // For GPUableTexture2, copies should happen during acquire guards using async methods.
+        panic!("DynGuard sync copy interface removed - use async copy during acquire guards");
     }
 }
 
@@ -385,13 +381,13 @@ pub(crate) trait DynGuard: Debug + Send + Sync {
     fn perform_copy(
         &mut self,
         destination: &mut dyn imp::GPUableTextureWrapped,
-        copy_info: &mut imp::CopyInfo,
+        copy_info: &mut imp::CopyInfo<'_>,
     ) -> Result<(), String>;
 }
 
 ///Shared between FrameTexture and TextureRenderSide
 struct Shared<Format: PixelFormat> {
-    multibuffer: Multibuffer<imp::MappableTexture<Format>, imp::GPUableTexture<Format>>,
+    multibuffer: Multibuffer<imp::MappableTexture2<Format>, imp::GPUableTexture2<Format>>,
 }
 
 impl<Format: PixelFormat> Debug for Shared<Format> {
@@ -618,10 +614,10 @@ impl<Format: PixelFormat> FrameTexture<Format> {
         config: TextureConfig<'_>,
         initialize_with: I,
     ) -> Self {
-        let gpu = imp::GPUableTexture::new(bound_device, config)
+        let gpu = imp::GPUableTexture2::new(bound_device, config)
             .await
             .unwrap();
-        let cpu = imp::MappableTexture::new(
+        let cpu = imp::MappableTexture2::new(
             bound_device,
             config.width,
             config.height,

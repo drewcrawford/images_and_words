@@ -894,6 +894,41 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
 
 impl<Format> GPUableTextureWrapper for GPUableTexture2<Format> {}
 
+impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextureWrapped
+    for GPUableTexture2<Format>
+{
+    fn format_matches(&self, other: &dyn crate::imp::MappableTextureWrapped) -> bool {
+        // Check if dimensions match
+        if self.width != other.width() as u32 || self.height != other.height() as u32 {
+            return false;
+        }
+
+        // Try to downcast to get the wgpu format
+        let other_any = other as &dyn std::any::Any;
+
+        // Check if it's exactly our type with matching format (MappableTexture2)
+        if let Some(_other_texture) = other_any.downcast_ref::<MappableTexture2<Format>>() {
+            // If we can downcast to the exact same type, formats match
+            return true;
+        }
+
+        // If we can't downcast to the same type, formats don't match
+        false
+    }
+
+    fn copy_from_mappable(
+        &self,
+        _source: &mut dyn crate::imp::MappableTextureWrapped,
+        _copy_info: &mut crate::imp::CopyInfo,
+    ) -> Result<(), String> {
+        // The sync copy interface is deprecated for GPUableTexture2.
+        // Copies should happen during acquire guards using the async copy_from_mappable_texture2 method.
+        panic!(
+            "Sync copy interface removed for GPUableTexture2 - use async copy during acquire guards"
+        );
+    }
+}
+
 /**
 A static texture that holds only a single GPU wgpu::Texture.
 Like GPUableTexture2 but without the staging buffer - for static texture data that doesn't change.
