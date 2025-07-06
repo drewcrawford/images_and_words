@@ -13,7 +13,7 @@ mod unbound_device;
 mod view;
 
 pub use bound_device::BoundDevice;
-pub use buffer::{CopyInfo, GPUableBuffer2, GPUableBufferStatic, MappableBuffer, MappableBuffer2};
+pub use buffer::{CopyInfo, GPUableBuffer, GPUableBufferStatic, MappableBuffer2};
 pub use engine::Engine;
 pub use entry_point::EntryPoint;
 pub(crate) use error::Error;
