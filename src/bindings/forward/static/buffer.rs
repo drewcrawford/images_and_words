@@ -69,7 +69,6 @@
 //! - [`forward::static::Texture`](crate::bindings::forward::static::texture::Texture) - For immutable image data
 //! - [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 
-use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::CRepr;
 use crate::images::BoundDevice;
 use crate::imp;
@@ -124,7 +123,7 @@ use std::sync::Arc;
 /// ```
 #[derive(Debug)]
 pub struct Buffer<Element> {
-    pub(crate) imp: imp::GPUableBuffer,
+    pub(crate) imp: imp::GPUableBuffer2Static,
     #[allow(dead_code)] //nop implementation does not use
     count: usize,
     element: PhantomData<Element>,
@@ -251,11 +250,9 @@ impl<Element> Buffer<Element> {
     ///
     /// # Implementation Details
     ///
-    /// 1. Creates a CPU-mappable staging buffer
-    /// 2. Initializes the staging buffer using the provided initializer
-    /// 3. Creates the final GPU buffer with the specified usage
-    /// 4. Copies data from staging to GPU buffer
-    /// 5. The staging buffer is automatically cleaned up
+    /// 1. Creates a GPU buffer with `mapped_at_creation=true`
+    /// 2. Initializes the buffer directly during creation using the provided initializer
+    /// 3. No staging buffer or copy operation required (optimized for static data)
     pub async fn new(
         device: Arc<BoundDevice>,
         count: usize,
@@ -267,18 +264,15 @@ impl<Element> Buffer<Element> {
         Element: CRepr,
     {
         let byte_size = std::mem::size_of::<Element>() * count;
-        let mappable = imp::MappableBuffer::new(
-            device.clone(),
+
+        let imp = imp::GPUableBuffer2Static::new_with_data(
+            device,
             byte_size,
-            MapType::Write,
+            usage,
             debug_name,
             |bytes| initialize_byte_array_with(count, bytes, initializer),
         )
         .await?;
-
-        let imp = imp::GPUableBuffer::new(device, byte_size, usage, debug_name).await;
-
-        imp.copy_from_buffer(mappable, 0, 0, byte_size).await;
 
         Ok(Self {
             imp,

@@ -58,7 +58,7 @@ use std::fmt::Debug;
 #[derive(Debug, Clone, PartialEq)]
 pub struct BindStyle {
     pub(crate) binds: HashMap<u32, BindInfo>,
-    pub(crate) index_buffer: Option<crate::imp::GPUableBuffer>,
+    pub(crate) index_buffer: Option<crate::imp::GPUableBuffer2Static>,
 }
 
 /// Internal enumeration of all possible binding targets.
@@ -68,7 +68,7 @@ pub struct BindStyle {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum BindTarget {
     /// A static buffer that doesn't change during rendering
-    StaticBuffer(crate::imp::GPUableBuffer),
+    StaticBuffer(crate::imp::GPUableBuffer2Static),
     /// A dynamic buffer that can be updated between frames
     DynamicBuffer(ErasedRenderSide),
     /// The camera transformation matrix (resolved at render time)
@@ -85,7 +85,7 @@ pub(crate) enum BindTarget {
     Sampler(SamplerType),
     /// A static vertex buffer with its layout description
     #[allow(dead_code)] //nop implementation does not use
-    VB(VertexLayout, crate::imp::GPUableBuffer),
+    VB(VertexLayout, crate::imp::GPUableBuffer2Static),
     /// A dynamic vertex buffer with its layout description
     #[allow(dead_code)] //nop implementation does not use
     DynamicVB(VertexLayout, ErasedRenderSide),

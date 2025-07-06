@@ -60,7 +60,6 @@ which is a bit complex to express in Rust.  How we do it is:
 * [`wgpu_in_context`]`: Uses a previously established context to run a future that is not Send.
 */
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg(feature = "app_window")]
 pub const WGPU_STRATEGY: WGPUStrategy =
     WGPUStrategy::from_appwindow_strategy(app_window::WGPU_STRATEGY);

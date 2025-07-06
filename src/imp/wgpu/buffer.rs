@@ -852,4 +852,110 @@ impl GPUableBuffer2Static {
     pub(super) fn buffer(&self) -> &WgpuCell<wgpu::Buffer> {
         &self.device_buffer
     }
+
+    /// Creates a new static buffer with initial data provided during creation.
+    ///
+    /// This method creates a GPU buffer with `mapped_at_creation=true` and initializes
+    /// it with data using the provided initializer function. This is the most efficient
+    /// way to create static buffers since it avoids the need for a separate staging buffer
+    /// and copy operation.
+    ///
+    /// # Arguments
+    /// * `bound_device` - The GPU device to create the buffer on
+    /// * `size` - Size of the buffer in bytes
+    /// * `usage` - How the buffer will be used on the GPU
+    /// * `debug_name` - Human-readable name for debugging
+    /// * `initializer` - Function to initialize the buffer data
+    ///
+    /// # Returns
+    /// Returns a `GPUableBuffer2Static` with the initialized data.
+    pub(crate) async fn new_with_data<I: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
+        bound_device: Arc<crate::images::BoundDevice>,
+        size: usize,
+        usage: GPUBufferUsage,
+        debug_name: &str,
+        initializer: I,
+    ) -> Result<Self, crate::imp::Error> {
+        let debug_name = debug_name.to_string();
+        let move_bound_device = bound_device.clone();
+        let storage_type = smuggle(
+            "create static buffer with data".to_string(),
+            move || match usage {
+                GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
+                    if move_bound_device
+                        .0
+                        .device
+                        .assume(|c| c.limits())
+                        .max_uniform_buffer_binding_size as usize
+                        > size
+                    {
+                        StorageType::Uniform
+                    } else {
+                        StorageType::Storage
+                    }
+                }
+                GPUBufferUsage::VertexBuffer => StorageType::Vertex,
+                GPUBufferUsage::Index => StorageType::Index,
+            },
+        )
+        .await;
+
+        let device_usage = BufferUsages::COPY_DST
+            | match storage_type {
+                StorageType::Uniform => BufferUsages::UNIFORM,
+                StorageType::Storage => BufferUsages::STORAGE,
+                StorageType::Vertex => BufferUsages::VERTEX,
+                StorageType::Index => BufferUsages::INDEX,
+            };
+
+        let device_debug_name = format!("{}_static_with_data", debug_name);
+        let move_device = bound_device.clone();
+
+        // Prepare data for initialization
+        let mut data = vec![std::mem::MaybeUninit::uninit(); size];
+        let data_ptr = data.as_ptr();
+        let initialized = initializer(&mut data);
+
+        // Safety: we ensure that the data is initialized and has the correct length
+        assert_eq!(initialized.as_ptr(), data_ptr as *const u8);
+        assert_eq!(initialized.len(), size);
+
+        // Convert to Vec<u8>
+        let initialized_data =
+            unsafe { std::mem::transmute::<Vec<std::mem::MaybeUninit<u8>>, Vec<u8>>(data) };
+        let internal_buffer = std::sync::Arc::new(initialized_data.into_boxed_slice());
+        let _move_internal_buffer = internal_buffer.clone();
+
+        // Create device buffer with mapped_at_creation=true for direct initialization
+        let device_buffer = WgpuCell::new_on_thread(move || async move {
+            let buffer = move_device
+                .0
+                .device
+                .with(move |device| {
+                    let descriptor = BufferDescriptor {
+                        label: Some(&device_debug_name),
+                        size: size as u64,
+                        usage: device_usage,
+                        mapped_at_creation: true,
+                    };
+                    let buffer = device.create_buffer(&descriptor);
+                    let mut entire_map = buffer.slice(0..size as u64).get_mapped_range_mut();
+                    // Copy all data
+                    entire_map.copy_from_slice(&internal_buffer);
+                    drop(internal_buffer);
+                    drop(entire_map);
+                    buffer.unmap();
+                    buffer
+                })
+                .await;
+            buffer
+        })
+        .await;
+
+        Ok(GPUableBuffer2Static {
+            device_buffer,
+            bound_device,
+            storage_type,
+        })
+    }
 }
