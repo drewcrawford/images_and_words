@@ -557,3 +557,299 @@ impl AsRef<MappableBuffer2> for MappableBuffer2 {
         self
     }
 }
+
+/**
+A buffer that holds two wgpu::Buffers for explicit staging operations.
+Contains a staging buffer with MAPPABLE | COPY_SRC and a private device buffer.
+*/
+#[derive(Debug, Clone)]
+pub struct GPUableBuffer2 {
+    staging_buffer: WgpuCell<wgpu::Buffer>,
+    device_buffer: WgpuCell<wgpu::Buffer>,
+    bound_device: Arc<BoundDevice>,
+    storage_type: StorageType,
+}
+
+impl PartialEq for GPUableBuffer2 {
+    fn eq(&self, other: &Self) -> bool {
+        self.device_buffer == other.device_buffer
+    }
+}
+
+impl GPUableBuffer2 {
+    pub(super) async fn new_imp(
+        bound_device: Arc<crate::images::BoundDevice>,
+        size: usize,
+        debug_name: &str,
+        storage_type: StorageType,
+    ) -> Self {
+        let staging_usage = BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC;
+        let device_usage = BufferUsages::COPY_DST
+            | match storage_type {
+                StorageType::Uniform => BufferUsages::UNIFORM,
+                StorageType::Storage => BufferUsages::STORAGE,
+                StorageType::Vertex => BufferUsages::VERTEX,
+                StorageType::Index => BufferUsages::INDEX,
+            };
+
+        let staging_debug_name = format!("{}_staging", debug_name);
+        let device_debug_name = format!("{}_device", debug_name);
+        let move_device = bound_device.clone();
+        let move_device2 = bound_device.clone();
+
+        // Create staging buffer
+        let staging_buffer = WgpuCell::new_on_thread(move || async move {
+            let buffer = move_device
+                .0
+                .device
+                .with(move |device| {
+                    let descriptor = BufferDescriptor {
+                        label: Some(&staging_debug_name),
+                        size: size as u64,
+                        usage: staging_usage,
+                        mapped_at_creation: false,
+                    };
+                    device.create_buffer(&descriptor)
+                })
+                .await;
+            buffer
+        })
+        .await;
+
+        // Create device buffer
+        let device_buffer = WgpuCell::new_on_thread(move || async move {
+            let buffer = move_device2
+                .0
+                .device
+                .with(move |device| {
+                    let descriptor = BufferDescriptor {
+                        label: Some(&device_debug_name),
+                        size: size as u64,
+                        usage: device_usage,
+                        mapped_at_creation: false,
+                    };
+                    device.create_buffer(&descriptor)
+                })
+                .await;
+            buffer
+        })
+        .await;
+
+        GPUableBuffer2 {
+            staging_buffer,
+            device_buffer,
+            bound_device,
+            storage_type,
+        }
+    }
+
+    pub(crate) async fn new(
+        bound_device: Arc<crate::images::BoundDevice>,
+        size: usize,
+        usage: GPUBufferUsage,
+        debug_name: &str,
+    ) -> Self {
+        let debug_name = debug_name.to_string();
+        let move_bound_device = bound_device.clone();
+        let storage_type = smuggle("create buffer".to_string(), move || match usage {
+            GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
+                if move_bound_device
+                    .0
+                    .device
+                    .assume(|c| c.limits())
+                    .max_uniform_buffer_binding_size as usize
+                    > size
+                {
+                    StorageType::Uniform
+                } else {
+                    StorageType::Storage
+                }
+            }
+            GPUBufferUsage::VertexBuffer => StorageType::Vertex,
+            GPUBufferUsage::Index => StorageType::Index,
+        })
+        .await;
+
+        Self::new_imp(bound_device, size, &debug_name, storage_type).await
+    }
+
+    pub(super) fn storage_type(&self) -> StorageType {
+        self.storage_type
+    }
+
+    pub(super) fn device_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+        &self.device_buffer
+    }
+
+    /// Get a reference to the device buffer for GPU operations.
+    /// This is the buffer that should be used for binding to shaders.
+    pub(super) fn buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+        &self.device_buffer
+    }
+
+    /// Copy from a MappableBuffer2 to this GPUableBuffer2 using a CommandEncoder.
+    ///
+    /// This operation:
+    /// 1. Maps the staging buffer
+    /// 2. Copies data from MappableBuffer2 into the staging buffer
+    /// 3. Unmaps the staging buffer
+    /// 4. Schedules the copy from staging to device buffer with the encoder
+    ///
+    /// # Arguments
+    /// * `source` - The MappableBuffer2 to copy from
+    /// * `command_encoder` - The CommandEncoder to record the copy operation
+    pub(crate) async fn copy_from_mappable_buffer2(
+        &self,
+        source: &MappableBuffer2,
+        command_encoder: &mut CommandEncoder,
+    ) {
+        let bound_device = self.bound_device.clone();
+        let staging_buffer_for_mapping = self.staging_buffer.clone();
+        let source_data = source.as_slice();
+        let copy_len = source_data.len();
+
+        // Copy the source data to avoid borrowing issues
+        let source_data_owned = source_data.to_vec();
+
+        smuggle(
+            "copy_from_mappable_buffer2".to_string(),
+            move || async move {
+                // Map the staging buffer
+                let specified_length = copy_len as u64;
+                let (s, r) = r#continue::continuation();
+                staging_buffer_for_mapping.assume(|buffer| {
+                    buffer.map_async(MapMode::Write, 0..specified_length, |c| {
+                        c.unwrap();
+                        s.send(());
+                    });
+                });
+
+                // Signal the polling thread that we need to poll
+                bound_device.0.set_needs_poll();
+                r.await;
+
+                // Copy data into the staging buffer
+                staging_buffer_for_mapping.assume(|buffer| {
+                    let mut entire_map = buffer.slice(0..specified_length).get_mapped_range_mut();
+                    entire_map.copy_from_slice(&source_data_owned);
+                    drop(entire_map);
+                    buffer.unmap();
+                });
+            },
+        )
+        .await;
+
+        // Schedule the copy from staging to device buffer
+        self.staging_buffer.assume(|staging| {
+            self.device_buffer.assume(|device| {
+                command_encoder.copy_buffer_to_buffer(staging, 0, device, 0, copy_len as u64);
+            });
+        });
+    }
+}
+
+/**
+A static buffer that holds only a single device wgpu::Buffer.
+Like GPUableBuffer2 but without the staging buffer - for static data that doesn't change.
+*/
+#[derive(Debug, Clone)]
+pub struct GPUableBuffer2Static {
+    device_buffer: WgpuCell<wgpu::Buffer>,
+    bound_device: Arc<BoundDevice>,
+    storage_type: StorageType,
+}
+
+impl PartialEq for GPUableBuffer2Static {
+    fn eq(&self, other: &Self) -> bool {
+        self.device_buffer == other.device_buffer
+    }
+}
+
+impl GPUableBuffer2Static {
+    pub(super) async fn new_imp(
+        bound_device: Arc<crate::images::BoundDevice>,
+        size: usize,
+        debug_name: &str,
+        storage_type: StorageType,
+    ) -> Self {
+        let device_usage = BufferUsages::COPY_DST
+            | match storage_type {
+                StorageType::Uniform => BufferUsages::UNIFORM,
+                StorageType::Storage => BufferUsages::STORAGE,
+                StorageType::Vertex => BufferUsages::VERTEX,
+                StorageType::Index => BufferUsages::INDEX,
+            };
+
+        let device_debug_name = format!("{}_static", debug_name);
+        let move_device = bound_device.clone();
+
+        // Create device buffer
+        let device_buffer = WgpuCell::new_on_thread(move || async move {
+            let buffer = move_device
+                .0
+                .device
+                .with(move |device| {
+                    let descriptor = BufferDescriptor {
+                        label: Some(&device_debug_name),
+                        size: size as u64,
+                        usage: device_usage,
+                        mapped_at_creation: false,
+                    };
+                    device.create_buffer(&descriptor)
+                })
+                .await;
+            buffer
+        })
+        .await;
+
+        GPUableBuffer2Static {
+            device_buffer,
+            bound_device,
+            storage_type,
+        }
+    }
+
+    pub(crate) async fn new(
+        bound_device: Arc<crate::images::BoundDevice>,
+        size: usize,
+        usage: GPUBufferUsage,
+        debug_name: &str,
+    ) -> Self {
+        let debug_name = debug_name.to_string();
+        let move_bound_device = bound_device.clone();
+        let storage_type = smuggle("create static buffer".to_string(), move || match usage {
+            GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
+                if move_bound_device
+                    .0
+                    .device
+                    .assume(|c| c.limits())
+                    .max_uniform_buffer_binding_size as usize
+                    > size
+                {
+                    StorageType::Uniform
+                } else {
+                    StorageType::Storage
+                }
+            }
+            GPUBufferUsage::VertexBuffer => StorageType::Vertex,
+            GPUBufferUsage::Index => StorageType::Index,
+        })
+        .await;
+
+        Self::new_imp(bound_device, size, &debug_name, storage_type).await
+    }
+
+    pub(super) fn storage_type(&self) -> StorageType {
+        self.storage_type
+    }
+
+    pub(super) fn device_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+        &self.device_buffer
+    }
+
+    /// Get a reference to the device buffer for GPU operations.
+    /// This is the buffer that should be used for binding to shaders.
+    pub(super) fn buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+        &self.device_buffer
+    }
+}
