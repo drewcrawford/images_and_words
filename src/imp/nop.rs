@@ -249,47 +249,12 @@ impl AsRef<MappableBuffer> for MappableBuffer {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct GPUableBuffer;
-impl GPUableBuffer {
-    pub async fn new(
-        _bound_device: Arc<crate::images::BoundDevice>,
-        _byte_size: usize,
-        _usage: GPUBufferUsage,
-        _debug_name: &str,
-    ) -> Self {
-        todo!()
-    }
-
-    pub async fn copy_from_buffer(
-        &self,
-        _source: MappableBuffer,
-        _source_offset: usize,
-        _dest_offset: usize,
-        _copy_len: usize,
-    ) {
-        todo!()
-    }
-}
-
 #[derive(Debug)]
 pub struct BindTargetBufferImp;
 
 #[derive(Debug)]
 pub struct CopyInfo<'a> {
     pub(crate) command_encoder: PhantomData<&'a ()>,
-}
-
-#[derive(Debug)]
-pub struct CopyGuard<SourceGuard> {
-    source_guard: SourceGuard,
-    gpu_buffer: GPUableBuffer,
-}
-
-impl<SourceGuard> AsRef<GPUableBuffer> for CopyGuard<SourceGuard> {
-    fn as_ref(&self) -> &GPUableBuffer {
-        &self.gpu_buffer
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -464,18 +429,6 @@ impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
     }
 }
 
-/// Helper function to copy from a mappable buffer to a GPU buffer
-pub fn copy_mappable_to_gpuable_buffer(
-    _source: &MappableBuffer,
-    _dest: &GPUableBuffer,
-    _source_offset: usize,
-    _dest_offset: usize,
-    _copy_len: usize,
-    _copy_info: &mut CopyInfo,
-) {
-    // No-op implementation
-}
-
 #[derive(Debug)]
 pub struct MappableBuffer2;
 
@@ -543,9 +496,9 @@ impl AsRef<MappableBuffer2> for MappableBuffer2 {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct GPUableBuffer2;
+pub struct GPUableBuffer;
 
-impl GPUableBuffer2 {
+impl GPUableBuffer {
     pub async fn new(
         _bound_device: Arc<crate::images::BoundDevice>,
         _byte_size: usize,

@@ -243,13 +243,10 @@ impl AsRef<MappableBuffer> for MappableBuffer {
 }
 
 /**
-A buffer that can (only) be mapped to GPU.
+Backend-specific information for copying between buffers.
 */
-#[derive(Debug, Clone)]
-pub struct GPUableBuffer {
-    buffer: WgpuCell<wgpu::Buffer>,
-    bound_device: Arc<BoundDevice>,
-    storage_type: StorageType,
+pub struct CopyInfo<'a> {
+    pub(crate) command_encoder: &'a mut CommandEncoder,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -259,211 +256,6 @@ pub(super) enum StorageType {
     Vertex,
     Index,
 }
-
-impl PartialEq for GPUableBuffer {
-    fn eq(&self, other: &Self) -> bool {
-        self.buffer == other.buffer
-    }
-}
-
-impl GPUableBuffer {
-    //only visible to wgpu backend
-    pub(super) async fn new_imp(
-        bound_device: Arc<crate::images::BoundDevice>,
-        size: usize,
-        debug_name: &str,
-        storage_type: StorageType,
-    ) -> Self {
-        let forward_flags = BufferUsages::COPY_DST;
-        let usage_type_only = match storage_type {
-            StorageType::Uniform => BufferUsages::UNIFORM,
-            StorageType::Storage => BufferUsages::STORAGE,
-            StorageType::Vertex => BufferUsages::VERTEX,
-            StorageType::Index => BufferUsages::INDEX,
-        };
-        let usage_type = usage_type_only | forward_flags;
-
-        let debug_name = debug_name.to_string();
-        let move_device = bound_device.clone();
-        let inner = WgpuCell::new_on_thread(move || async move {
-            let buffer = move_device
-                .0
-                .device
-                .with(move |wgpu_cell| {
-                    let descriptor = BufferDescriptor {
-                        label: Some(&debug_name),
-                        size: size as u64,
-                        usage: usage_type,
-                        mapped_at_creation: false,
-                    };
-                    wgpu_cell.create_buffer(&descriptor)
-                })
-                .await;
-            buffer
-        })
-        .await;
-
-        GPUableBuffer {
-            buffer: inner,
-            bound_device,
-            storage_type,
-        }
-    }
-    pub(crate) async fn new(
-        bound_device: Arc<crate::images::BoundDevice>,
-        size: usize,
-        usage: GPUBufferUsage,
-        debug_name: &str,
-    ) -> Self {
-        let debug_name = debug_name.to_string();
-        let move_bound_device = bound_device.clone();
-        let storage_type = smuggle("create buffer".to_string(), move || match usage {
-            GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
-                if move_bound_device
-                    .0
-                    .device
-                    .assume(|c| c.limits())
-                    .max_uniform_buffer_binding_size as usize
-                    > size
-                {
-                    StorageType::Uniform
-                } else {
-                    StorageType::Storage
-                }
-            }
-            GPUBufferUsage::VertexBuffer => StorageType::Vertex,
-            GPUBufferUsage::Index => StorageType::Index,
-        })
-        .await;
-
-        Self::new_imp(bound_device, size, &debug_name, storage_type).await
-    }
-    pub(super) fn storage_type(&self) -> StorageType {
-        self.storage_type
-    }
-
-    /// Copy from a mappable buffer to this GPU buffer with full synchronization.
-    ///
-    /// This function is designed for standalone operations that need guaranteed completion.
-    /// It takes ownership of the source buffer to ensure proper lifetime management,
-    /// creates its own command encoder, submits the command, and waits for GPU completion.
-    ///
-    /// # Use Cases
-    /// - Static buffer initialization (uploading data once)
-    /// - One-off buffer copies where you need guaranteed completion
-    /// - Operations where you want fire-and-forget semantics
-    ///
-    /// # Contrast with `copy_mappable_to_gpuable_buffer`
-    /// - Takes ownership of source buffer (ensures lifetime safety)
-    /// - Creates its own command encoder and submits immediately
-    /// - Waits for GPU completion before returning (full synchronization)
-    /// - Designed for standalone operations
-    ///
-    /// For batched operations in render pipelines, use `copy_mappable_to_gpuable_buffer` instead.
-    ///
-    /// # Arguments
-    /// * `source` - The mappable buffer to copy from (ownership transferred)
-    /// * `source_offset` - Byte offset in the source buffer
-    /// * `dest_offset` - Byte offset in this buffer
-    /// * `copy_len` - Number of bytes to copy
-    pub(crate) async fn copy_from_buffer(
-        &self,
-        source: MappableBuffer,
-        source_offset: usize,
-        dest_offset: usize,
-        copy_len: usize,
-    ) {
-        let bound_device = self.bound_device.clone();
-        let clone_self = self.clone();
-        smuggle("copy_from_buffer".to_string(), move || {
-            let mut encoder = bound_device.0.device.assume(|e| {
-                e.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Label::from("wgpu::GPUableBuffer::copy_from_buffer"),
-                })
-            });
-            //safety: we take the source, so nobody can deallocate it
-            unsafe {
-                clone_self.copy_from_buffer_internal(
-                    &source,
-                    source_offset,
-                    dest_offset,
-                    copy_len,
-                    &mut encoder,
-                )
-            }
-            let command = encoder.finish();
-            let _submission_index = bound_device.0.queue.assume(|q| {
-                q.submit(std::iter::once(command));
-            });
-            bound_device.0.set_needs_poll();
-        })
-        .await;
-    }
-    /// Internal unsafe buffer copy implementation.
-    ///
-    /// This function records a buffer copy command in the provided command encoder
-    /// without any resource management or synchronization. It's the low-level
-    /// implementation used by `copy_from_buffer`.
-    ///
-    /// # Safety
-    /// - The caller must ensure the source buffer remains alive until the copy operation completes
-    /// - The caller must ensure proper command encoder submission and synchronization
-    /// - No bounds checking is performed on offsets or copy length
-    ///
-    /// # Arguments
-    /// * `source` - The mappable buffer to copy from
-    /// * `source_offset` - Byte offset in the source buffer
-    /// * `dest_offset` - Byte offset in this buffer
-    /// * `copy_len` - Number of bytes to copy
-    /// * `command_encoder` - The command encoder to record the copy operation
-    unsafe fn copy_from_buffer_internal(
-        &self,
-        source: &MappableBuffer,
-        source_offset: usize,
-        dest_offset: usize,
-        copy_len: usize,
-        command_encoder: &mut CommandEncoder,
-    ) {
-        self.buffer.assume(|dst| {
-            source.wgpu_buffer.assume(|src| {
-                command_encoder.copy_buffer_to_buffer(
-                    &src,
-                    source_offset as u64,
-                    &dst,
-                    dest_offset as u64,
-                    copy_len as u64,
-                );
-            })
-        });
-    }
-
-    pub(super) fn buffer(&self) -> &WgpuCell<wgpu::Buffer> {
-        &self.buffer
-    }
-}
-
-/**
-Backend-specific information for copying between buffers.
-*/
-pub struct CopyInfo<'a> {
-    pub(crate) command_encoder: &'a mut CommandEncoder,
-}
-//wrap the underlying guard type, no particular reason
-#[derive(Debug)]
-#[must_use = "Ensure this guard lives for the lifetime of the copy!"]
-pub struct CopyGuard<SourceGuard> {
-    #[allow(dead_code)] //guards work on drop
-    source_guard: SourceGuard,
-    gpu_buffer: GPUableBuffer,
-}
-
-impl<SourceGuard> AsRef<GPUableBuffer> for CopyGuard<SourceGuard> {
-    fn as_ref(&self) -> &GPUableBuffer {
-        &self.gpu_buffer
-    }
-}
-
-//I don't think we need to do anything wgpu-specific on CopyGuard's Drop here?
 
 /**
 A simplified buffer that can be mapped onto the host using only Box<[u8]>.
@@ -757,19 +549,19 @@ A static buffer that holds only a single device wgpu::Buffer.
 Like GPUableBuffer2 but without the staging buffer - for static data that doesn't change.
 */
 #[derive(Debug, Clone)]
-pub struct GPUableBuffer2Static {
+pub struct GPUableBufferStatic {
     device_buffer: WgpuCell<wgpu::Buffer>,
     bound_device: Arc<BoundDevice>,
     storage_type: StorageType,
 }
 
-impl PartialEq for GPUableBuffer2Static {
+impl PartialEq for GPUableBufferStatic {
     fn eq(&self, other: &Self) -> bool {
         self.device_buffer == other.device_buffer
     }
 }
 
-impl GPUableBuffer2Static {
+impl GPUableBufferStatic {
     pub(super) async fn new_imp(
         bound_device: Arc<crate::images::BoundDevice>,
         size: usize,
@@ -806,7 +598,7 @@ impl GPUableBuffer2Static {
         })
         .await;
 
-        GPUableBuffer2Static {
+        GPUableBufferStatic {
             device_buffer,
             bound_device,
             storage_type,
@@ -956,7 +748,7 @@ impl GPUableBuffer2Static {
         })
         .await;
 
-        Ok(GPUableBuffer2Static {
+        Ok(GPUableBufferStatic {
             device_buffer,
             bound_device,
             storage_type,

@@ -123,7 +123,7 @@ use std::sync::Arc;
 /// ```
 #[derive(Debug)]
 pub struct Buffer<Element> {
-    pub(crate) imp: imp::GPUableBuffer2Static,
+    pub(crate) imp: imp::GPUableBufferStatic,
     #[allow(dead_code)] //nop implementation does not use
     count: usize,
     element: PhantomData<Element>,
@@ -265,7 +265,7 @@ impl<Element> Buffer<Element> {
     {
         let byte_size = std::mem::size_of::<Element>() * count;
 
-        let imp = imp::GPUableBuffer2Static::new_with_data(
+        let imp = imp::GPUableBufferStatic::new_with_data(
             device,
             byte_size,
             usage,
