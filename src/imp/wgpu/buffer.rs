@@ -464,3 +464,96 @@ impl<SourceGuard> AsRef<GPUableBuffer> for CopyGuard<SourceGuard> {
 }
 
 //I don't think we need to do anything wgpu-specific on CopyGuard's Drop here?
+
+/**
+A simplified buffer that can be mapped onto the host using only Box<[u8]>.
+Unlike MappableBuffer, this doesn't use any wgpu types.
+*/
+#[derive(Debug)]
+pub struct MappableBuffer2 {
+    internal_buffer: Box<[u8]>,
+    _debug_label: String,
+}
+
+impl MappableBuffer2 {
+    pub async fn new<Initializer: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
+        _bound_device: Arc<crate::images::BoundDevice>,
+        requested_size: usize,
+        _map_type: crate::bindings::buffer_access::MapType,
+        debug_name: &str,
+        initialize_with: Initializer,
+    ) -> Result<Self, crate::imp::Error> {
+        let mut data = vec![std::mem::MaybeUninit::uninit(); requested_size];
+        let data_ptr = data.as_ptr();
+        let initialized = initialize_with(&mut data);
+
+        // Safety: we ensure that the data is initialized and has the correct length
+        // Very dumb check that they were the same pointer
+        assert_eq!(initialized.as_ptr(), data_ptr as *const u8);
+        // And have same length as requested
+        assert_eq!(initialized.len(), data.len());
+
+        // Convert to Vec<u8>
+        let initialized_data =
+            unsafe { std::mem::transmute::<Vec<std::mem::MaybeUninit<u8>>, Vec<u8>>(data) };
+        let internal_buffer = initialized_data.into_boxed_slice();
+
+        Ok(MappableBuffer2 {
+            internal_buffer,
+            _debug_label: debug_name.to_string(),
+        })
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        self.internal_buffer.as_ref()
+    }
+
+    pub fn write(&mut self, data: &[u8], dst_offset: usize) {
+        assert!(
+            dst_offset + data.len() <= self.internal_buffer.len(),
+            "Write out of bounds"
+        );
+        let slice = &mut self.internal_buffer[dst_offset..dst_offset + data.len()];
+        slice.copy_from_slice(data);
+    }
+
+    pub async fn map_read(&mut self) {
+        // Since we use a CPU view, this is a no-op
+    }
+
+    pub async fn map_write(&mut self) {
+        // Since we use a CPU view, this is a no-op
+    }
+
+    pub async fn unmap(&mut self) {
+        // No-op as requested - we don't use wgpu types
+    }
+
+    pub fn byte_len(&self) -> usize {
+        self.internal_buffer.len()
+    }
+}
+
+impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer2 {
+    async fn map_read(&mut self) {
+        self.map_read().await
+    }
+
+    async fn map_write(&mut self) {
+        self.map_write().await
+    }
+
+    async fn unmap(&mut self) {
+        self.unmap().await
+    }
+
+    fn byte_len(&self) -> usize {
+        self.byte_len()
+    }
+}
+
+impl AsRef<MappableBuffer2> for MappableBuffer2 {
+    fn as_ref(&self) -> &MappableBuffer2 {
+        self
+    }
+}

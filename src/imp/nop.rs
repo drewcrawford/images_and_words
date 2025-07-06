@@ -481,3 +481,69 @@ pub fn copy_mappable_to_gpuable_texture<Format: crate::pixel_formats::sealed::Pi
 ) {
     // No-op implementation
 }
+
+#[derive(Debug)]
+pub struct MappableBuffer2;
+
+impl MappableBuffer2 {
+    pub async fn new<F>(
+        _bound_device: Arc<crate::images::BoundDevice>,
+        _byte_size: usize,
+        _map_type: MapType,
+        _debug_name: &str,
+        _callback: F,
+    ) -> Result<Self, Error>
+    where
+        F: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8],
+    {
+        todo!()
+    }
+
+    pub async fn map_read(&mut self) {
+        todo!()
+    }
+
+    pub async fn map_write(&mut self) {
+        todo!()
+    }
+
+    pub async fn unmap(&mut self) {
+        // No-op as requested
+    }
+
+    pub fn byte_len(&self) -> usize {
+        todo!()
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        todo!()
+    }
+
+    pub fn write(&mut self, _data: &[u8], _dst_offset: usize) {
+        todo!()
+    }
+}
+
+impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer2 {
+    async fn map_read(&mut self) {
+        self.map_read().await
+    }
+
+    async fn map_write(&mut self) {
+        self.map_write().await
+    }
+
+    fn byte_len(&self) -> usize {
+        self.byte_len()
+    }
+
+    async fn unmap(&mut self) {
+        self.unmap().await
+    }
+}
+
+impl AsRef<MappableBuffer2> for MappableBuffer2 {
+    fn as_ref(&self) -> &MappableBuffer2 {
+        self
+    }
+}
