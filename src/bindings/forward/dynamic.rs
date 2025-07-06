@@ -80,7 +80,7 @@ ensures the GPU sees consistent data.
 # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 # use images_and_words::Priority;
 # test_executors::spawn_local(async {
-# let view = images_and_words::images::View::for_testing();
+# let view = View::for_testing();
 # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 # let device = engine.bound_device();
 # #[derive(Copy, Clone)]

@@ -26,7 +26,7 @@
 //! # use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
 //! # use images_and_words::bindings::visible_to::TextureUsage;
 //! # use images_and_words::Priority;
-//! # let view = images_and_words::images::View::for_testing();
+//! # let view = View::for_testing();
 //! # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! # let device = engine.bound_device();
 //! # let config = images_and_words::bindings::visible_to::TextureConfig {

@@ -499,6 +499,8 @@ impl<Format: PixelFormat> Texture<Format> {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// use images_and_words::bindings::software::texture::{Texture, Texel};
     /// use images_and_words::pixel_formats::{RGBA32Float, Float4};
     /// use images_and_words::{Priority, Strategy};
@@ -524,8 +526,8 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     
     ///     assert_eq!(texture.width(), 512);
     ///     assert_eq!(texture.height(), 512);
-    /// });
-    /// });
+    /// }, "software_texture_parallel_doctest");
+    /// # }
     /// ```
     pub async fn new_with_parallel<
         F: Fn(Texel) -> Format::CPixel + Sync + Clone + Send + 'static,
@@ -572,10 +574,12 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// ```no_run
     /// # //this is no_run due to file IO
-    /// # async fn example() {
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// use images_and_words::bindings::software::texture::Texture;
     /// use images_and_words::pixel_formats::RGBA8UnormSRGB;
     /// use std::path::Path;
+    /// # test_executors::spawn_local(async {
     /// # let priority: async_file::Priority = todo!();
     ///
     /// let texture = Texture::<RGBA8UnormSRGB>::new_from_path(

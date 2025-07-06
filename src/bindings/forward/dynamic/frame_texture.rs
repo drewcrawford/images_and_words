@@ -35,7 +35,7 @@ updated from the CPU side during runtime.
 # use images_and_words::images::view::View;
 # use images_and_words::Priority;
 # test_executors::spawn_local(async {
-# let view = images_and_words::images::View::for_testing();
+# let view = View::for_testing();
 # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 # let device = engine.bound_device();
 
@@ -167,7 +167,7 @@ impl ErasedTextureRenderSide {
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
 /// # test_executors::spawn_local(async {
-/// # let view = images_and_words::images::View::for_testing();
+/// # let view = View::for_testing();
 /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let device = engine.bound_device();
 /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
@@ -265,7 +265,7 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
 /// # test_executors::spawn_local(async {
-/// # let view = images_and_words::images::View::for_testing();
+/// # let view = View::for_testing();
 /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let device = engine.bound_device();
 /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
@@ -429,7 +429,7 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
 /// # test_executors::spawn_local(async {
-/// # let view = images_and_words::images::View::for_testing();
+/// # let view = View::for_testing();
 /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let device = engine.bound_device();
 ///
@@ -507,7 +507,7 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
     /// # test_executors::spawn_local(async {
-    /// # let view = images_and_words::images::View::for_testing();
+    /// # let view = View::for_testing();
     /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// # let device = engine.bound_device();
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
@@ -583,7 +583,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
     /// # test_executors::spawn_local(async {
-    /// # let view = images_and_words::images::View::for_testing();
+    /// # let view = View::for_testing();
     /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// # let device = engine.bound_device();
     ///
@@ -660,7 +660,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
     /// # test_executors::spawn_local(async {
-    /// # let view = images_and_words::images::View::for_testing();
+    /// # let view = View::for_testing();
     /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// # let device = engine.bound_device();
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };

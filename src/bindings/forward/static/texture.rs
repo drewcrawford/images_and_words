@@ -25,7 +25,7 @@
 //! use images_and_words::pixel_formats::RGBA8UNorm;
 //! use images_and_words::Priority;
 //! # test_executors::spawn_local(async {
-//! # let view = images_and_words::images::View::for_testing();
+//! # let view = View::for_testing();
 //! # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! # let device = engine.bound_device();
 //!
@@ -125,7 +125,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
     /// # test_executors::spawn_local(async {
-    /// # let view = images_and_words::images::View::for_testing();
+    /// # let view = View::for_testing();
     /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// # let device = engine.bound_device();
     ///
@@ -197,7 +197,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
     /// # test_executors::spawn_local(async {
-    /// # let view = images_and_words::images::View::for_testing();
+    /// # let view = View::for_testing();
     /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// # let device = engine.bound_device();
     ///
@@ -294,7 +294,7 @@ impl<Format: PixelFormat> Texture<Format> {
     /// use images_and_words::pixel_formats::RGBA8UNorm;
     /// use images_and_words::Priority;
     /// # test_executors::spawn_local(async {
-    /// # let view = images_and_words::images::View::for_testing();
+    /// # let view = View::for_testing();
     /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// # let device = engine.bound_device();
     ///
