@@ -31,7 +31,7 @@ use crate::bindings::buffer_access::MapType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp::wgpu::cell::WgpuCell;
-use crate::imp::wgpu::context::smuggle;
+use crate::imp::wgpu::context::{smuggle, smuggle_async};
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 use wgpu::MapMode;
@@ -711,7 +711,11 @@ impl GPUableBuffer2 {
         // Copy the source data to avoid borrowing issues
         let source_data_owned = source_data.to_vec();
 
-        smuggle(
+        // We need to capture the command encoder in a way that can be moved into the smuggle block
+        // Since we can't move the mutable reference, we'll record the copy command immediately
+        // but ensure it happens after the staging buffer is ready
+
+        smuggle_async(
             "copy_from_mappable_buffer2".to_string(),
             move || async move {
                 // Map the staging buffer
@@ -739,7 +743,7 @@ impl GPUableBuffer2 {
         )
         .await;
 
-        // Schedule the copy from staging to device buffer
+        // Now that the staging buffer is ready, schedule the copy from staging to device buffer
         self.staging_buffer.assume(|staging| {
             self.device_buffer.assume(|device| {
                 command_encoder.copy_buffer_to_buffer(staging, 0, device, 0, copy_len as u64);

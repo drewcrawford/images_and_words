@@ -441,6 +441,92 @@ impl<Format, SourceGuard> AsRef<GPUableTexture<Format>> for TextureCopyGuard<For
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct GPUableTexture2<Format> {
+    _format: PhantomData<Format>,
+    width: u32,
+    height: u32,
+    debug_name: String,
+}
+
+impl<Format> GPUableTexture2<Format> {
+    pub async fn new(
+        _bound_device: &Arc<crate::images::BoundDevice>,
+        config: TextureConfig<'_>,
+    ) -> Result<Self, Error> {
+        Ok(GPUableTexture2 {
+            _format: PhantomData,
+            width: config.width as u32,
+            height: config.height as u32,
+            debug_name: config.debug_name.to_string(),
+        })
+    }
+
+    pub fn render_side(&self) -> RenderSide {
+        RenderSide {}
+    }
+
+    pub async fn copy_from_mappable_texture2<T>(
+        &self,
+        _source: &MappableTexture2<Format>,
+        _command_encoder: &mut T,
+    ) -> Result<(), String> {
+        // No-op implementation for nop backend
+        Ok(())
+    }
+}
+
+unsafe impl<Format> Send for GPUableTexture2<Format> {}
+unsafe impl<Format> Sync for GPUableTexture2<Format> {}
+
+impl<Format> GPUableTextureWrapper for GPUableTexture2<Format> {}
+
+#[derive(Debug, Clone)]
+pub struct GPUableTexture2Static<Format> {
+    _format: PhantomData<Format>,
+    width: u32,
+    height: u32,
+    debug_name: String,
+}
+
+impl<Format> GPUableTexture2Static<Format> {
+    pub async fn new(
+        _bound_device: &Arc<crate::images::BoundDevice>,
+        config: TextureConfig<'_>,
+    ) -> Result<Self, Error> {
+        Ok(GPUableTexture2Static {
+            _format: PhantomData,
+            width: config.width as u32,
+            height: config.height as u32,
+            debug_name: config.debug_name.to_string(),
+        })
+    }
+
+    pub fn render_side(&self) -> RenderSide {
+        RenderSide {}
+    }
+}
+
+impl<Format: CratePixelFormat> GPUableTexture2Static<Format> {
+    pub async fn new_with_data<I>(
+        _bound_device: &Arc<crate::images::BoundDevice>,
+        config: TextureConfig<'_>,
+        _initializer: I,
+    ) -> Result<Self, Error> {
+        Ok(GPUableTexture2Static {
+            _format: PhantomData,
+            width: config.width as u32,
+            height: config.height as u32,
+            debug_name: config.debug_name.to_string(),
+        })
+    }
+}
+
+unsafe impl<Format> Send for GPUableTexture2Static<Format> {}
+unsafe impl<Format> Sync for GPUableTexture2Static<Format> {}
+
+impl<Format> GPUableTextureWrapper for GPUableTexture2Static<Format> {}
+
 pub trait PixelFormat {}
 
 // Implement PixelFormat for all pixel format types
@@ -457,6 +543,80 @@ impl PixelFormat for crate::pixel_formats::R16Float {}
 
 impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
     fn as_ref(&self) -> &MappableTexture<Format> {
+        self
+    }
+}
+
+pub struct MappableTexture2<Format>(SendPhantom<Format>);
+
+impl<Format> std::fmt::Debug for MappableTexture2<Format> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("MappableTexture2")
+            .field(&"SendPhantom")
+            .finish()
+    }
+}
+
+impl<Format> MappableTexture2<Format> {
+    pub async fn new<I>(
+        _bound_device: &crate::images::BoundDevice,
+        _width: u16,
+        _height: u16,
+        _debug_name: &str,
+        _priority: Priority,
+        _initialize_with: I,
+    ) -> Self {
+        todo!()
+    }
+
+    pub fn replace(
+        &mut self,
+        _src_width: u16,
+        _dst_texel: crate::bindings::software::texture::Texel,
+        _data: &[Format::CPixel],
+    ) where
+        Format: CratePixelFormat,
+    {
+        todo!()
+    }
+
+    pub fn as_imp(&self) {}
+}
+
+impl<Format> crate::bindings::resource_tracking::sealed::Mappable for MappableTexture2<Format> {
+    async fn map_read(&mut self) {
+        todo!()
+    }
+
+    async fn map_write(&mut self) {
+        todo!()
+    }
+
+    fn byte_len(&self) -> usize {
+        todo!()
+    }
+
+    async fn unmap(&mut self) {
+        // No-op as requested
+    }
+}
+
+impl<Format: Send + Sync> MappableTextureWrapper for MappableTexture2<Format> {}
+
+impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped
+    for MappableTexture2<Format>
+{
+    fn width(&self) -> u16 {
+        todo!("width not implemented for nop backend")
+    }
+
+    fn height(&self) -> u16 {
+        todo!("height not implemented for nop backend")
+    }
+}
+
+impl<Format> AsRef<MappableTexture2<Format>> for MappableTexture2<Format> {
+    fn as_ref(&self) -> &MappableTexture2<Format> {
         self
     }
 }
@@ -545,5 +705,27 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer2 {
 impl AsRef<MappableBuffer2> for MappableBuffer2 {
     fn as_ref(&self) -> &MappableBuffer2 {
         self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GPUableBuffer2;
+
+impl GPUableBuffer2 {
+    pub async fn new(
+        _bound_device: Arc<crate::images::BoundDevice>,
+        _byte_size: usize,
+        _usage: GPUBufferUsage,
+        _debug_name: &str,
+    ) -> Self {
+        todo!()
+    }
+
+    pub async fn copy_from_mappable_buffer2<T>(
+        &self,
+        _source: &MappableBuffer2,
+        _command_encoder: &mut T,
+    ) {
+        // No-op implementation for nop backend
     }
 }

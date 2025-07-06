@@ -137,7 +137,7 @@ pub enum WriteFrequency {
 /// This struct contains the multibuffer that coordinates access between
 /// CPU writes and GPU reads, ensuring proper synchronization.
 struct Shared {
-    multibuffer: Multibuffer<imp::MappableBuffer, imp::GPUableBuffer>,
+    multibuffer: Multibuffer<imp::MappableBuffer2, imp::GPUableBuffer2>,
 }
 impl Debug for Shared {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -210,7 +210,7 @@ pub struct Buffer<Element> {
 /// The buffer memory is directly accessible through indexing and the `write` method.
 /// Users must ensure they don't write out of bounds.
 pub struct CPUWriteAccess<'a, Element> {
-    guard: CPUWriteGuard<'a, imp::MappableBuffer, imp::GPUableBuffer>,
+    guard: CPUWriteGuard<'a, imp::MappableBuffer2, imp::GPUableBuffer2>,
     _marker: SendPhantom<Element>,
     count: usize,
 }
@@ -340,19 +340,19 @@ impl<Element> Debug for RenderSide<Element> {
 #[derive(Debug)]
 pub(crate) struct GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
-    dirty_guard: Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
+    dirty_guard: Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer2>>,
     #[allow(dead_code)] //nop implementation does not use
-    pub(crate) gpu_buffer: imp::GPUableBuffer,
+    pub(crate) gpu_buffer: imp::GPUableBuffer2,
 }
 impl GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
-    pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
+    pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer2 {
         &self.gpu_buffer
     }
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn take_dirty_guard(
         &mut self,
-    ) -> Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>> {
+    ) -> Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer2>> {
         self.dirty_guard.take()
     }
 }
@@ -398,7 +398,7 @@ pub(crate) trait SomeRenderSide: BackendSend + BackendSync + Debug {
     /// This method bypasses all synchronization. The caller must ensure
     /// no data races occur.
     #[allow(dead_code)] //nop implementation does not use
-    unsafe fn unsafe_imp(&self) -> &imp::GPUableBuffer;
+    unsafe fn unsafe_imp(&self) -> &imp::GPUableBuffer2;
 }
 
 impl<Element: BackendSend + BackendSync + 'static> SomeRenderSide for RenderSide<Element> {
@@ -419,7 +419,7 @@ impl<Element: BackendSend + BackendSync + 'static> SomeRenderSide for RenderSide
     fn dirty_receiver(&self) -> DirtyReceiver {
         self.shared.multibuffer.gpu_dirty_receiver()
     }
-    unsafe fn unsafe_imp(&self) -> &imp::GPUableBuffer {
+    unsafe fn unsafe_imp(&self) -> &imp::GPUableBuffer2 {
         unsafe { self.shared.multibuffer.access_gpu_unsafe() }
     }
 }
@@ -531,7 +531,7 @@ impl<Element> Buffer<Element> {
 
         let map_type = crate::bindings::buffer_access::MapType::Write; //todo: optimize for read vs write, etc.
 
-        let mappable_buffer = imp::MappableBuffer::new(
+        let mappable_buffer = imp::MappableBuffer2::new(
             bound_device.clone(),
             byte_size,
             map_type,
@@ -546,7 +546,7 @@ impl<Element> Buffer<Element> {
         )
         .await?;
 
-        let gpu_buffer = imp::GPUableBuffer::new(bound_device, byte_size, usage, debug_name).await;
+        let gpu_buffer = imp::GPUableBuffer2::new(bound_device, byte_size, usage, debug_name).await;
 
         Ok(Self {
             shared: Arc::new(Shared {

@@ -131,7 +131,7 @@ pub struct PreparedPass {
 }
 
 impl PreparedPass {
-    fn new(
+    async fn new(
         bind_device: &crate::images::BoundDevice,
         descriptor: PassDescriptor,
         enable_depth: bool,
@@ -395,7 +395,8 @@ impl PreparedPass {
             camera_buffer,
             mipmapped_sampler,
             copy_info,
-        );
+        )
+        .await;
         PreparedPass {
             pipeline,
             vertex_count,
@@ -407,14 +408,14 @@ impl PreparedPass {
         }
     }
 
-    fn recreate_acquired_guards(
+    async fn recreate_acquired_guards(
         &mut self,
         camera_buffer: &Buffer<CameraProjection>,
         copy_info: &mut CopyInfo<'_>,
     ) {
         // Recreate only the acquired_guards field, leaving bind_group_guard unchanged
         let new_acquired_guards =
-            AcquiredGuards::new(self.pass_descriptor.bind_style(), copy_info, camera_buffer);
+            AcquiredGuards::new(self.pass_descriptor.bind_style(), copy_info, camera_buffer).await;
         self.acquired_guards = Some(new_acquired_guards);
     }
 }
@@ -426,7 +427,7 @@ Guards and resources acquired during the copy phase.
 pub struct AcquiredGuards {
     // Combined buffer and vertex buffer guards, keyed by bind index
     buffer_guards: HashMap<u32, Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
-    _copy_guards: Vec<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
+    _copy_guards: Vec<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer2>>,
     // Texture guards, keyed by bind index
     texture_guards: HashMap<u32, Arc<crate::bindings::forward::dynamic::frame_texture::GPUAccess>>,
     // Texture copy guards that need to be kept alive during GPU operations
@@ -437,7 +438,7 @@ pub struct AcquiredGuards {
 impl AcquiredGuards {
     /// Acquires GPU buffers and performs copy operations for dynamic resources.
     /// Returns guards that must be kept alive and copy guards that can be disposed after copying.
-    pub fn new(
+    pub async fn new(
         bind_style: &crate::bindings::bind_style::BindStyle,
         copy_info: &mut CopyInfo<'_>,
         camera_buffer: &Buffer<CameraProjection>,
@@ -458,18 +459,13 @@ impl AcquiredGuards {
                     // Handle the copy if there's a dirty guard
                     if let Some(mut dirty_guard) = gpu_access.take_dirty_guard() {
                         // Get the source buffer from the dirty guard
-                        let byte_len = dirty_guard.byte_len();
-                        let source: &mut imp::MappableBuffer = &mut dirty_guard;
+                        let source: &mut imp::MappableBuffer2 = &mut dirty_guard;
 
-                        // Perform the copy operation
-                        imp::copy_mappable_to_gpuable_buffer(
-                            source,
-                            &gpu_access.gpu_buffer,
-                            0,
-                            0,
-                            byte_len,
-                            copy_info,
-                        );
+                        // Perform the copy operation using the new GPUableBuffer2 method
+                        gpu_access
+                            .gpu_buffer
+                            .copy_from_mappable_buffer2(source, copy_info.command_encoder)
+                            .await;
                         copy_guards.push(dirty_guard);
                     }
 
@@ -484,18 +480,13 @@ impl AcquiredGuards {
                     // Handle the copy if there's a dirty guard
                     if let Some(mut dirty_guard) = gpu_access.take_dirty_guard() {
                         // Get the source buffer from the dirty guard
-                        let byte_len = dirty_guard.byte_len();
-                        let source: &mut imp::MappableBuffer = &mut dirty_guard;
+                        let source: &mut imp::MappableBuffer2 = &mut dirty_guard;
 
-                        // Perform the copy operation
-                        imp::copy_mappable_to_gpuable_buffer(
-                            source,
-                            &gpu_access.gpu_buffer,
-                            0,
-                            0,
-                            byte_len,
-                            copy_info,
-                        );
+                        // Perform the copy operation using the new GPUableBuffer2 method
+                        gpu_access
+                            .gpu_buffer
+                            .copy_from_mappable_buffer2(source, copy_info.command_encoder)
+                            .await;
                         copy_guards.push(dirty_guard);
                     }
                     camera_guard = Some(Arc::new(gpu_access));
@@ -508,18 +499,13 @@ impl AcquiredGuards {
                     // Handle the copy if there's a dirty guard
                     if let Some(mut dirty_guard) = gpu_access.take_dirty_guard() {
                         // Get the source buffer from the dirty guard
-                        let byte_len = dirty_guard.byte_len();
-                        let source: &mut imp::MappableBuffer = &mut dirty_guard;
+                        let source: &mut imp::MappableBuffer2 = &mut dirty_guard;
 
-                        // Perform the copy operation
-                        imp::copy_mappable_to_gpuable_buffer(
-                            source,
-                            &gpu_access.gpu_buffer,
-                            0,
-                            0,
-                            byte_len,
-                            copy_info,
-                        );
+                        // Perform the copy operation using the new GPUableBuffer2 method
+                        gpu_access
+                            .gpu_buffer
+                            .copy_from_mappable_buffer2(source, copy_info.command_encoder)
+                            .await;
                         copy_guards.push(dirty_guard);
                     }
 
@@ -768,7 +754,7 @@ impl BindGroupGuard {
         }
     }
 
-    fn new(
+    async fn new(
         bind_device: &crate::images::BoundDevice,
         bind_style: &crate::bindings::bind_style::BindStyle,
         name: &str,
@@ -778,7 +764,7 @@ impl BindGroupGuard {
         copy_info: &mut CopyInfo<'_>,
     ) -> (Self, AcquiredGuards) {
         // First acquire guards and perform copies
-        let mut acquired_guards = AcquiredGuards::new(bind_style, copy_info, camera_buffer);
+        let mut acquired_guards = AcquiredGuards::new(bind_style, copy_info, camera_buffer).await;
 
         // Then create the bind group using the acquired guards
         let s = Self::new_from_guards(
@@ -913,7 +899,11 @@ impl PortInternal {
         (depth_texture, depth_view)
     }
 
-    fn update_pass_configuration(&mut self, enable_depth: bool, copy_info: &mut CopyInfo<'_>) {
+    async fn update_pass_configuration(
+        &mut self,
+        enable_depth: bool,
+        copy_info: &mut CopyInfo<'_>,
+    ) {
         if self.pass_config.is_dirty() {
             self.prepared_passes.clear();
 
@@ -927,7 +917,8 @@ impl PortInternal {
                     &self.mipmapped_sampler,
                     copy_info,
                     &self.pass_config.requested,
-                );
+                )
+                .await;
                 self.prepared_passes.push(pipeline);
             }
 
@@ -1349,12 +1340,25 @@ impl PortInternal {
         // Setup depth buffer
         let (depth_texture, depth_view) = self.setup_depth_buffer();
 
-        // Update pass configuration and camera buffer
+        // First, recreate acquired guards for all prepared passes to ensure buffers are up to date
         {
             let mut copy_info = CopyInfo {
                 command_encoder: &mut encoder,
             };
-            self.update_pass_configuration(enable_depth, &mut copy_info);
+            for prepared_pass in &mut self.prepared_passes {
+                prepared_pass
+                    .recreate_acquired_guards(&self.camera_buffer, &mut copy_info)
+                    .await
+            }
+        }
+
+        // Then update pass configuration and camera buffer (which creates bind groups with fresh buffer data)
+        {
+            let mut copy_info = CopyInfo {
+                command_encoder: &mut encoder,
+            };
+            self.update_pass_configuration(enable_depth, &mut copy_info)
+                .await;
         }
 
         // Execute render passes
@@ -1375,14 +1379,6 @@ impl PortInternal {
         } else {
             None
         };
-
-        // Recreate acquired guards for all prepared passes
-        let mut copy_info = CopyInfo {
-            command_encoder: &mut encoder,
-        };
-        for prepared_pass in &mut self.prepared_passes {
-            prepared_pass.recreate_acquired_guards(&self.camera_buffer, &mut copy_info)
-        }
 
         // Extract bind groups and acquired guards from prepared passes
         let mut frame_bind_groups = Vec::new();
