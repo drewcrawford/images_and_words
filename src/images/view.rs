@@ -96,7 +96,7 @@ pub struct View {
 enum WindowingImpl {
     Testing,
     #[cfg(feature = "app_window")]
-    AppWindow(Arc<app_window::surface::Surface>),
+    AppWindow(std::sync::Arc<app_window::surface::Surface>),
 }
 
 impl WindowingImpl {
@@ -246,7 +246,7 @@ impl View {
     pub fn from_surface(surface: app_window::surface::Surface) -> Result<Self, Error> {
         Ok(View {
             gpu_impl: None,
-            windowing_impl: WindowingImpl::AppWindow(Arc::new(surface)),
+            windowing_impl: WindowingImpl::AppWindow(std::sync::Arc::new(surface)),
         })
     }
 
