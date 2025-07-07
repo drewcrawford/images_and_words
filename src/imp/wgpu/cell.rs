@@ -330,51 +330,8 @@ impl<T> WgpuCell<T> {
             }
         }
     }
-
-    #[inline]
-    pub fn copying(&self) -> Self
-    where
-        T: Copy,
-    {
-        unsafe {
-            //fine to do directly because T: Copy
-            //need to hold the lock for Sync though
-            let guard = self.shared.as_ref().unwrap().mutex.lock().unwrap();
-            let t = *self
-                .shared
-                .as_ref()
-                .unwrap()
-                .inner
-                .as_ref()
-                .unwrap()
-                .get()
-                .get();
-            drop(guard);
-            let inner = UnsafeSendCell::new(UnsafeSyncCell::new(t));
-            WgpuCell {
-                shared: Some(Arc::new(Shared {
-                    inner: Some(inner),
-                    mutex: Mutex::new(()),
-                })),
-            }
-        }
-    }
 }
-
 unsafe impl<T> Send for WgpuCell<T> {}
-
-impl<T: Future> WgpuCell<T> {
-    pub fn into_future(mut self) -> WgpuFuture<T> {
-        let shared = self.shared.take().expect("WgpuCell value missing");
-        let shared = match Arc::try_unwrap(shared) {
-            Ok(shared) => shared,
-            Err(_) => {
-                panic!("WgpuCell::into_future called on an exclusive lock");
-            }
-        };
-        WgpuFuture { inner: shared }
-    }
-}
 
 impl<T: Debug> Debug for WgpuCell<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -488,14 +445,6 @@ mod tests {
                 Poll::Pending
             }
         }
-    }
-
-    #[test]
-    fn test_wgpu_future_creation() {
-        // Just test that we can create the future, not poll it
-        let future = TestFuture { ready: false };
-        let cell = WgpuCell::new(future);
-        let _wgpu_future = cell.into_future();
     }
 
     // Test constructors that don't require thread access
