@@ -47,6 +47,7 @@ env_logger = {version = "0.11.8"}
 wasm-bindgen-test = "0.3"
 
 [features]
+default = ["backend_wgpu"]
 backend_wgpu = ["dep:wgpu"]
 app_window = ["dep:app_window"]
 
