@@ -1,6 +1,6 @@
 use crate::images::view::ViewForImp;
 use crate::imp::wgpu::context::smuggle;
-use raw_window_handle::HasRawWindowHandle;
+use raw_window_handle::HasWindowHandle;
 use std::sync::Arc;
 
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
@@ -22,9 +22,9 @@ impl View {
         let entrypoint = entrypoint.clone();
         let view_clone = Arc::new(view);
         let view_clone2 = view_clone.clone();
-        match view_clone.raw_window_handle() {
-            Ok(e) => {}
-            Err(NotSupportedError) => {
+        match view_clone.window_handle() {
+            Ok(_e) => {}
+            Err(_not_supported_error) => {
                 return Ok(View {
                     surface: None,
                     _parent: view_clone2,
