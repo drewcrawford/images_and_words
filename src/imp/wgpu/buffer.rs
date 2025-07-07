@@ -36,45 +36,6 @@ use wgpu::MapMode;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder};
 
 /**
-Copy buffer data in a thread-safe manner.
-This function takes owned/cloned data that can be moved across thread boundaries.
-*/
-async fn copy_buffer_data_threadsafe(
-    internal_buffer_data: Box<[u8]>,
-    wgpu_buffer: WgpuCell<wgpu::Buffer>,
-    bound_device: Arc<BoundDevice>,
-) {
-    let p = logwise::perfwarn_begin!("copy_buffer_data_threadsafe");
-    // logwise::info_sync!(
-    //     "copy_buffer_data_threadsafe called with {f} bytes",
-    //     f = internal_buffer_data.len()
-    // );
-    let copy = logwise::perfwarn_begin!("copy_buffer_data_threadsafe");
-    let specified_length = internal_buffer_data.len() as u64;
-    let (s, r) = r#continue::continuation();
-    wgpu_buffer.assume(|wgpu_cell| {
-        wgpu_cell.map_async(MapMode::Write, 0..specified_length, |c| {
-            c.unwrap();
-            s.send(());
-        });
-    });
-    // Signal the polling thread that we need to poll
-    bound_device.0.set_needs_poll();
-    //logwise::info_sync!("will await");
-    r.await;
-    //logwise::warn_sync!("Resuming from await");
-    wgpu_buffer.assume(|wgpu_cell| {
-        let mut entire_map = wgpu_cell.slice(0..specified_length).get_mapped_range_mut();
-        //copy all data
-        entire_map.copy_from_slice(&internal_buffer_data);
-        drop(entire_map);
-        wgpu_cell.unmap();
-    });
-    drop(copy);
-    drop(p);
-}
-
-/**
 Backend-specific information for copying between buffers.
 */
 pub struct CopyInfo<'a> {
@@ -301,6 +262,7 @@ impl GPUableBuffer {
         self.storage_type
     }
 
+    #[allow(dead_code)]
     pub(super) fn device_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
         &self.device_buffer
     }
@@ -383,6 +345,7 @@ Like GPUableBuffer2 but without the staging buffer - for static data that doesn'
 #[derive(Debug, Clone)]
 pub struct GPUableBufferStatic {
     device_buffer: WgpuCell<wgpu::Buffer>,
+    #[allow(dead_code)]
     bound_device: Arc<BoundDevice>,
     storage_type: StorageType,
 }
@@ -394,83 +357,11 @@ impl PartialEq for GPUableBufferStatic {
 }
 
 impl GPUableBufferStatic {
-    pub(super) async fn new_imp(
-        bound_device: Arc<crate::images::BoundDevice>,
-        size: usize,
-        debug_name: &str,
-        storage_type: StorageType,
-    ) -> Self {
-        let device_usage = BufferUsages::COPY_DST
-            | match storage_type {
-                StorageType::Uniform => BufferUsages::UNIFORM,
-                StorageType::Storage => BufferUsages::STORAGE,
-                StorageType::Vertex => BufferUsages::VERTEX,
-                StorageType::Index => BufferUsages::INDEX,
-            };
-
-        let device_debug_name = format!("{}_static", debug_name);
-        let move_device = bound_device.clone();
-
-        // Create device buffer
-        let device_buffer = WgpuCell::new_on_thread(move || async move {
-            let buffer = move_device
-                .0
-                .device
-                .with(move |device| {
-                    let descriptor = BufferDescriptor {
-                        label: Some(&device_debug_name),
-                        size: size as u64,
-                        usage: device_usage,
-                        mapped_at_creation: false,
-                    };
-                    device.create_buffer(&descriptor)
-                })
-                .await;
-            buffer
-        })
-        .await;
-
-        GPUableBufferStatic {
-            device_buffer,
-            bound_device,
-            storage_type,
-        }
-    }
-
-    pub(crate) async fn new(
-        bound_device: Arc<crate::images::BoundDevice>,
-        size: usize,
-        usage: GPUBufferUsage,
-        debug_name: &str,
-    ) -> Self {
-        let debug_name = debug_name.to_string();
-        let move_bound_device = bound_device.clone();
-        let storage_type = smuggle("create static buffer".to_string(), move || match usage {
-            GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
-                if move_bound_device
-                    .0
-                    .device
-                    .assume(|c| c.limits())
-                    .max_uniform_buffer_binding_size as usize
-                    > size
-                {
-                    StorageType::Uniform
-                } else {
-                    StorageType::Storage
-                }
-            }
-            GPUBufferUsage::VertexBuffer => StorageType::Vertex,
-            GPUBufferUsage::Index => StorageType::Index,
-        })
-        .await;
-
-        Self::new_imp(bound_device, size, &debug_name, storage_type).await
-    }
-
     pub(super) fn storage_type(&self) -> StorageType {
         self.storage_type
     }
 
+    #[allow(dead_code)]
     pub(super) fn device_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
         &self.device_buffer
     }
