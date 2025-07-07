@@ -618,7 +618,6 @@ impl Port {
         }
     }
 
-    #[cfg(feature = "testing")]
     pub fn needs_render(&self) -> bool {
         //this is a test-only function that returns true if the port needs to render.
         //it is used in tests to check if the port is rendering correctly.

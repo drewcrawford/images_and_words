@@ -3,7 +3,7 @@
 //!
 //! A [`View`] represents a rendering surface that can be either:
 //! - A window surface (when using the `app_window` feature)
-//! - A test surface (when using the `testing` feature)
+//! - A test surface (always available)
 //!
 //! Views are the primary way to create rendering targets for the [`Engine`](crate::images::Engine).
 //! They manage the connection between the OS window system and the underlying graphics backend.
@@ -14,12 +14,9 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
-//! # #[cfg(feature = "testing")]
-//! # {
 //! use images_and_words::images::view::View;
 //!
 //! let view = View::for_testing();
-//! # }
 //! ```
 //!
 //! ## Creating a view from a window surface
@@ -38,7 +35,6 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
-//! # #[cfg(feature = "testing")]
 //! # test_executors::spawn_local(async {
 //! use images_and_words::images::{Engine, view::View};
 //! use images_and_words::images::projection::WorldCoord;
@@ -81,7 +77,7 @@ impl std::fmt::Display for Error {
 /// # Platform Support
 ///
 /// - **Window surfaces**: Requires the `app_window` feature
-/// - **Test surfaces**: Requires the `testing` feature
+/// - **Test surfaces**: Always available
 ///
 /// # Thread Safety
 ///
@@ -280,13 +276,10 @@ impl View {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
-    /// # #[cfg(feature = "testing")]
-    /// # {
     /// use images_and_words::images::view::View;
     ///
     /// let test_view = View::for_testing();
     /// // Use with an engine for testing
-    /// # }
     /// ```
     ///
     /// # Testing Features
@@ -299,10 +292,7 @@ impl View {
     ///
     /// # Availability
     ///
-    /// This method is only available when either:
-    /// - Running tests (automatically enabled)
-    /// - The `testing` feature is enabled
-    #[cfg(any(test, feature = "testing"))]
+    /// This method is always available.
     pub fn for_testing() -> Self {
         View {
             gpu_impl: None,

@@ -1,4 +1,4 @@
-#![cfg(all(feature = "testing", feature = "backend_wgpu"))]
+#![cfg(feature = "backend_wgpu")]
 
 use images_and_words::bindings::BindStyle;
 use images_and_words::bindings::bind_style::{BindSlot, Stage};

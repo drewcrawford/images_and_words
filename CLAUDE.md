@@ -33,9 +33,9 @@ The main innovation is providing higher-order buffer/texture types optimized for
 
 **Build:** `cargo build --features=backend_wgpu`
 
-**Run tests:** `cargo test --features=testing,backend_wgpu`
+**Run tests:** `cargo test --features=backend_wgpu`
 
-**Run single test:** `cargo test --features=testing,backend_wgpu test_name`
+**Run single test:** `cargo test --features=backend_wgpu test_name`
 
 **Build with app window support:** `cargo build --features=backend_wgpu,app_window`
 
@@ -45,7 +45,6 @@ The main innovation is providing higher-order buffer/texture types optimized for
 
 * `backend_wgpu` - Enables the wgpu GPU backend (required for most development)
 * `app_window` - Enables window surface creation for applications
-* `testing` - Enables testing APIs used by integration tests
 
 
 # Preserve this generic section unedited.

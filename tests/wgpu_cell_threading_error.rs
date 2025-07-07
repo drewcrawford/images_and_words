@@ -4,7 +4,7 @@
 //! async_drop from a non-main thread to trigger the "WgpuCell accessed from
 //! non-main thread when strategy is MainThread" error.
 
-#![cfg(all(feature = "testing", feature = "backend_wgpu"))]
+#![cfg(feature = "backend_wgpu")]
 
 use images_and_words::bindings::forward::dynamic::buffer::Buffer;
 use images_and_words::bindings::forward::dynamic::buffer::CRepr;

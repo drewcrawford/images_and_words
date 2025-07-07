@@ -23,7 +23,6 @@ pub struct Engine {
 }
 
 impl Engine {
-    #[cfg(feature = "testing")]
     pub async fn for_testing() -> Result<Arc<Self>, CreateError> {
         Self::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await
     }

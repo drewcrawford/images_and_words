@@ -49,8 +49,6 @@ wasm-bindgen-test = "0.3"
 [features]
 backend_wgpu = ["dep:wgpu"]
 app_window = ["dep:app_window"]
-# Enable testing APIs for integration tests
-testing = []
 
 [[test]]
 name = "buffer_access_hang"
