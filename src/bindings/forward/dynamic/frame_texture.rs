@@ -714,7 +714,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// let render_side = texture.render_side();
     /// ```
     pub(crate) fn render_side(&self) -> TextureRenderSide<Format> {
-        TextureRenderSide {
+        TextureRenderSide::<Format> {
             shared: self.shared.clone(),
         }
     }
