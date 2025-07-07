@@ -6,7 +6,6 @@ use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::{TextureConfig, TextureUsage};
 use crate::images::BoundDevice;
 use crate::imp::wgpu::cell::WgpuCell;
-use crate::imp::wgpu::context::smuggle_async;
 use crate::imp::{Error, MappableBuffer2};
 use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
 use crate::pixel_formats::pixel_as_bytes;
@@ -15,7 +14,6 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use wgpu::util::{DeviceExt, TextureDataOrder};
-use wgpu::{CommandEncoder, Extent3d, MapMode};
 
 impl TextureUsage {
     pub const fn wgpu_usage(&self) -> wgpu::TextureUsages {
@@ -349,115 +347,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
             texture: self.gpu_texture.clone(),
         }
     }
-
-    /// Copy from a MappableTexture2 to this GPUableTexture2 using a CommandEncoder.
-    ///
-    /// This operation:
-    /// 1. Maps the staging buffer
-    /// 2. Copies data from MappableTexture2 into the staging buffer with proper alignment
-    /// 3. Unmaps the staging buffer
-    /// 4. Schedules the copy from staging buffer to GPU texture with the encoder
-    ///
-    /// # Arguments
-    /// * `source` - The MappableTexture2 to copy from
-    /// * `command_encoder` - The CommandEncoder to record the copy operation
-    pub async fn copy_from_mappable_texture2(
-        &self,
-        source: &MappableTexture2<Format>,
-        command_encoder: &mut CommandEncoder,
-    ) -> Result<(), String> {
-        // Check format compatibility
-        if self.width != source.width as u32 || self.height != source.height as u32 {
-            return Err(format!(
-                "Size mismatch: GPU texture is {}x{}, but source is {}x{}",
-                self.width, self.height, source.width, source.height
-            ));
-        }
-
-        let bound_device = self.bound_device.clone();
-        let staging_buffer_for_mapping = self.staging_buffer.clone();
-        let source_data = source.imp.as_slice();
-        let copy_len = source_data.len();
-
-        // Copy the source data to avoid borrowing issues
-        let source_data_owned = source_data.to_vec();
-
-        // Calculate bytes per row with proper alignment
-        let bytes_per_pixel = std::mem::size_of::<Format::CPixel>() as u32;
-        let unaligned_bytes_per_row = source.width as u32 * bytes_per_pixel;
-        let aligned_bytes_per_row = unaligned_bytes_per_row
-            .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
-            .unwrap()
-            .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-            .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-            .unwrap();
-
-        smuggle_async(
-            "copy_from_mappable_texture2".to_string(),
-            move || async move {
-                // Map the staging buffer
-                let specified_length = copy_len as u64;
-                let (s, r) = r#continue::continuation();
-                staging_buffer_for_mapping.assume(|buffer| {
-                    buffer.map_async(MapMode::Write, 0..specified_length, |c| {
-                        c.unwrap();
-                        s.send(());
-                    });
-                });
-
-                // Signal the polling thread that we need to poll
-                bound_device.0.set_needs_poll();
-                r.await;
-
-                // Copy data into the staging buffer
-                staging_buffer_for_mapping.assume(|buffer| {
-                    let mut entire_map = buffer.slice(0..specified_length).get_mapped_range_mut();
-                    entire_map.copy_from_slice(&source_data_owned);
-                    drop(entire_map);
-                    buffer.unmap();
-                });
-            },
-        )
-        .await;
-
-        // Now that the staging buffer is ready, schedule the copy from staging buffer to texture
-        let source_width = source.width as u32;
-        let source_height = source.height as u32;
-
-        self.staging_buffer.assume(|staging| {
-            self.gpu_texture.assume(|texture| {
-                let source_base = wgpu::TexelCopyBufferInfoBase {
-                    buffer: staging,
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(aligned_bytes_per_row),
-                        rows_per_image: Some(source_height),
-                    },
-                };
-
-                let dest_base = wgpu::TexelCopyTextureInfoBase {
-                    texture,
-                    mip_level: 0,
-                    origin: Default::default(),
-                    aspect: Default::default(),
-                };
-
-                command_encoder.copy_buffer_to_texture(
-                    source_base,
-                    dest_base,
-                    Extent3d {
-                        width: source_width,
-                        height: source_height,
-                        depth_or_array_layers: 1,
-                    },
-                );
-            });
-        });
-
-        Ok(())
-    }
 }
-
 impl<Format> GPUableTextureWrapper for GPUableTexture2<Format> {}
 
 impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextureWrapped
@@ -503,13 +393,14 @@ Like GPUableTexture2 but without the staging buffer - for static texture data th
 pub struct GPUableTexture2Static<Format> {
     format: PhantomData<Format>,
     gpu_texture: WgpuCell<wgpu::Texture>,
+    #[allow(dead_code)]
     bound_device: Arc<BoundDevice>,
-    width: u32,
-    height: u32,
+    #[allow(dead_code)]
     debug_name: String,
 }
 
 impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Format> {
+    #[allow(dead_code)]
     pub async fn new(
         bound_device: &Arc<crate::images::BoundDevice>,
         config: TextureConfig<'_>,
@@ -550,8 +441,6 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
             format: PhantomData,
             gpu_texture,
             bound_device: bound_device.clone(),
-            width: config.width as u32,
-            height: config.height as u32,
             debug_name: config.debug_name.to_string(),
         })
     }
@@ -747,8 +636,6 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
             format: PhantomData,
             gpu_texture,
             bound_device: bound_device.clone(),
-            width: config.width as u32,
-            height: config.height as u32,
             debug_name: config.debug_name.to_string(),
         })
     }
