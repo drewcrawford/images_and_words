@@ -42,6 +42,7 @@ where
     }
 }
 
+/*
 impl<'a, Element, U> CPUReadGuard<'a, Element, U>
 where
     Element: Mappable,
@@ -51,6 +52,7 @@ where
     ///
     /// This method must be called before the guard is dropped. Failure to call
     /// this method will result in a panic when the guard's Drop implementation runs.
+    #[allow(dead_code)]
     pub async fn async_drop(mut self) {
         if let Some(inner_guard) = self.imp.take() {
             inner_guard.async_drop().await;
@@ -66,7 +68,7 @@ where
             waker.send(());
         }
     }
-}
+}*/
 
 impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U>
 where
