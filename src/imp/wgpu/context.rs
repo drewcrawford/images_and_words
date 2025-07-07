@@ -64,6 +64,7 @@ which is a bit complex to express in Rust.  How we do it is:
 pub const WGPU_STRATEGY: WGPUStrategy =
     WGPUStrategy::from_appwindow_strategy(app_window::WGPU_STRATEGY);
 
+#[cfg(not(feature = "app_window"))]
 pub const WGPU_STRATEGY: WGPUStrategy = WGPUStrategy::Relaxed;
 
 pub fn begin<F>(f: F)

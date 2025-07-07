@@ -51,6 +51,7 @@ use crate::entry_point::EntryPoint;
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
 };
+use std::sync::Arc;
 
 /// Error type for view operations.
 ///
