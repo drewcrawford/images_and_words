@@ -215,7 +215,7 @@ impl Debug for NotAvailable {
             PENDING_WRITE_TO_GPU => "PENDING_WRITE_TO_GPU",
             _ => "UNKNOWN",
         };
-        write!(f, "NotAvailable {{ read_state: {} }}", state)
+        write!(f, "NotAvailable {{ read_state: {state} }}")
     }
 }
 
@@ -430,7 +430,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
                     |current| match current {
                         CPU_READ => Some(UNUSED),
                         CPU_WRITE => Some(PENDING_WRITE_TO_GPU),
-                        _ => panic!("async_unuse_cpu called from invalid state: {}", current),
+                        _ => panic!("async_unuse_cpu called from invalid state: {current}"),
                     },
                 )
                 .expect("async_unuse_cpu state transition failed");
@@ -557,7 +557,7 @@ impl std::fmt::Display for NotAvailable {
             PENDING_WRITE_TO_GPU => "PENDING_WRITE_TO_GPU",
             _ => "UNKNOWN",
         };
-        write!(f, "resource not available; current state: {}", state)
+        write!(f, "resource not available; current state: {state}")
     }
 }
 

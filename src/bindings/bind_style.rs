@@ -139,7 +139,7 @@ impl BindStyle {
         let old = self
             .binds
             .insert(slot.pass_index, BindInfo { stage, target });
-        assert!(old.is_none(), "Already bound to slot {:?}", slot);
+        assert!(old.is_none(), "Already bound to slot {slot:?}");
     }
 
     /// Binds the camera transformation matrix to the specified slot.

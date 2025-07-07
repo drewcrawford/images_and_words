@@ -112,13 +112,12 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
         let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
         let unaligned_bytes_per_row = width as usize * bytes_per_pixel;
 
-        let aligned_bytes_per_row = unaligned_bytes_per_row
+        unaligned_bytes_per_row
             .checked_add(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize - 1)
             .unwrap()
             .div_euclid(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
             .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize)
-            .unwrap();
-        aligned_bytes_per_row
+            .unwrap()
     }
 
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) {
@@ -161,7 +160,7 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
             let dst_x_bytes = dst_texel.x as usize * bytes_per_pixel;
             let dst_offset = dst_y * aligned_bytes_per_row + dst_x_bytes;
 
-            self.imp.write(&src_slice, dst_offset);
+            self.imp.write(src_slice, dst_offset);
         }
     }
 }
@@ -258,7 +257,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
 
         // Create staging buffer
         let staging_buffer = WgpuCell::new_on_thread(move || async move {
-            let buffer = move_device
+            move_device
                 .0
                 .device
                 .with(move |device| {
@@ -270,8 +269,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
                     };
                     device.create_buffer(&descriptor)
                 })
-                .await;
-            buffer
+                .await
         })
         .await;
 
@@ -283,7 +281,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
         let config_mipmaps = config.mipmaps;
 
         let gpu_texture = WgpuCell::new_on_thread(move || async move {
-            let texture = move_device2
+            move_device2
                 .0
                 .device
                 .with(move |device| {
@@ -297,8 +295,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
                     );
                     device.create_texture(&descriptor)
                 })
-                .await;
-            texture
+                .await
         })
         .await;
 
@@ -418,7 +415,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
         let config_mipmaps = config.mipmaps;
 
         let gpu_texture = WgpuCell::new_on_thread(move || async move {
-            let texture = move_device
+            move_device
                 .0
                 .device
                 .with(move |device| {
@@ -432,8 +429,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
                     );
                     device.create_texture(&descriptor)
                 })
-                .await;
-            texture
+                .await
         })
         .await;
 

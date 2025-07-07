@@ -622,7 +622,7 @@ impl BindGroupGuard {
                     let camera_clone = stored_buffer.gpu_buffer.buffer().assume(|e| e.clone());
                     let camera_clone = camera_buffers.push(camera_clone);
                     BindingResource::Buffer(BufferBinding {
-                        buffer: &camera_clone,
+                        buffer: camera_clone,
                         offset: 0,
                         size: Some(
                             NonZero::new(std::mem::size_of::<CameraProjection>() as u64).unwrap(),
@@ -674,7 +674,7 @@ impl BindGroupGuard {
                         })
                     });
                     let view = build_dynamic_texture_views.push(view);
-                    BindingResource::TextureView(&view)
+                    BindingResource::TextureView(view)
                 }
                 BindTarget::Sampler(sampler) => match sampler {
                     SamplerType::Mipmapped => {
@@ -1096,7 +1096,7 @@ impl PortInternal {
             let scaled_size = self.scaled_size.requested.unwrap();
             tx.map_async(wgpu::MapMode::Read, .., move |result| {
                 if let Err(e) = result {
-                    panic!("Failed to map framebuffer buffer: {:?}", e);
+                    panic!("Failed to map framebuffer buffer: {e:?}");
                 } else {
                     let data = move_tx.slice(..).get_mapped_range();
                     let wgpu_bytes_per_row_256 = dump_buff_bytes_per_row.unwrap();
@@ -1116,7 +1116,7 @@ impl PortInternal {
                                 r: 0,
                                 a: 0,
                             };
-                            if pixel_bgra != zero {}
+                            pixel_bgra != zero;
                             pixels.push(pixel_bgra);
                         }
                     }
@@ -1127,7 +1127,7 @@ impl PortInternal {
                         &pixels,
                     );
                     let data = tgar.into_data();
-                    std::fs::write(format!("frame_{}.tga", move_frame), data)
+                    std::fs::write(format!("frame_{move_frame}.tga"), data)
                         .expect("Failed to write framebuffer dump");
                 }
                 move_tx.unmap();
@@ -1142,7 +1142,7 @@ impl PortInternal {
             let scaled_size = self.scaled_size.requested.unwrap();
             depth_tx.map_async(wgpu::MapMode::Read, .., move |result| {
                 if let Err(e) = result {
-                    panic!("Failed to map depth buffer: {:?}", e);
+                    panic!("Failed to map depth buffer: {e:?}");
                 } else {
                     let data = move_depth_tx.slice(..).get_mapped_range();
                     let depth_wgpu_bytes_per_row_256 = depth_dump_buff_bytes_per_row.unwrap();
@@ -1167,7 +1167,7 @@ impl PortInternal {
                         &depth_pixels,
                     );
                     let depth_data = depth_tgar.into_data();
-                    std::fs::write(format!("depth_{}.tga", move_frame), depth_data)
+                    std::fs::write(format!("depth_{move_frame}.tga"), depth_data)
                         .expect("Failed to write depth buffer dump");
                 }
                 move_depth_tx.unmap();

@@ -72,7 +72,9 @@ impl DirtySender {
             let continuation = l.continuation.lock().unwrap().c.take();
             drop(l); //allow lock to be retaken
             //send continuation if it exists
-            continuation.map(|c| c.send(()));
+            if let Some(c) = continuation {
+                c.send(())
+            }
         }
     }
 }

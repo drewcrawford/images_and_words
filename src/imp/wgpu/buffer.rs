@@ -177,14 +177,14 @@ impl GPUableBuffer {
                 StorageType::Index => BufferUsages::INDEX,
             };
 
-        let staging_debug_name = format!("{}_staging", debug_name);
-        let device_debug_name = format!("{}_device", debug_name);
+        let staging_debug_name = format!("{debug_name}_staging");
+        let device_debug_name = format!("{debug_name}_device");
         let move_device = bound_device.clone();
         let move_device2 = bound_device.clone();
 
         // Create staging buffer
         let staging_buffer = WgpuCell::new_on_thread(move || async move {
-            let buffer = move_device
+            move_device
                 .0
                 .device
                 .with(move |device| {
@@ -196,14 +196,13 @@ impl GPUableBuffer {
                     };
                     device.create_buffer(&descriptor)
                 })
-                .await;
-            buffer
+                .await
         })
         .await;
 
         // Create device buffer
         let device_buffer = WgpuCell::new_on_thread(move || async move {
-            let buffer = move_device2
+            move_device2
                 .0
                 .device
                 .with(move |device| {
@@ -215,8 +214,7 @@ impl GPUableBuffer {
                     };
                     device.create_buffer(&descriptor)
                 })
-                .await;
-            buffer
+                .await
         })
         .await;
 
@@ -427,7 +425,7 @@ impl GPUableBufferStatic {
                 StorageType::Index => BufferUsages::INDEX,
             };
 
-        let device_debug_name = format!("{}_static_with_data", debug_name);
+        let device_debug_name = format!("{debug_name}_static_with_data");
         let move_device = bound_device.clone();
 
         // Prepare data for initialization
@@ -447,7 +445,7 @@ impl GPUableBufferStatic {
 
         // Create device buffer with mapped_at_creation=true for direct initialization
         let device_buffer = WgpuCell::new_on_thread(move || async move {
-            let buffer = move_device
+            move_device
                 .0
                 .device
                 .with(move |device| {
@@ -466,8 +464,7 @@ impl GPUableBufferStatic {
                     buffer.unmap();
                     buffer
                 })
-                .await;
-            buffer
+                .await
         })
         .await;
 

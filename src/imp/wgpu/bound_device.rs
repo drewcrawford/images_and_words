@@ -80,8 +80,8 @@ impl BoundDevice {
                 .expect("Failed to spawn wgpu polling thread");
 
             Ok(BoundDevice {
-                device: device,
-                queue: queue,
+                device,
+                queue,
                 adapter: unbound_device.0.adapter,
                 poll_thread: Some(poll_thread),
                 poll_shutdown,

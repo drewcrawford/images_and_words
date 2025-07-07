@@ -64,7 +64,7 @@ impl<T> PartialEq for WgpuCell<T> {
     fn eq(&self, other: &Self) -> bool {
         let s = self.shared.as_ref().unwrap();
         let o = other.shared.as_ref().unwrap();
-        Arc::ptr_eq(&s, &o)
+        Arc::ptr_eq(s, o)
     }
 }
 
