@@ -53,6 +53,11 @@ use images_and_words::images::shader::{FragmentShader, VertexShader};
 use images_and_words::images::view::View;
 use some_executor::task::{Configuration, Task};
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
+use std::thread;
+#[cfg(target_arch = "wasm32")]
+use wasm_thread as thread;
+
 // Note: In this simplified example, we generate vertex data procedurally in the
 // vertex shader rather than using vertex buffers. This demonstrates the basic
 // rendering pipeline without the complexity of vertex buffer management.
@@ -142,17 +147,22 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 /// while maintaining the async execution model needed for the middleware.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     logwise::info_sync!("Running simple_scene example...");
+    logwise::info_sync!("About to call app_window::application::main()");
     // Create actual window with proper threading
     app_window::application::main(|| {
-        _ = std::thread::Builder::new().spawn(|| {
+        logwise::info_sync!("Inside app_window::application::main() closure");
+        _ = thread::Builder::new().spawn(|| {
+            logwise::info_sync!("Inside spawned thread, about to create Task");
             Task::without_notifications(
                 "simple_scene".to_string(),
                 Configuration::default(),
                 run_app_window_example(),
             )
             .spawn_thread_local();
+            logwise::info_sync!("Task spawned locally");
         })
     });
+    logwise::info_sync!("Returned from app_window::application::main()");
     Ok(())
 }
 
@@ -176,36 +186,45 @@ async fn run_app_window_example() {
     use app_window::coordinates::{Position, Size};
     use app_window::window::Window;
 
+    logwise::info_sync!("run_app_window_example() started");
+
     // Step 1: Create a window using app_window
-    logwise::info_sync!("Creating window...");
+    logwise::info_sync!("About to create window...");
     let mut window = Window::new(
         Position::default(),     // Default position (centered)
         Size::new(800.0, 600.0), // 800x600 resolution
         "images_and_words - Simple Scene Example".to_string(),
     )
     .await;
-    logwise::info_sync!("Window created!");
+    logwise::info_sync!("Window created successfully!");
 
     // Step 2: Extract the rendering surface from the window
+    logwise::info_sync!("About to extract surface from window...");
     let surface = window.surface().await;
+    logwise::info_sync!("Surface extracted successfully!");
 
     // Step 3: Create images_and_words View from the surface
-    logwise::info_sync!("Creating view from surface...");
+    logwise::info_sync!("About to create view from surface...");
     let view = View::from_surface(surface).expect("View creation failed");
+    logwise::info_sync!("View created successfully!");
 
     // Step 4: Create the graphics engine with initial camera position
-    logwise::info_sync!("Creating graphics engine...");
+    logwise::info_sync!("About to create graphics engine...");
     let initial_camera_position = WorldCoord::new(0.0, 0.0, 2.0); // 2 units back from origin
     let engine_arc = Engine::rendering_to(view, initial_camera_position)
         .await
         .expect("Engine creation failed");
+    logwise::info_sync!("Graphics engine created successfully!");
 
     // Step 5: Execute the main rendering loop
+    logwise::info_sync!("About to start rendering loop...");
     let _ = run_rendering_with_engine_arc(engine_arc).await;
+    logwise::info_sync!("Rendering loop completed!");
 
     // Step 6: Cleanup - keep window alive until rendering completes
-    logwise::info_sync!("Keeping window alive during rendering...");
+    logwise::info_sync!("About to cleanup window...");
     drop(window); // Explicitly drop when we're done
+    logwise::info_sync!("Window cleanup completed!");
 }
 
 /// Core rendering pipeline demonstration.
@@ -239,17 +258,23 @@ async fn run_app_window_example() {
 async fn run_rendering_with_engine_arc(
     engine: Arc<Engine>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    logwise::info_sync!("run_rendering_with_engine_arc() started");
+
     // Get the bound GPU device (could be used for creating buffers/textures)
+    logwise::info_sync!("About to get bound device...");
     let _device = engine.bound_device();
+    logwise::info_sync!("Got bound device successfully!");
 
     // Step 1: Create and compile shaders from WGSL source
-    logwise::info_sync!("Creating shaders...");
+    logwise::info_sync!("About to create shaders...");
     let vertex_shader = VertexShader::new("simple_vertex", VERTEX_SHADER.to_string());
     let fragment_shader = FragmentShader::new("simple_fragment", FRAGMENT_SHADER.to_string());
+    logwise::info_sync!("Shaders created successfully!");
 
     // Step 2: Set up resource binding style (empty for this simple example)
-    logwise::info_sync!("Setting up resource bindings...");
+    logwise::info_sync!("About to set up resource bindings...");
     let bind_style = BindStyle::new();
+    logwise::info_sync!("Resource bindings set up successfully!");
 
     // Note: This example uses procedural vertex generation in shaders.
     // For real applications with vertex buffers, you would:
@@ -259,7 +284,7 @@ async fn run_rendering_with_engine_arc(
     // 4. Reference in shaders: @location(0) position: vec3<f32>
 
     // Step 3: Create render pass descriptor with complete pipeline configuration
-    logwise::info_sync!("Creating render pass...");
+    logwise::info_sync!("About to create render pass...");
     let pass_descriptor = PassDescriptor::new(
         "triangle_pass".to_string(),  // Debug name
         vertex_shader,                // Vertex stage
@@ -269,14 +294,17 @@ async fn run_rendering_with_engine_arc(
         false,                        // Depth testing disabled
         false,                        // Alpha blending disabled
     );
+    logwise::info_sync!("Render pass created successfully!");
 
     // Step 4: Register render pass with engine's main port
-    logwise::info_sync!("Adding render pass to engine...");
+    logwise::info_sync!("About to add render pass to engine...");
     let mut port = engine.main_port_mut(); // Get exclusive port access
+    logwise::info_sync!("Got main port mut, about to add fixed pass...");
     port.add_fixed_pass(pass_descriptor).await;
+    logwise::info_sync!("Render pass added to engine successfully!");
 
     // Step 5: Execute main rendering loop with frame timing
-    logwise::info_sync!("Starting render loop...");
+    logwise::info_sync!("About to start render loop...");
     logwise::info_sync!("Rendering a colorful triangle for demonstration...");
 
     let mut frame_count = 0;
@@ -284,6 +312,12 @@ async fn run_rendering_with_engine_arc(
 
     while frame_count < max_frames {
         // Render one frame (force_render bypasses dirty checking)
+        if frame_count % 60 == 0 {
+            logwise::info_sync!(
+                "About to render frame {frame_count}",
+                frame_count = frame_count
+            );
+        }
         port.force_render().await;
         frame_count += 1;
 

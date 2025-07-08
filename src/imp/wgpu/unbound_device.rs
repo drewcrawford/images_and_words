@@ -24,10 +24,8 @@ impl UnboundDevice {
                     .0
                     .0
                     .assume_async(|instance: &wgpu::Instance| {
-                        let instance_clone = instance.clone();
-                        async move {
-                            WgpuCell::new(instance_clone.request_adapter(&options).await.unwrap())
-                        }
+                        let fut = instance.request_adapter(&options);
+                        async move { WgpuCell::new(fut.await.unwrap()) }
                     })
                     .await
             }
@@ -43,12 +41,8 @@ impl UnboundDevice {
                             .0
                             .0
                             .assume_async(|instance: &wgpu::Instance| {
-                                let instance_clone = instance.clone();
-                                async move {
-                                    WgpuCell::new(
-                                        instance_clone.request_adapter(&options).await.unwrap(),
-                                    )
-                                }
+                                let fut = instance.request_adapter(&options);
+                                async move { WgpuCell::new(fut.await.unwrap()) }
                             })
                             .await
                     })

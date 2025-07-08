@@ -5,8 +5,11 @@ use crate::imp::wgpu::cell::WgpuCell;
 pub struct EntryPoint(pub(super) WgpuCell<wgpu::Instance>);
 impl EntryPoint {
     pub async fn new() -> Result<Self, crate::imp::wgpu::Error> {
-        let descriptor = wgpu::InstanceDescriptor::from_env_or_default();
-        let wgpu_instance = wgpu::Instance::new(&descriptor);
-        Ok(EntryPoint(WgpuCell::new(wgpu_instance)))
+        let cell = WgpuCell::new_on_thread(move || async move {
+            let descriptor = wgpu::InstanceDescriptor::from_env_or_default();
+            wgpu::Instance::new(&descriptor)
+        })
+        .await;
+        Ok(EntryPoint(cell))
     }
 }

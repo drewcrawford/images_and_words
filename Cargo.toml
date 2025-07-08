@@ -45,6 +45,7 @@ env_logger = {version = "0.11.8"}
 
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
+wasm_thread = "0.3"
 
 [features]
 default = ["backend_wgpu"]
@@ -96,3 +97,4 @@ wgpu = {path = "../wgpu/wgpu"}
 portable_async_sleep = {path = "../portable_async_sleep"}
 vectormatrix = {path = "../vectormatrix"}
 continue = {path = "../continue"}
+logwise = {path = "../logwise"}
