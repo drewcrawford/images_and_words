@@ -217,7 +217,7 @@ impl BindStyle {
         stage: Stage,
         buffer: &crate::bindings::forward::dynamic::buffer::Buffer<Element>,
     ) where
-        Element: BackendSend + BackendSync + 'static,
+        Element: Send + Sync + 'static,
     {
         self.bind(
             slot,
@@ -344,7 +344,7 @@ impl BindStyle {
         buffer: &crate::bindings::forward::dynamic::buffer::Buffer<Element>,
         layout: VertexLayout,
     ) where
-        Element: BackendSend + BackendSync + 'static,
+        Element: Send + Sync + 'static,
     {
         self.bind(
             slot,
