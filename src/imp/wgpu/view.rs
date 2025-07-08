@@ -1,4 +1,5 @@
 use crate::images::view::ViewForImp;
+use crate::imp::wgpu::cell::WgpuCell;
 use crate::imp::wgpu::context::smuggle;
 use raw_window_handle::HasWindowHandle;
 use std::sync::Arc;
@@ -7,7 +8,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct View {
     //need surface to be dropped first here
-    pub(super) surface: Option<wgpu::Surface<'static>>,
+    pub(super) surface: Option<WgpuCell<wgpu::Surface<'static>>>,
     pub(super) _parent: Arc<ViewForImp>,
 }
 
@@ -32,9 +33,15 @@ impl View {
             }
         }
         let wgpu_surface = smuggle("create_surface".to_string(), move || {
-            entrypoint.0.0.create_surface(view_clone)
+            WgpuCell::new(
+                entrypoint
+                    .0
+                    .0
+                    .create_surface(view_clone)
+                    .expect("failed to create surface"),
+            )
         })
-        .await?;
+        .await;
 
         Ok(View {
             surface: Some(wgpu_surface),

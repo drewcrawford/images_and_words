@@ -1217,12 +1217,10 @@ impl PortInternal {
                     wgpu::TextureUsages::empty()
                 };
                 if self.scaled_size.is_dirty() {
-                    let surface_capabilities = self
-                        .engine
-                        .bound_device()
-                        .0
-                        .adapter
-                        .assume(|adapter| surface.get_capabilities(adapter));
+                    let surface_capabilities =
+                        self.engine.bound_device().0.adapter.assume(|adapter| {
+                            surface.assume(|surface| surface.get_capabilities(adapter))
+                        });
 
                     let device = self.engine.bound_device().as_ref();
                     let scaled_size = self.scaled_size.requested.unwrap();
@@ -1231,19 +1229,21 @@ impl PortInternal {
                     let preferred_format = surface_capabilities.formats[0];
                     self.pass_config.requested.surface_format = Some(preferred_format);
                     device.0.device.assume(|device| {
-                        surface.configure(
-                            device,
-                            &wgpu::SurfaceConfiguration {
-                                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | extra_usage,
-                                format: preferred_format,
-                                width: scaled_size.0,
-                                height: scaled_size.1,
-                                present_mode: wgpu::PresentMode::Fifo,
-                                desired_maximum_frame_latency: 1,
-                                alpha_mode: CompositeAlphaMode::Opaque,
-                                view_formats: Vec::new(),
-                            },
-                        );
+                        surface.assume(|surface| {
+                            surface.configure(
+                                device,
+                                &wgpu::SurfaceConfiguration {
+                                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | extra_usage,
+                                    format: preferred_format,
+                                    width: scaled_size.0,
+                                    height: scaled_size.1,
+                                    present_mode: wgpu::PresentMode::Fifo,
+                                    desired_maximum_frame_latency: 1,
+                                    alpha_mode: CompositeAlphaMode::Opaque,
+                                    view_formats: Vec::new(),
+                                },
+                            )
+                        });
                     });
                     self.scaled_size.mark_submitted();
                 }
@@ -1301,7 +1301,7 @@ impl PortInternal {
             }
             Some(surface) => {
                 let surface_texture = surface
-                    .get_current_texture()
+                    .assume(|surface| surface.get_current_texture())
                     .expect("Acquire swapchain texture");
                 frame_texture = surface_texture.texture.clone();
 
