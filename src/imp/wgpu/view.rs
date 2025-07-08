@@ -31,13 +31,14 @@ impl View {
                 });
             }
         }
-        let wgpu_surface = entrypoint.0.0.assume(|entrypoint| {
-            WgpuCell::new(
+        let wgpu_surface = WgpuCell::new_on_thread(async move || {
+            entrypoint.0.0.assume(|entrypoint| {
                 entrypoint
                     .create_surface(view_clone)
-                    .expect("Failed to create surface"),
-            )
-        });
+                    .expect("Failed to create surface")
+            })
+        })
+        .await;
 
         Ok(View {
             surface: Some(wgpu_surface),
