@@ -257,19 +257,15 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
 
         // Create staging buffer
         let staging_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device
-                .0
-                .device
-                .with(move |device| {
-                    let descriptor = wgpu::BufferDescriptor {
-                        label: Some(&staging_debug_name),
-                        size: staging_buffer_size as u64,
-                        usage: staging_usage,
-                        mapped_at_creation: false,
-                    };
-                    device.create_buffer(&descriptor)
-                })
-                .await
+            move_device.0.device.assume(move |device| {
+                let descriptor = wgpu::BufferDescriptor {
+                    label: Some(&staging_debug_name),
+                    size: staging_buffer_size as u64,
+                    usage: staging_usage,
+                    mapped_at_creation: false,
+                };
+                device.create_buffer(&descriptor)
+            })
         })
         .await;
 
@@ -281,21 +277,17 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
         let config_mipmaps = config.mipmaps;
 
         let gpu_texture = WgpuCell::new_on_thread(move || async move {
-            move_device2
-                .0
-                .device
-                .with(move |device| {
-                    let descriptor = Self::get_texture_descriptor(
-                        &config_debug_name,
-                        config_width,
-                        config_height,
-                        config_visible_to,
-                        config_mipmaps,
-                        texture_usage,
-                    );
-                    device.create_texture(&descriptor)
-                })
-                .await
+            move_device2.0.device.assume(move |device| {
+                let descriptor = Self::get_texture_descriptor(
+                    &config_debug_name,
+                    config_width,
+                    config_height,
+                    config_visible_to,
+                    config_mipmaps,
+                    texture_usage,
+                );
+                device.create_texture(&descriptor)
+            })
         })
         .await;
 
@@ -415,21 +407,17 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
         let config_mipmaps = config.mipmaps;
 
         let gpu_texture = WgpuCell::new_on_thread(move || async move {
-            move_device
-                .0
-                .device
-                .with(move |device| {
-                    let descriptor = Self::get_texture_descriptor(
-                        &texture_debug_name,
-                        config_width,
-                        config_height,
-                        config_visible_to,
-                        config_mipmaps,
-                        texture_usage,
-                    );
-                    device.create_texture(&descriptor)
-                })
-                .await
+            move_device.0.device.assume(move |device| {
+                let descriptor = Self::get_texture_descriptor(
+                    &texture_debug_name,
+                    config_width,
+                    config_height,
+                    config_visible_to,
+                    config_mipmaps,
+                    texture_usage,
+                );
+                device.create_texture(&descriptor)
+            })
         })
         .await;
 
