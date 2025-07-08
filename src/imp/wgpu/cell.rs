@@ -149,6 +149,7 @@ impl<T> WgpuCell<T> {
     /**
     Be careful with this - it allows holding the lock while awaiting.
     */
+    #[allow(clippy::await_holding_lock)]
     pub async fn assume_async<C, R>(&self, c: C) -> R
     where
         C: AsyncFnOnce(&T) -> R,

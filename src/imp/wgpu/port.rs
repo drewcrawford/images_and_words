@@ -37,6 +37,14 @@ pub struct CameraProjection {
 
 unsafe impl CRepr for CameraProjection {}
 
+#[derive(Debug)]
+struct DebugCaptureData {
+    dump_buf: Option<wgpu::Buffer>,
+    dump_buff_bytes_per_row: Option<u32>,
+    depth_dump_buf: Option<wgpu::Buffer>,
+    depth_dump_buff_bytes_per_row: Option<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct PassConfig {
     pass_descriptors: Vec<PassDescriptor>,
@@ -958,14 +966,14 @@ impl PortInternal {
         encoder: &mut wgpu::CommandEncoder,
         frame_texture: &wgpu::Texture,
         depth_texture: &wgpu::Texture,
-    ) -> (
-        Option<wgpu::Buffer>,
-        Option<u32>,
-        Option<wgpu::Buffer>,
-        Option<u32>,
-    ) {
+    ) -> DebugCaptureData {
         if !self.dump_framebuffer {
-            return (None, None, None, None);
+            return DebugCaptureData {
+                dump_buf: None,
+                dump_buff_bytes_per_row: None,
+                depth_dump_buf: None,
+                depth_dump_buff_bytes_per_row: None,
+            };
         }
 
         let device = self.engine.bound_device().as_ref();
@@ -1047,12 +1055,12 @@ impl PortInternal {
             },
         );
 
-        (
-            Some(buf),
-            Some(wgpu_bytes_per_row_256),
-            Some(depth_buf),
-            Some(depth_wgpu_bytes_per_row_256),
-        )
+        DebugCaptureData {
+            dump_buf: Some(buf),
+            dump_buff_bytes_per_row: Some(wgpu_bytes_per_row_256),
+            depth_dump_buf: Some(depth_buf),
+            depth_dump_buff_bytes_per_row: Some(depth_wgpu_bytes_per_row_256),
+        }
     }
 
     fn submit_and_present_frame(
@@ -1062,10 +1070,7 @@ impl PortInternal {
         frame_bind_groups: Vec<BindGroupGuard>,
         frame_acquired_guards: Vec<AcquiredGuards>,
         frame_guard: std::sync::Arc<crate::images::port::FrameGuard>,
-        dump_buf: Option<wgpu::Buffer>,
-        dump_buff_bytes_per_row: Option<u32>,
-        depth_dump_buf: Option<wgpu::Buffer>,
-        depth_dump_buff_bytes_per_row: Option<u32>,
+        debug_capture: DebugCaptureData,
     ) {
         let device = self.engine.bound_device().as_ref();
         let encoded = encoder.finish();
@@ -1090,7 +1095,7 @@ impl PortInternal {
         }
         self.frame += 1;
 
-        if let Some(tx) = dump_buf {
+        if let Some(tx) = debug_capture.dump_buf {
             let move_tx = tx.clone();
             let move_frame = self.frame;
             let scaled_size = self.scaled_size.requested.unwrap();
@@ -1099,7 +1104,7 @@ impl PortInternal {
                     panic!("Failed to map framebuffer buffer: {e:?}");
                 } else {
                     let data = move_tx.slice(..).get_mapped_range();
-                    let wgpu_bytes_per_row_256 = dump_buff_bytes_per_row.unwrap();
+                    let wgpu_bytes_per_row_256 = debug_capture.dump_buff_bytes_per_row.unwrap();
                     let mut pixels = Vec::new();
                     for y in 0..scaled_size.1 {
                         for x in 0..scaled_size.0 {
@@ -1110,13 +1115,6 @@ impl PortInternal {
                                 r: data[offset + 2],
                                 a: data[offset + 3],
                             };
-                            let zero = tgar::PixelBGRA {
-                                b: 0,
-                                g: 0,
-                                r: 0,
-                                a: 0,
-                            };
-                            pixel_bgra != zero;
                             pixels.push(pixel_bgra);
                         }
                     }
@@ -1136,7 +1134,7 @@ impl PortInternal {
             device.0.set_needs_poll()
         }
 
-        if let Some(depth_tx) = depth_dump_buf {
+        if let Some(depth_tx) = debug_capture.depth_dump_buf {
             let move_depth_tx = depth_tx.clone();
             let move_frame = self.frame;
             let scaled_size = self.scaled_size.requested.unwrap();
@@ -1145,7 +1143,8 @@ impl PortInternal {
                     panic!("Failed to map depth buffer: {e:?}");
                 } else {
                     let data = move_depth_tx.slice(..).get_mapped_range();
-                    let depth_wgpu_bytes_per_row_256 = depth_dump_buff_bytes_per_row.unwrap();
+                    let depth_wgpu_bytes_per_row_256 =
+                        debug_capture.depth_dump_buff_bytes_per_row.unwrap();
                     let mut depth_pixels = Vec::new();
                     for y in 0..scaled_size.1 {
                         for x in 0..scaled_size.0 {
@@ -1428,7 +1427,7 @@ impl PortInternal {
         std::mem::drop(render_pass);
 
         // Setup debug framebuffer capture
-        let (dump_buf, dump_buff_bytes_per_row, depth_dump_buf, depth_dump_buff_bytes_per_row) =
+        let debug_capture =
             self.setup_debug_framebuffer_capture(&mut encoder, &frame_texture, &depth_texture);
 
         // Submit and present frame
@@ -1439,10 +1438,7 @@ impl PortInternal {
             frame_bind_groups,
             frame_acquired_guards,
             frame_guard_arc,
-            dump_buf,
-            dump_buff_bytes_per_row,
-            depth_dump_buf,
-            depth_dump_buff_bytes_per_row,
+            debug_capture,
         );
     }
 }
