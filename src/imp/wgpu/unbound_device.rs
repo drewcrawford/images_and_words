@@ -12,6 +12,7 @@ impl UnboundDevice {
         entry_point: &crate::entry_point::EntryPoint,
     ) -> Result<UnboundDevice, super::Error> {
         let view = view.gpu_impl.as_ref().unwrap();
+        let entry_point = entry_point.clone();
         let adapter = match view.surface.as_ref() {
             None => {
                 let options = wgpu::RequestAdapterOptions {
@@ -30,7 +31,7 @@ impl UnboundDevice {
             }
             Some(surface) => {
                 surface
-                    .assume_async(async move |surface| {
+                    .with_async(async move |surface| {
                         let options = wgpu::RequestAdapterOptions {
                             power_preference: Default::default(),
                             force_fallback_adapter: false,
