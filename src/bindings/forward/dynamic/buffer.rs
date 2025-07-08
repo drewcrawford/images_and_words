@@ -360,7 +360,7 @@ impl GPUAccess {
 impl<Element> RenderSide<Element> {
     pub(crate) fn erased_render_side(self) -> ErasedRenderSide
     where
-        Element: BackendSend + BackendSync + 'static,
+        Element: Send + Sync + 'static,
     {
         ErasedRenderSide {
             element_size: std::mem::size_of::<Element>(),
@@ -375,7 +375,7 @@ impl<Element> RenderSide<Element> {
 /// This trait provides a uniform interface for accessing GPU buffers during
 /// rendering, abstracting over the specific element type. It's used internally
 /// by the render pass system to manage buffers of different types.
-pub(crate) trait SomeRenderSide: BackendSend + BackendSync + Debug {
+pub(crate) trait SomeRenderSide: Send + Sync + Debug {
     /// Acquires exclusive access to the GPU buffer for rendering.
     ///
     /// # Safety
@@ -401,7 +401,7 @@ pub(crate) trait SomeRenderSide: BackendSend + BackendSync + Debug {
     unsafe fn unsafe_imp(&self) -> &imp::GPUableBuffer;
 }
 
-impl<Element: BackendSend + BackendSync + 'static> SomeRenderSide for RenderSide<Element> {
+impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
     unsafe fn acquire_gpu_buffer(&self) -> GPUAccess {
         let mut underlying_guard = unsafe { self.shared.multibuffer.access_gpu() };
 
