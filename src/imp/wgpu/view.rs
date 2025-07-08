@@ -1,6 +1,5 @@
 use crate::images::view::ViewForImp;
 use crate::imp::wgpu::cell::WgpuCell;
-use crate::imp::wgpu::context::smuggle;
 use raw_window_handle::HasWindowHandle;
 use std::sync::Arc;
 
@@ -32,16 +31,13 @@ impl View {
                 });
             }
         }
-        let wgpu_surface = smuggle("create_surface".to_string(), move || {
+        let wgpu_surface = entrypoint.0.0.assume(|entrypoint| {
             WgpuCell::new(
                 entrypoint
-                    .0
-                    .0
                     .create_surface(view_clone)
-                    .expect("failed to create surface"),
+                    .expect("Failed to create surface"),
             )
-        })
-        .await;
+        });
 
         Ok(View {
             surface: Some(wgpu_surface),

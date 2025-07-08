@@ -19,7 +19,14 @@ impl UnboundDevice {
                     force_fallback_adapter: false,
                     compatible_surface: None,
                 };
-                entry_point.0.0.request_adapter(&options).await
+                entry_point
+                    .0
+                    .0
+                    .assume_async(|instance: &wgpu::Instance| {
+                        let instance_clone = instance.clone();
+                        async move { instance_clone.request_adapter(&options).await }
+                    })
+                    .await
             }
             Some(surface) => {
                 surface
@@ -29,7 +36,14 @@ impl UnboundDevice {
                             force_fallback_adapter: false,
                             compatible_surface: Some(surface),
                         };
-                        entry_point.0.0.request_adapter(&options).await
+                        entry_point
+                            .0
+                            .0
+                            .assume_async(|instance: &wgpu::Instance| {
+                                let instance_clone = instance.clone();
+                                async move { instance_clone.request_adapter(&options).await }
+                            })
+                            .await
                     })
                     .await
             }
