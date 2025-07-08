@@ -1,4 +1,8 @@
 #![cfg(feature = "backend_wgpu")]
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 use images_and_words::bindings::forward::dynamic::buffer::Buffer;
 use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -28,6 +32,8 @@ unsafe impl CRepr for TestData {}
 ///
 /// This test should FAIL if the bug exists where buffer writes take seconds instead of milliseconds.
 #[cfg(feature = "backend_wgpu")]
+#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn main() {
     test_executors::spawn_local(
         async move {
@@ -109,8 +115,7 @@ fn main() {
                 avg_time
             );
 
-            // Exit cleanly to avoid TLS cleanup issues
-            std::process::exit(0);
+            // Exit handled by test framework
         },
         "Testing buffer write performance",
     );

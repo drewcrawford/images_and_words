@@ -1,5 +1,8 @@
 #![cfg(feature = "backend_wgpu")]
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 use images_and_words::bindings::BindStyle;
 use images_and_words::bindings::bind_style::{BindSlot, Stage};
 use images_and_words::bindings::forward::dynamic::buffer::Buffer;
@@ -36,6 +39,8 @@ unsafe impl CRepr for TestData {}
 /// The hang manifests as Buffer::access_write().await never completing after
 /// several successful iterations, likely due to issues with dirty tracking
 /// or resource contention in the GPU pipeline.
+#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn main() {
     test_executors::spawn_local(
         async move {
@@ -164,7 +169,7 @@ fn main() {
             }
 
             println!("✅ Test passed - no hang detected in buffer access operations");
-            std::process::exit(0);
+            // Exit handled by test framework
         },
         "buffer_access_hang_test",
     );

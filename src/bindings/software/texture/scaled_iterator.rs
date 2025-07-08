@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::bindings::software::texture::scaled_row_cell::ScaledRowCell;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 /**An iterator over the [ScaledRowCell] coordinates.
 
 # Spacing
@@ -130,6 +133,7 @@ mod tests {
     use crate::bindings::software::texture::scaled_row_cell::ScaledRowCell;
 
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test() {
         let mut iter = ScaledIterator::new(3, 3, 2);
         //note we go in TEXTURE ORDER.  First, go hard X direction:
@@ -162,6 +166,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn output_coordinates() {
         //Tests new_output_coordinate
         //uses same iteration as main test

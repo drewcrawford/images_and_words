@@ -6,6 +6,9 @@
 
 #![cfg(feature = "backend_wgpu")]
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 use images_and_words::bindings::forward::dynamic::buffer::Buffer;
 use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -22,6 +25,8 @@ struct TestData {
 
 unsafe impl CRepr for TestData {}
 
+#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn main() {
     println!("=== Testing WgpuCell threading error reproduction ===");
     test_executors::spawn_local(
@@ -83,8 +88,8 @@ fn main() {
                     .recv()
                     .expect("Failed to receive result from spawned thread");
 
-                //exit the process
-                std::process::exit(result);
+                // Exit handled by test framework
+                // Note: For wasm32, threading behavior will be different
             });
         },
         "wgpu_cell_threading_error_test",

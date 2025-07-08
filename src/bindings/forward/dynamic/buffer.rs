@@ -100,6 +100,9 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index};
 use std::sync::Arc;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 /// Indicates how frequently a dynamic buffer will be updated.
 ///
 /// This enum helps the graphics backend optimize buffer placement and update strategies
@@ -684,6 +687,7 @@ unsafe impl CRepr for i8 {}
 #[cfg(test)]
 mod tests {
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn send() {
         fn assert_send<T: Send>() {}
         assert_send::<super::Buffer<u8>>();

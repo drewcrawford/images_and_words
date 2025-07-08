@@ -38,13 +38,14 @@ logwise = "0.2.4"
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 web-time = "1.1.0"
+wasm-bindgen-test = "0.3"
 
 [dev-dependencies]
 
 env_logger = {version = "0.11.8"}
 
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
-wasm-bindgen-test = "0.3"
+
 wasm_thread = "0.3"
 
 [features]
@@ -55,27 +56,22 @@ app_window = ["dep:app_window"]
 [[test]]
 name = "buffer_access_hang"
 path = "tests/buffer_access_hang.rs"
-harness = false
 
 [[test]]
 name = "buffer_performance"
 path = "tests/buffer_performance.rs"
-harness = false
 
 [[test]]
 name = "sendable_futures"
 path = "tests/sendable_futures.rs"
-harness = false
 
 [[test]]
 name = "texture_alignment"
 path = "tests/texture_alignment.rs"
-harness = false
 
 [[test]]
 name = "wgpu_cell_threading_error"
 path = "tests/wgpu_cell_threading_error.rs"
-harness = false
 
 [[example]]
 name = "simple_scene"

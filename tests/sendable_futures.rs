@@ -6,6 +6,9 @@
 //! 2. Buffer operations can be sent across async task boundaries
 //! 3. The underlying mapping operations maintain Send + Sync guarantees
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 use images_and_words::bindings::forward::dynamic::buffer::Buffer;
 use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -28,6 +31,8 @@ unsafe impl CRepr for TestData {}
 /// sent between async contexts, which is a practical requirement for
 /// many async applications.
 
+#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn main() {
     test_executors::spawn_local(
         async move {
@@ -80,7 +85,7 @@ fn main() {
             assert_eq!(result, "success");
 
             println!("Sendable futures test completed successfully");
-            std::process::exit(0);
+            // Exit handled by test framework
         },
         "sendable_futures_test",
     );

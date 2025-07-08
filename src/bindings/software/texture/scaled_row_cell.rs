@@ -2,6 +2,9 @@
 use crate::bindings::software::texture::scaled_32::Scaled32;
 use crate::bindings::software::texture::{Normalized, Texel};
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 /**
 A scaled texture coordinate based on rows and cells.
 
@@ -211,6 +214,7 @@ impl ScaledRowCell {
 }
 
 #[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn test_rescale() {
     let f = ScaledRowCell::new(32, 0, 1, 0, 0);
     let g = f.rescale_evenly(128, 128, 64, 64);

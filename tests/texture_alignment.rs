@@ -1,5 +1,8 @@
 #![cfg(feature = "backend_wgpu")]
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 use images_and_words::Priority;
 use images_and_words::bindings::BindStyle;
 use images_and_words::bindings::bind_style::{BindSlot, Stage};
@@ -13,43 +16,36 @@ use images_and_words::images::shader::{FragmentShader, VertexShader};
 use images_and_words::images::view::View;
 use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 use std::sync::Arc;
+use test_executors::async_test;
 
+#[async_test]
 async fn test_texture_alignment_error_width_100() {
     println!("=== Testing texture alignment error with width 100 ===");
+    test_problematic_width(100).await;
 }
 
+#[async_test]
 async fn test_texture_alignment_error_width_63() {
     println!("=== Testing texture alignment error with width 63 ===");
     test_problematic_width(63).await;
 }
 
+#[async_test]
 async fn test_texture_alignment_error_width_150() {
     println!("=== Testing texture alignment error with width 150 ===");
     test_problematic_width(150).await;
 }
 
+#[async_test]
 async fn test_texture_alignment_ok_width_64() {
     println!("=== Testing properly aligned texture with width 64 ===");
     test_problematic_width(64).await; // 64 * 4 = 256, which is aligned
 }
 
+#[async_test]
 async fn test_texture_alignment_ok_width_128() {
     println!("=== Testing properly aligned texture with width 128 ===");
     test_problematic_width(128).await; // 128 * 4 = 512, which is aligned
-}
-
-fn main() {
-    test_executors::spawn_local(
-        async move {
-            // Run the tests
-            test_texture_alignment_error_width_100().await;
-            test_texture_alignment_error_width_63().await;
-            test_texture_alignment_error_width_150().await;
-            test_texture_alignment_ok_width_64().await;
-            test_texture_alignment_ok_width_128().await;
-        },
-        "Texture Alignment Tests",
-    );
 }
 
 /// Helper function to test a specific problematic width

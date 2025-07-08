@@ -9,6 +9,9 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Context, Poll};
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
 #[derive(Debug)]
 struct Shared<T: 'static> {
     inner: Option<UnsafeSendCell<UnsafeSyncCell<T>>>,
@@ -310,6 +313,7 @@ mod tests {
         use std::rc::Rc;
 
         #[test]
+        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
         fn test_wgpu_cell_basic_operations() {
             let value = 42;
             let mut cell = WgpuCell::new(value);
@@ -323,6 +327,7 @@ mod tests {
         }
 
         #[test]
+        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
         fn test_wgpu_cell_copy() {
             let cell = WgpuCell::new(42);
             let cell2 = cell.copying();
@@ -330,6 +335,7 @@ mod tests {
         }
 
         #[test]
+        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
         fn test_wgpu_cell_with_non_send_type() {
             // Rc is not Send
             let rc = Rc::new(42);
@@ -357,6 +363,7 @@ mod tests {
 
     // Test constructors that don't require thread access
     #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_cell_construction() {
         // Just verify we can construct cells
         let _cell = WgpuCell::new(42);
@@ -370,6 +377,7 @@ mod tests {
         use super::*;
 
         #[test]
+        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
         fn test_guard_basic_operations() {
             let cell = WgpuCell::new(42);
 
@@ -394,6 +402,7 @@ mod tests {
         }
 
         #[test]
+        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
         fn test_guard_debug_impl() {
             let cell = WgpuCell::new(42);
             let guard = cell.lock();
@@ -403,6 +412,7 @@ mod tests {
         }
 
         #[test]
+        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
         fn test_guard_drop_behavior() {
             use std::sync::Arc;
             use std::sync::atomic::{AtomicBool, Ordering};
