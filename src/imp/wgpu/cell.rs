@@ -1,8 +1,6 @@
 //SPDX-License-Identifier: MPL-2.0
 
-use super::context::{WGPU_STRATEGY, WGPUStrategy, begin};
-#[cfg(feature = "app_window")]
-use app_window::application::{is_main_thread, on_main_thread};
+use super::context::{WGPU_STRATEGY, WGPUStrategy, begin, smuggle, smuggle_async};
 use send_cells::UnsafeSendCell;
 use send_cells::unsafe_sync_cell::UnsafeSyncCell;
 use std::fmt::{Debug, Formatter};
@@ -184,82 +182,15 @@ impl<T> WgpuCell<T> {
         R: Send + 'static,
         T: 'static,
     {
-        match WGPU_STRATEGY {
-            #[cfg(feature = "app_window")]
-            WGPUStrategy::MainThread => {
-                if app_window::application::is_main_thread() {
-                    self.assume(c)
-                } else {
-                    let move_shared = self.shared.clone();
-                    on_main_thread(move || {
-                        Self::verify_thread();
-                        let guard = move_shared.as_ref().unwrap().mutex.lock().unwrap();
-                        let r = c(unsafe {
-                            move_shared
-                                .as_ref()
-                                .unwrap()
-                                .inner
-                                .as_ref()
-                                .unwrap()
-                                .get()
-                                .get()
-                        });
-                        drop(guard);
-                        r
-                    })
-                    .await
-                }
-            }
-            #[cfg(feature = "app_window")]
-            WGPUStrategy::NotMainThread => {
-                if !is_main_thread() {
-                    // If we're not on the main thread, we can just call the closure directly
-                    self.assume(c)
-                } else {
-                    // If we are on the main thread, we need to run it on a separate thread
-                    let (s, f) = r#continue::continuation();
-                    let move_shared = self.shared.clone();
-                    _ = std::thread::Builder::new()
-                        .name("WgpuCell thread".to_string())
-                        .spawn(move || {
-                            Self::verify_thread();
-                            let guard = move_shared.as_ref().unwrap().mutex.lock().unwrap();
-                            let r = c(unsafe {
-                                move_shared
-                                    .as_ref()
-                                    .unwrap()
-                                    .inner
-                                    .as_ref()
-                                    .unwrap()
-                                    .get()
-                                    .get()
-                            });
-                            drop(guard);
-                            //now we need to ship this back to the main thread
-                            s.send(r);
-                        })
-                        .unwrap();
-                    f.await
-                }
-            }
-            WGPUStrategy::Relaxed => {
-                // Relaxed strategy allows access from any thread
-                Self::verify_thread();
-                let guard = self.shared.as_ref().unwrap().mutex.lock().unwrap();
-                let r = c(unsafe {
-                    self.shared
-                        .as_ref()
-                        .unwrap()
-                        .inner
-                        .as_ref()
-                        .unwrap()
-                        .get()
-                        .get()
-                });
-                drop(guard);
-                r
-            }
-        }
+        let shared = self.shared.clone();
+        smuggle("WgpuCell::with".to_string(), move || {
+            Self::verify_thread();
+            let guard = shared.as_ref().unwrap().mutex.lock().unwrap();
+            let r = c(unsafe { shared.as_ref().unwrap().inner.as_ref().unwrap().get().get() });
+            drop(guard);
+            r
+        })
+        .await
     }
 
     /**
@@ -272,64 +203,11 @@ impl<T> WgpuCell<T> {
     pub async fn new_on_thread<C, F>(c: C) -> WgpuCell<T>
     where
         C: FnOnce() -> F + Send + 'static,
-        F: Future<Output = T>,
-        T: 'static,
+        F: Future<Output = T> + 'static,
+        T: Send + 'static,
     {
-        match WGPU_STRATEGY {
-            #[cfg(feature = "app_window")]
-            WGPUStrategy::MainThread => {
-                if is_main_thread() {
-                    WgpuCell::new(c().await)
-                } else {
-                    let v = Arc::new(Mutex::new(None));
-                    let move_v = v.clone();
-                    on_main_thread(|| {
-                        let t = some_executor::task::Task::without_notifications(
-                            "WgpuCell::new_on_thread".to_string(),
-                            some_executor::task::Configuration::default(),
-                            async move {
-                                let f = c();
-
-                                let cell = WgpuCell::new(f.await);
-                                move_v.lock().unwrap().replace(cell);
-                            },
-                        );
-                        t.spawn_thread_local();
-                    })
-                    .await;
-                    v.lock().unwrap().take().expect("WgpuCell value missing")
-                }
-            }
-            #[cfg(feature = "app_window")]
-            WGPUStrategy::NotMainThread => {
-                if !is_main_thread() {
-                    // If we're not on the main thread, we can just call the closure directly
-                    WgpuCell::new(c().await)
-                } else {
-                    // If we are on the main thread, we need to run it on a separate thread
-                    let (s, r) = r#continue::continuation();
-                    _ = std::thread::Builder::new()
-                        .name("WgpuCell new_on_thread".to_string())
-                        .spawn(|| {
-                            let t = some_executor::task::Task::without_notifications(
-                                "WgpuCell::new_on_thread".to_string(),
-                                some_executor::task::Configuration::default(),
-                                async move {
-                                    let r = c().await;
-                                    s.send(WgpuCell::new(r));
-                                },
-                            );
-                            t.spawn_thread_local();
-                        })
-                        .unwrap();
-                    r.await
-                }
-            }
-            WGPUStrategy::Relaxed => {
-                // Relaxed strategy allows access from any thread
-                WgpuCell::new(c().await)
-            }
-        }
+        let value = smuggle_async("WgpuCell::new_on_thread".to_string(), || c()).await;
+        WgpuCell::new(value)
     }
 }
 unsafe impl<T> Send for WgpuCell<T> {}
