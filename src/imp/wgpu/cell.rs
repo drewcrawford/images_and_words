@@ -194,6 +194,31 @@ impl<T> WgpuCell<T> {
     }
 
     /**
+    Runs a closure with the inner value of the WgpuCell, ensuring that the closure is executed
+    on the correct thread based on the WGPU_STRATEGY.
+
+    # Panics
+    For the duration of this function, the cell may not be otherwise used.
+    */
+    pub async fn with_async<C, R>(&self, c: C) -> R
+    where
+        C: AsyncFnOnce(&T) -> R + Send + 'static,
+        R: Send + 'static,
+        T: 'static,
+    {
+        let shared = self.shared.clone();
+        smuggle_async("WgpuCell::with".to_string(), move || async move {
+            Self::verify_thread();
+            let guard = shared.as_ref().unwrap().mutex.lock().unwrap();
+            let r =
+                c(unsafe { shared.as_ref().unwrap().inner.as_ref().unwrap().get().get() }).await;
+            drop(guard);
+            r
+        })
+        .await
+    }
+
+    /**
     Creates a new WgpuCell by running a constructor closure on the correct thread
     based on the WGPU_STRATEGY.
 
