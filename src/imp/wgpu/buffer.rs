@@ -184,37 +184,29 @@ impl GPUableBuffer {
 
         // Create staging buffer
         let staging_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device
-                .0
-                .device
-                .with(move |device| {
-                    let descriptor = BufferDescriptor {
-                        label: Some(&staging_debug_name),
-                        size: size as u64,
-                        usage: staging_usage,
-                        mapped_at_creation: false,
-                    };
-                    device.create_buffer(&descriptor)
-                })
-                .await
+            move_device.0.device.assume(move |device| {
+                let descriptor = BufferDescriptor {
+                    label: Some(&staging_debug_name),
+                    size: size as u64,
+                    usage: staging_usage,
+                    mapped_at_creation: false,
+                };
+                device.create_buffer(&descriptor)
+            })
         })
         .await;
 
         // Create device buffer
         let device_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device2
-                .0
-                .device
-                .with(move |device| {
-                    let descriptor = BufferDescriptor {
-                        label: Some(&device_debug_name),
-                        size: size as u64,
-                        usage: device_usage,
-                        mapped_at_creation: false,
-                    };
-                    device.create_buffer(&descriptor)
-                })
-                .await
+            move_device2.0.device.assume(move |device| {
+                let descriptor = BufferDescriptor {
+                    label: Some(&device_debug_name),
+                    size: size as u64,
+                    usage: device_usage,
+                    mapped_at_creation: false,
+                };
+                device.create_buffer(&descriptor)
+            })
         })
         .await;
 
@@ -445,26 +437,22 @@ impl GPUableBufferStatic {
 
         // Create device buffer with mapped_at_creation=true for direct initialization
         let device_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device
-                .0
-                .device
-                .with(move |device| {
-                    let descriptor = BufferDescriptor {
-                        label: Some(&device_debug_name),
-                        size: size as u64,
-                        usage: device_usage,
-                        mapped_at_creation: true,
-                    };
-                    let buffer = device.create_buffer(&descriptor);
-                    let mut entire_map = buffer.slice(0..size as u64).get_mapped_range_mut();
-                    // Copy all data
-                    entire_map.copy_from_slice(&internal_buffer);
-                    drop(internal_buffer);
-                    drop(entire_map);
-                    buffer.unmap();
-                    buffer
-                })
-                .await
+            move_device.0.device.assume(move |device| {
+                let descriptor = BufferDescriptor {
+                    label: Some(&device_debug_name),
+                    size: size as u64,
+                    usage: device_usage,
+                    mapped_at_creation: true,
+                };
+                let buffer = device.create_buffer(&descriptor);
+                let mut entire_map = buffer.slice(0..size as u64).get_mapped_range_mut();
+                // Copy all data
+                entire_map.copy_from_slice(&internal_buffer);
+                drop(internal_buffer);
+                drop(entire_map);
+                buffer.unmap();
+                buffer
+            })
         })
         .await;
 

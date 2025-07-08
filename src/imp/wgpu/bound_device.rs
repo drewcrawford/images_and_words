@@ -78,7 +78,6 @@ impl BoundDevice {
                     }
                 })
                 .expect("Failed to spawn wgpu polling thread");
-
             Ok(BoundDevice {
                 device,
                 queue,
@@ -90,8 +89,11 @@ impl BoundDevice {
         }
         #[cfg(target_arch = "wasm32")]
         {
+            // On wasm32, we don't need a separate polling thread
             Ok(BoundDevice {
-                wgpu: Arc::new(SyncCell::new(wgpu)),
+                device,
+                queue,
+                adapter: unbound_device.0.adapter,
             })
         }
     }
