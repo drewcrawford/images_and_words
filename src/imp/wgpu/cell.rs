@@ -94,14 +94,14 @@ impl<T> WgpuCell<T> {
             #[cfg(feature = "app_window")]
             WGPUStrategy::MainThread => {
                 assert!(
-                    is_main_thread(),
+                    app_window::application::is_main_thread(),
                     "WgpuCell accessed from non-main thread when strategy is MainThread"
                 );
             }
             #[cfg(feature = "app_window")]
             WGPUStrategy::NotMainThread => {
                 assert!(
-                    !is_main_thread(),
+                    !app_window::application::is_main_thread(),
                     "WgpuCell accessed from main thread when strategy is NotMainThread"
                 );
             }
@@ -246,14 +246,14 @@ impl<T: Future> Future for WgpuFuture<T> {
             #[cfg(feature = "app_window")]
             WGPUStrategy::MainThread => {
                 assert!(
-                    is_main_thread(),
+                    app_window::application::is_main_thread(),
                     "WgpuFuture polled from non-main thread when strategy is MainThread"
                 );
             }
             #[cfg(feature = "app_window")]
             WGPUStrategy::NotMainThread => {
                 assert!(
-                    !is_main_thread(),
+                    !app_window::application::is_main_thread(),
                     "WgpuFuture polled from main thread when strategy is NotMainThread"
                 );
             }
