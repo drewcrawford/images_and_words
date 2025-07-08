@@ -554,7 +554,7 @@ and all guards that are needed to keep the resources alive.
 */
 #[derive(Debug, Clone)]
 pub struct BindGroupGuard {
-    bind_group: BindGroup,
+    bind_group: WgpuCell<BindGroup>,
     #[allow(dead_code)] // guards keep resources alive during GPU execution
     guards: Vec<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
     _guards_textures: Vec<Arc<crate::bindings::forward::dynamic::frame_texture::GPUAccess>>,
@@ -703,11 +703,11 @@ impl BindGroupGuard {
         }
 
         let bind_group = bind_device.0.device.assume(|device| {
-            device.create_bind_group(&wgpu::BindGroupDescriptor {
+            WgpuCell::new(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some(name),
                 layout: bind_group_layout,
                 entries: entries.as_slice(),
-            })
+            }))
         });
 
         //find vertex buffers
@@ -1400,7 +1400,9 @@ impl PortInternal {
             render_pass.set_pipeline(&prepared.pipeline);
 
             let bind_group = &frame_bind_groups[p];
-            render_pass.set_bind_group(0, &bind_group.bind_group, &[]);
+            bind_group.bind_group.assume(|bind_group| {
+                render_pass.set_bind_group(0, bind_group, &[]);
+            });
 
             for (v, buffer) in &bind_group.vertex_buffers {
                 buffer.assume(|buffer| {
