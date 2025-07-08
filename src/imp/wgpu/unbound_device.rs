@@ -25,7 +25,9 @@ impl UnboundDevice {
                     .0
                     .assume_async(|instance: &wgpu::Instance| {
                         let instance_clone = instance.clone();
-                        async move { instance_clone.request_adapter(&options).await }
+                        async move {
+                            WgpuCell::new(instance_clone.request_adapter(&options).await.unwrap())
+                        }
                     })
                     .await
             }
@@ -42,7 +44,11 @@ impl UnboundDevice {
                             .0
                             .assume_async(|instance: &wgpu::Instance| {
                                 let instance_clone = instance.clone();
-                                async move { instance_clone.request_adapter(&options).await }
+                                async move {
+                                    WgpuCell::new(
+                                        instance_clone.request_adapter(&options).await.unwrap(),
+                                    )
+                                }
                             })
                             .await
                     })
@@ -50,7 +56,6 @@ impl UnboundDevice {
             }
         };
 
-        let adapter = adapter.map_err(|_| super::Error::NoSuchAdapter)?;
         Ok(UnboundDevice {
             adapter: adapter.into(),
         })
