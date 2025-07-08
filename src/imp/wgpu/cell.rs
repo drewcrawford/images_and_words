@@ -229,10 +229,14 @@ impl<T> WgpuCell<T> {
     where
         C: FnOnce() -> F + Send + 'static,
         F: Future<Output = T> + 'static,
-        T: Send + 'static,
     {
-        let value = smuggle_async("WgpuCell::new_on_thread".to_string(), || c()).await;
-        WgpuCell::new(value)
+        let value = smuggle_async("WgpuCell::new_on_thread".to_string(), move || async move {
+            let f = c();
+            let r = f.await;
+            WgpuCell::new(r)
+        })
+        .await;
+        value
     }
 }
 unsafe impl<T> Send for WgpuCell<T> {}
