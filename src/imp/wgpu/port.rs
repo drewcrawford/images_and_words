@@ -128,7 +128,7 @@ A pass that is prepared to be rendered (compiled, layout calculated, etc.)
 */
 #[derive(Debug)]
 pub struct PreparedPass {
-    pipeline: RenderPipeline,
+    pipeline: WgpuCell<RenderPipeline>,
     pass_descriptor: PassDescriptor,
     #[allow(dead_code)] //instance counts are not used yet
     instance_count: u32,
@@ -406,7 +406,7 @@ impl PreparedPass {
         )
         .await;
         PreparedPass {
-            pipeline,
+            pipeline: WgpuCell::new(pipeline),
             vertex_count,
             instance_count,
             depth_pass: render_descriptor.depth_stencil.is_some(),
@@ -1397,7 +1397,9 @@ impl PortInternal {
 
         for (p, prepared) in self.prepared_passes.iter().enumerate() {
             render_pass.push_debug_group(prepared.pass_descriptor.name());
-            render_pass.set_pipeline(&prepared.pipeline);
+            prepared
+                .pipeline
+                .assume(|pipeline| render_pass.set_pipeline(pipeline));
 
             let bind_group = &frame_bind_groups[p];
             bind_group.bind_group.assume(|bind_group| {
