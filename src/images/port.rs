@@ -52,10 +52,7 @@ use std::fmt::Formatter;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
-#[cfg(target_arch = "wasm32")]
-use web_time::Instant;
+use crate::sys::time::Instant;
 
 /**
 Guard type for tracking frame timing information.

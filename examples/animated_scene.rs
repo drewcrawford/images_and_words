@@ -56,9 +56,9 @@ use std::sync::Arc;
 
 use some_executor::task::{Configuration, Task};
 #[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
+use std::time::{Duration, Instant};
 #[cfg(target_arch = "wasm32")]
-use web_time::Instant;
+use web_time::{Duration, Instant};
 
 /// Animation parameters passed to shaders each frame.
 ///
@@ -333,7 +333,7 @@ async fn run_animated_rendering_with_engine_arc(
         }
 
         // Frame rate limiting: target 60fps
-        portable_async_sleep::async_sleep(std::time::Duration::from_millis(16)).await;
+        portable_async_sleep::async_sleep(Duration::from_millis(16)).await;
     }
 
     logwise::info_sync!(

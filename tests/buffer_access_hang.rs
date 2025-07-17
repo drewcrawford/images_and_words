@@ -142,7 +142,7 @@ async fn main() {
         logwise::info_sync!("Requesting buffer write access for iteration");
         println!("Requesting buffer write access");
 
-        let access_start = std::time::Instant::now();
+        let access_start = Instant::now();
 
         // This is where the hang occurs in the reproducer
         logwise::info_sync!("Calling test_buffer.access_write().await");

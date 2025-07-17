@@ -1,6 +1,8 @@
 //SPDX-License-Identifier: MPL-2.0
 
 use super::context::{WGPU_STRATEGY, WGPUStrategy, begin, smuggle, smuggle_async};
+#[cfg(test)]
+use crate::sys::time::{Duration, Instant};
 use send_cells::UnsafeSendCell;
 use send_cells::unsafe_sync_cell::UnsafeSyncCell;
 use std::fmt::{Debug, Formatter};
@@ -429,14 +431,14 @@ mod tests {
                 let _guard = cell_clone.lock();
                 locked_clone.store(true, Ordering::SeqCst);
                 // Hold the lock for a bit
-                thread::sleep(std::time::Duration::from_millis(10));
+                thread::sleep(Duration::from_millis(10));
             });
 
             // Give the other thread time to acquire the lock
-            thread::sleep(std::time::Duration::from_millis(5));
+            thread::sleep(Duration::from_millis(5));
 
             // This should block until the other thread releases the lock
-            let start = std::time::Instant::now();
+            let start = Instant::now();
             let _guard = cell.lock();
             let elapsed = start.elapsed();
 
