@@ -3,6 +3,7 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::*;
 
+use futures::FutureExt;
 use images_and_words::Priority;
 use images_and_words::bindings::BindStyle;
 use images_and_words::bindings::bind_style::{BindSlot, Stage};
@@ -189,11 +190,10 @@ async fn test_problematic_width(width: u16) {
 
     // This should trigger the copy operation and cause the alignment error
     // on Windows if the bytes_per_row is not properly aligned
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        test_executors::sleep_on(async move {
-            port.force_render().await;
-        });
-    }));
+
+    let result = std::panic::AssertUnwindSafe(port.force_render())
+        .catch_unwind()
+        .await;
 
     match result {
         Ok(_) => {
