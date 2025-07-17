@@ -138,7 +138,7 @@ where
             let r = f.await;
             s.send(r);
         })
-        .spawn_thread_local();
+        .spawn_static_current()
     });
     r.await
 }

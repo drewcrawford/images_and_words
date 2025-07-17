@@ -6,8 +6,10 @@ pub struct EntryPoint(pub(super) WgpuCell<wgpu::Instance>);
 impl EntryPoint {
     pub async fn new() -> Result<Self, crate::imp::wgpu::Error> {
         let cell = WgpuCell::new_on_thread(move || async move {
+            logwise::info_sync!("Hello from wgpu entry point!");
             let descriptor = wgpu::InstanceDescriptor::from_env_or_default();
-            wgpu::Instance::new(&descriptor)
+            let c = wgpu::Instance::new(&descriptor);
+            c
         })
         .await;
         Ok(EntryPoint(cell))

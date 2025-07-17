@@ -30,17 +30,27 @@ impl Engine {
         mut view: View,
         initial_camera_position: WorldCoord,
     ) -> Result<Arc<Self>, CreateError> {
+        logwise::info_sync!("_a");
+
         let entry_point = Arc::new(EntryPoint::new().await?);
+        logwise::info_sync!("a");
         view.provide_entry_point(&entry_point)
             .await
             .expect("Can't provide entry point");
 
         let (initial_width, initial_height, initial_scale) = view.size_scale().await;
+        logwise::info_sync!("b");
 
         let unbound_device = UnboundDevice::pick(&view, &entry_point).await?;
+        logwise::info_sync!("c");
+
         let bound_device = Arc::new(BoundDevice::bind(unbound_device, entry_point.clone()).await?);
+        logwise::info_sync!("d");
+
         let initial_port = Mutex::new(None);
         let imp = crate::imp::Engine::rendering_to_view(&bound_device).await;
+        logwise::info_sync!("3");
+
         let r = Arc::new(Engine {
             main_port: initial_port,
             device: bound_device,
@@ -55,6 +65,8 @@ impl Engine {
         )
         .await
         .unwrap();
+        logwise::info_sync!("f");
+
         r.main_port.lock().unwrap().replace(final_port);
         Ok(r)
     }

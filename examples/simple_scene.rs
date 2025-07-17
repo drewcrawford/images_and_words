@@ -158,7 +158,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Configuration::default(),
                 run_app_window_example(),
             )
-            .spawn_thread_local();
+            .spawn_static_current();
             logwise::info_sync!("Task spawned locally");
         })
     });
