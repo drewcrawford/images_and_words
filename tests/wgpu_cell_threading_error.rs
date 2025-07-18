@@ -14,6 +14,11 @@ wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::*;
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::thread;
+#[cfg(target_arch = "wasm32")]
+use wasm_thread as thread;
+
 use images_and_words::bindings::forward::dynamic::buffer::Buffer;
 use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 use images_and_words::bindings::visible_to::GPUBufferUsage;
@@ -69,7 +74,7 @@ fn main() {
             let (sender, receiver) = std::sync::mpsc::channel();
             let test_buffer_clone = test_buffer.clone();
 
-            std::thread::spawn(move || {
+            thread::spawn(move || {
                 println!("Getting write access from spawned thread (non-main thread)");
 
                 // This should trigger: "WgpuCell accessed from non-main thread when strategy is MainThread"
@@ -87,7 +92,7 @@ fn main() {
 
                 let _ = sender.send(0);
             });
-            std::thread::spawn(move || {
+            thread::spawn(move || {
                 // Wait for the spawned thread to complete
                 let result = receiver
                     .recv()
