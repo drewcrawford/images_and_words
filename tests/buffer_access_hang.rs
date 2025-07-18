@@ -21,6 +21,11 @@ use web_time::{Duration, Instant};
 
 use test_executors::async_test;
 
+//for the time being, wasm_thread only works in browser
+//see https://github.com/rustwasm/wasm-bindgen/issues/4534,
+//though we also need wasm_thread support.
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 #[allow(dead_code)]

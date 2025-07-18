@@ -5,6 +5,10 @@
 //! 1. Buffer::access_write() returns a Send future
 //! 2. Buffer operations can be sent across async task boundaries
 //! 3. The underlying mapping operations maintain Send + Sync guarantees
+//for the time being, wasm_thread only works in browser
+//see https://github.com/rustwasm/wasm-bindgen/issues/4534,
+//though we also need wasm_thread support.
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::*;
