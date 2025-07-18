@@ -30,33 +30,50 @@ impl Engine {
         mut view: View,
         initial_camera_position: WorldCoord,
     ) -> Result<Arc<Self>, CreateError> {
-        logwise::info_sync!("_a");
+        logwise::info_sync!("Engine::rendering_to() started");
 
+        logwise::info_sync!("Creating EntryPoint...");
         let entry_point = Arc::new(EntryPoint::new().await?);
-        logwise::info_sync!("a");
+        logwise::info_sync!("EntryPoint created successfully");
+
+        logwise::info_sync!("Providing EntryPoint to view...");
         view.provide_entry_point(&entry_point)
             .await
             .expect("Can't provide entry point");
+        logwise::info_sync!("EntryPoint provided to view successfully");
 
+        logwise::info_sync!("Getting view size and scale...");
         let (initial_width, initial_height, initial_scale) = view.size_scale().await;
-        logwise::info_sync!("b");
+        logwise::info_sync!(
+            "View size: {}x{}, scale: {}",
+            initial_width,
+            initial_height,
+            initial_scale
+        );
 
+        logwise::info_sync!("Picking unbound device...");
         let unbound_device = UnboundDevice::pick(&view, &entry_point).await?;
-        logwise::info_sync!("c");
+        logwise::info_sync!("Unbound device picked successfully");
 
+        logwise::info_sync!("Binding device...");
         let bound_device = Arc::new(BoundDevice::bind(unbound_device, entry_point.clone()).await?);
-        logwise::info_sync!("d");
+        logwise::info_sync!("Device bound successfully");
 
+        logwise::info_sync!("Creating implementation engine...");
         let initial_port = Mutex::new(None);
         let imp = crate::imp::Engine::rendering_to_view(&bound_device).await;
-        logwise::info_sync!("3");
+        logwise::info_sync!("Implementation engine created successfully");
 
+        logwise::info_sync!("Creating Engine struct...");
         let r = Arc::new(Engine {
             main_port: initial_port,
             device: bound_device,
             _entry_point: entry_point,
             _engine: imp,
         });
+        logwise::info_sync!("Engine struct created successfully");
+
+        logwise::info_sync!("Creating final port...");
         let final_port = Port::new(
             &r,
             view,
@@ -65,9 +82,11 @@ impl Engine {
         )
         .await
         .unwrap();
-        logwise::info_sync!("f");
+        logwise::info_sync!("Final port created successfully");
 
+        logwise::info_sync!("Setting main port...");
         r.main_port.lock().unwrap().replace(final_port);
+        logwise::info_sync!("Engine::rendering_to() completed successfully");
         Ok(r)
     }
     pub fn main_port_mut(&self) -> PortGuard<'_> {

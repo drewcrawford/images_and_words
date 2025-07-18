@@ -7,6 +7,7 @@ use r#continue::continuation;
 use logwise::context::Context;
 use some_executor::task::{Configuration, Task};
 
+#[derive(Debug)]
 pub(crate) enum WGPUStrategy {
     #[cfg(feature = "app_window")]
     MainThread,
@@ -71,39 +72,59 @@ pub fn begin<F>(f: F)
 where
     F: FnOnce() + Send + 'static,
 {
+    logwise::info_sync!("begin() called");
     match WGPU_STRATEGY {
         #[cfg(feature = "app_window")]
         WGPUStrategy::MainThread => {
-            if app_window::application::is_main_thread() {
+            let is_main = app_window::application::is_main_thread();
+            logwise::info_sync!("MainThread strategy");
+            if is_main {
                 // If we're on the main thread, we can just call the function directly.
+                logwise::info_sync!("Calling function directly on main thread");
                 f();
+                logwise::info_sync!("Function completed on main thread");
             } else {
                 // If we're not on the main thread, we need to run it on the main thread executor.
+                logwise::info_sync!("Submitting to main thread");
                 let hop_on_main_thread =
                     logwise::perfwarn_begin!("wgpu_begin_context hop_on_main_thread");
                 submit_to_main_thread(|| {
+                    logwise::info_sync!("Inside submit_to_main_thread closure");
                     drop(hop_on_main_thread);
                     f();
+                    logwise::info_sync!("Function completed in submit_to_main_thread");
                 });
+                logwise::info_sync!("submit_to_main_thread call completed");
             }
         }
         #[cfg(feature = "app_window")]
         WGPUStrategy::NotMainThread => {
-            if app_window::application::is_main_thread() {
+            let is_main = app_window::application::is_main_thread();
+            logwise::info_sync!("NotMainThread strategy");
+            if is_main {
+                logwise::info_sync!("Spawning thread for wgpu_begin_context");
                 std::thread::Builder::new()
                     .name("wgpu_begin_context".to_string())
                     .spawn(|| {
+                        logwise::info_sync!("Inside wgpu_begin_context thread");
                         f();
+                        logwise::info_sync!("Function completed in wgpu_begin_context thread");
                     })
                     .expect("Failed to spawn wgpu_begin_context thread");
+                logwise::info_sync!("Thread spawn completed");
             } else {
+                logwise::info_sync!("Calling function directly (not main thread)");
                 f();
+                logwise::info_sync!("Function completed (not main thread)");
             }
         }
         WGPUStrategy::Relaxed => {
+            logwise::info_sync!("Relaxed strategy, calling function directly");
             f();
+            logwise::info_sync!("Function completed (relaxed)");
         }
     }
+    logwise::info_sync!("begin() completed");
 }
 
 pub async fn smuggle<F, R>(label: String, f: F) -> R
@@ -131,14 +152,23 @@ where
     C: FnOnce() -> F + Send + 'static,
     R: Send + 'static,
 {
+    logwise::info_sync!("smuggle_async started");
     let (s, r) = continuation();
-    begin(|| {
+    logwise::info_sync!("continuation created, about to call begin()");
+    begin(move || {
+        logwise::info_sync!("Inside begin() closure");
         let f = c();
-        Task::without_notifications(label, Configuration::default(), async move {
+        logwise::info_sync!("Closure c() called, about to spawn task");
+        Task::without_notifications(label.clone(), Configuration::default(), async move {
+            logwise::info_sync!("Inside task");
             let r = f.await;
+            logwise::info_sync!("Future f.await completed");
             s.send(r);
+            logwise::info_sync!("Result sent");
         })
-        .spawn_static_current()
+        .spawn_static_current();
+        logwise::info_sync!("Task spawned");
     });
+    logwise::info_sync!("begin() completed, awaiting result");
     r.await
 }
