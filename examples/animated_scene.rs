@@ -56,7 +56,11 @@ use std::sync::Arc;
 
 use some_executor::task::{Configuration, Task};
 #[cfg(not(target_arch = "wasm32"))]
+use std::thread;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::{Duration, Instant};
+#[cfg(target_arch = "wasm32")]
+use wasm_thread as thread;
 #[cfg(target_arch = "wasm32")]
 use web_time::{Duration, Instant};
 
@@ -189,7 +193,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     logwise::info_sync!("Starting animated scene example with dynamic buffers...");
 
     app_window::application::main(|| {
-        _ = std::thread::Builder::new().spawn(|| {
+        logwise::info_sync!("Inside app_window::application::main() closure");
+
+        _ = thread::Builder::new().spawn(|| {
+            logwise::info_sync!("Inside spawned thread, about to create Task");
             Task::without_notifications(
                 "animated_scene".to_string(),
                 Configuration::default(),
