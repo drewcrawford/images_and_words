@@ -353,10 +353,6 @@ pub(crate) struct PortReporterSend {
     imp: Arc<PortReporterImpl>,
 }
 impl PortReporterSend {
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) fn begin_frame(&mut self, frame: u32) {
-        self.imp.frame_begun.store(frame, Ordering::Relaxed);
-    }
     //todo: read this, mt2-491
     #[allow(dead_code)]
     pub(crate) fn drawable_size(&self, size: (u16, u16)) {
@@ -366,7 +362,8 @@ impl PortReporterSend {
     }
 
     #[allow(dead_code)] //nop implementation does not use
-    pub(crate) fn create_frame_guard(&self) -> FrameGuard {
+    pub(crate) fn create_frame_guard(&self, frame: u32) -> FrameGuard {
+        self.imp.frame_begun.store(frame, Ordering::Relaxed);
         self.imp.create_frame_guard()
     }
 }

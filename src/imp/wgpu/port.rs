@@ -1187,13 +1187,51 @@ impl PortInternal {
         );
     }
     async fn render_frame_internal(&mut self) {
-        self.update_camera_buffer().await;
+        let frame_guard = self.port_reporter_send.create_frame_guard(self.frame);
+
         //basically we want to bunch up all our awaits here,
         //so we don't interrupt the frame
-        self.port_reporter_send.begin_frame(self.frame);
-        let frame_guard = self.port_reporter_send.create_frame_guard();
 
+        self.update_camera_buffer().await;
+        let mut encoder = {
+            let device = self.engine.bound_device().as_ref();
+            device.0.device.assume(|device| {
+                device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("wgpu port"),
+                })
+            })
+        };
+        // First, recreate acquired guards for all prepared passes to ensure buffers are up to date
+        {
+            let mut copy_info = CopyInfo {
+                command_encoder: &mut encoder,
+            };
+            for prepared_pass in &mut self.prepared_passes {
+                prepared_pass
+                    .recreate_acquired_guards(&self.camera_buffer, &mut copy_info)
+                    .await
+            }
+        }
         let enable_depth = self.pass_config.requested.enable_depth;
+
+        // Then update pass configuration and camera buffer (which creates bind groups with fresh buffer data)
+        {
+            let mut copy_info = CopyInfo {
+                command_encoder: &mut encoder,
+            };
+            self.update_pass_configuration(enable_depth, &mut copy_info)
+                .await;
+        }
+
+        self.finish_render_frame(encoder, frame_guard);
+    }
+
+    //a synchronous function to finish the render frame
+    fn finish_render_frame(
+        &mut self,
+        mut encoder: wgpu::CommandEncoder,
+        frame_guard: crate::images::port::FrameGuard,
+    ) {
         let unscaled_size = self.view.fast_size_scale();
         // Setup frame reporting and surface configuration
         let current_scaled_size = (
@@ -1322,54 +1360,6 @@ impl PortInternal {
                 };
             }
         };
-
-        let mut encoder = {
-            let device = self.engine.bound_device().as_ref();
-            device.0.device.assume(|device| {
-                device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("wgpu port"),
-                })
-            })
-        };
-        // First, recreate acquired guards for all prepared passes to ensure buffers are up to date
-        {
-            let mut copy_info = CopyInfo {
-                command_encoder: &mut encoder,
-            };
-            for prepared_pass in &mut self.prepared_passes {
-                prepared_pass
-                    .recreate_acquired_guards(&self.camera_buffer, &mut copy_info)
-                    .await
-            }
-        }
-
-        // Then update pass configuration and camera buffer (which creates bind groups with fresh buffer data)
-        {
-            let mut copy_info = CopyInfo {
-                command_encoder: &mut encoder,
-            };
-            self.update_pass_configuration(enable_depth, &mut copy_info)
-                .await;
-        }
-
-        self.finish_render_frame(
-            encoder,
-            color_attachment,
-            frame,
-            &frame_texture,
-            frame_guard,
-        );
-    }
-
-    //a synchronous function to finish the render frame
-    fn finish_render_frame(
-        &mut self,
-        mut encoder: wgpu::CommandEncoder,
-        color_attachment: wgpu::RenderPassColorAttachment,
-        frame: Option<wgpu::SurfaceTexture>,
-        frame_texture: &wgpu::Texture,
-        frame_guard: crate::images::port::FrameGuard,
-    ) {
         // Setup depth buffer
         let (depth_texture, depth_view) = self.setup_depth_buffer();
         // Execute render passes
