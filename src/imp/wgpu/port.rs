@@ -1249,7 +1249,6 @@ impl PortInternal {
                 }
             }
         }
-
         // Create per-frame resources
         let wgpu_view;
         let frame;
@@ -1332,10 +1331,6 @@ impl PortInternal {
                 })
             })
         };
-
-        // Setup depth buffer
-        let (depth_texture, depth_view) = self.setup_depth_buffer();
-
         // First, recreate acquired guards for all prepared passes to ensure buffers are up to date
         {
             let mut copy_info = CopyInfo {
@@ -1357,6 +1352,26 @@ impl PortInternal {
                 .await;
         }
 
+        self.finish_render_frame(
+            encoder,
+            color_attachment,
+            frame,
+            &frame_texture,
+            frame_guard,
+        );
+    }
+
+    //a synchronous function to finish the render frame
+    fn finish_render_frame(
+        &mut self,
+        mut encoder: wgpu::CommandEncoder,
+        color_attachment: wgpu::RenderPassColorAttachment,
+        frame: Option<wgpu::SurfaceTexture>,
+        frame_texture: &wgpu::Texture,
+        frame_guard: crate::images::port::FrameGuard,
+    ) {
+        // Setup depth buffer
+        let (depth_texture, depth_view) = self.setup_depth_buffer();
         // Execute render passes
         let depth_store = if self.dump_framebuffer {
             StoreOp::Store

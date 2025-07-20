@@ -539,7 +539,10 @@ impl Port {
     /// visual updates.
     pub async fn force_render(&mut self) {
         //force render the next frame, even if nothing is dirty
+        logwise::info_sync!("Hi findme");
+        let frame_time = logwise::perfwarn_begin!("Port::force_render");
         self.imp.render_frame().await;
+        drop(frame_time);
     }
 
     fn collect_dirty_receivers(&self) -> Vec<DirtyReceiver> {
