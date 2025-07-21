@@ -110,7 +110,7 @@ impl MappableBuffer2 {
         // Since we use a CPU view, this is a no-op
     }
 
-    pub async fn unmap(&mut self) {
+    pub fn unmap(&mut self) {
         // No-op as requested - we don't use wgpu types
     }
 
@@ -128,8 +128,8 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer2 {
         self.map_write().await
     }
 
-    async fn unmap(&mut self) {
-        self.unmap().await
+    fn unmap(&mut self) {
+        self.unmap();
     }
 
     fn byte_len(&self) -> usize {

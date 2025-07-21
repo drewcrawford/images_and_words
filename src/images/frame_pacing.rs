@@ -1,0 +1,3 @@
+struct FramePacer {}
+
+impl FramePacer {}

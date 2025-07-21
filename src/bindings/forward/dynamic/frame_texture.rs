@@ -541,8 +541,8 @@ impl<Format: PixelFormat> Mappable for CPUWriteGuard<'_, Format> {
     async fn map_write(&mut self) {
         self.underlying.map_write().await;
     }
-    async fn unmap(&mut self) {
-        self.underlying.unmap().await;
+    fn unmap(&mut self) {
+        self.underlying.unmap();
     }
     fn byte_len(&self) -> usize {
         (self.width as usize) * (self.height as usize) * std::mem::size_of::<Format::CPixel>()

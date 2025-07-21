@@ -213,7 +213,7 @@ pub(crate) mod sealed {
         /// Unmaps the resource from CPU memory
         ///
         /// Called automatically when CPU access guards are dropped.
-        fn unmap(&mut self) -> impl Future<Output = ()>;
+        fn unmap(&mut self);
     }
 }
 
@@ -286,7 +286,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     ///
     /// # State Transitions
     ///
-    /// Can acquire from: `UNUSED`, `PENDING_WRITE_TO_GPU`
+    /// Can acquire from: `UNUSED`
     /// Transitions to: `CPU_WRITE`
     /// On guard drop: Transitions to `PENDING_WRITE_TO_GPU`
     ///
@@ -298,14 +298,10 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     where
         Resource: sealed::Mappable,
     {
-        match self.state.fetch_update(
-            std::sync::atomic::Ordering::Acquire,
-            std::sync::atomic::Ordering::Relaxed,
-            |current| match current {
-                UNUSED | PENDING_WRITE_TO_GPU => Some(CPU_WRITE),
-                _ => None,
-            },
-        ) {
+        match self
+            .state
+            .compare_exchange(UNUSED, CPU_WRITE, Ordering::Acquire, Ordering::Relaxed)
+        {
             Ok(_) => {
                 self.entered_cpu_write();
             }
