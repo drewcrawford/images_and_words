@@ -372,7 +372,7 @@ fn port_reporter(initial_frame: u32, camera: &Camera) -> (PortReporterSend, Port
     let fps = Value::new(0);
     let ms = Value::new(0);
     let cpu_ms = Value::new(0);
-    let min_elapsed_ms = Value::new(0);
+    let min_elapsed_ms = Value::new(16); //16ms is ~60FPS
 
     let fps_observer = fps.observe();
     let ms_observer = ms.observe();

@@ -93,8 +93,8 @@ use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp;
 use crate::imp::{BackendSend, BackendSync, SendPhantom};
-use crate::multibuffer::CPUWriteGuard;
 use crate::multibuffer::Multibuffer;
+use crate::multibuffer::{CPUWriteGuard, GPUGuard};
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index};
@@ -282,15 +282,6 @@ impl<Element> CPUWriteAccess<'_, Element> {
         };
         self.guard.deref_mut().write(bytes, offset);
     }
-
-    /// Asynchronously drops the write access guard, properly unmapping the resource
-    ///
-    /// This method must be called before the guard is dropped. Failure to call
-    /// this method will result in a panic when the guard's Drop implementation runs.
-    pub async fn async_drop(self) {
-        let _ = logwise::perfwarn_begin!("dynamic buffer async_drop");
-        self.guard.async_drop().await;
-    }
 }
 impl<Element> Mappable for CPUWriteAccess<'_, Element> {
     async fn map_read(&mut self) {
@@ -345,12 +336,12 @@ pub(crate) struct GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
     dirty_guard: Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer2>>,
     #[allow(dead_code)] //nop implementation does not use
-    pub(crate) gpu_buffer: imp::GPUableBuffer,
+    pub(crate) underlying_guard: GPUGuard<imp::MappableBuffer2, imp::GPUableBuffer>,
 }
 impl GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
-        &self.gpu_buffer
+        self.underlying_guard.as_imp()
     }
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn take_dirty_guard(
@@ -411,12 +402,9 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
         // Take the dirty guard if present
         let dirty_guard = underlying_guard.take_dirty_guard();
 
-        // Get the GPU buffer - clone it from the guard
-        let gpu_buffer = underlying_guard.as_imp().clone();
-
         GPUAccess {
             dirty_guard,
-            gpu_buffer,
+            underlying_guard,
         }
     }
     fn dirty_receiver(&self) -> DirtyReceiver {

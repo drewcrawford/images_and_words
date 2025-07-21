@@ -471,7 +471,8 @@ impl AcquiredGuards {
 
                         // Perform the copy operation using the new GPUableBuffer2 method
                         gpu_access
-                            .gpu_buffer
+                            .underlying_guard
+                            .as_imp()
                             .copy_from_mappable_buffer2(source, copy_info.command_encoder)
                             .await;
                         copy_guards.push(dirty_guard);
@@ -492,7 +493,8 @@ impl AcquiredGuards {
 
                         // Perform the copy operation using the new GPUableBuffer2 method
                         gpu_access
-                            .gpu_buffer
+                            .underlying_guard
+                            .as_imp()
                             .copy_from_mappable_buffer2(source, copy_info.command_encoder)
                             .await;
                         copy_guards.push(dirty_guard);
@@ -511,7 +513,8 @@ impl AcquiredGuards {
 
                         // Perform the copy operation using the new GPUableBuffer2 method
                         gpu_access
-                            .gpu_buffer
+                            .underlying_guard
+                            .as_imp()
                             .copy_from_mappable_buffer2(source, copy_info.command_encoder)
                             .await;
                         copy_guards.push(dirty_guard);
@@ -604,7 +607,8 @@ impl BindGroupGuard {
                     let guard = build_dynamic_buffers_gpu.push(build_buffer);
                     let clone_buffer = clone_buffers.push(
                         guard
-                            .gpu_buffer
+                            .underlying_guard
+                            .as_imp()
                             .buffer()
                             .clone()
                             .assume(|wgpu_guard| wgpu_guard.clone()),
@@ -627,7 +631,11 @@ impl BindGroupGuard {
                 BindTarget::Camera => {
                     let gpu_buffer = acquired_guards.camera_guard.as_ref().unwrap().clone();
                     let stored_buffer = build_dynamic_buffers_gpu.push(gpu_buffer);
-                    let camera_clone = stored_buffer.gpu_buffer.buffer().assume(|e| e.clone());
+                    let camera_clone = stored_buffer
+                        .underlying_guard
+                        .as_imp()
+                        .buffer()
+                        .assume(|e| e.clone());
                     let camera_clone = camera_buffers.push(camera_clone);
                     BindingResource::Buffer(BufferBinding {
                         buffer: camera_clone,
@@ -957,7 +965,6 @@ impl PortInternal {
             };
             let mut write_guard = self.camera_buffer.access_write().await;
             write_guard.write(&[camera_projection], 0);
-            write_guard.async_drop().await;
         }
     }
 
@@ -1232,6 +1239,7 @@ impl PortInternal {
         mut encoder: wgpu::CommandEncoder,
         frame_guard: crate::images::port::FrameGuard,
     ) {
+        logwise::info_sync!("finish_render_frame");
         let unscaled_size = self.view.fast_size_scale();
         // Setup frame reporting and surface configuration
         let current_scaled_size = (
@@ -1417,7 +1425,7 @@ impl PortInternal {
                 })
             }
             for (v, buffer) in &bind_group.dynamic_vertex_buffers {
-                buffer.gpu_buffer.buffer().assume(|buffer| {
+                buffer.underlying_guard.as_imp().buffer().assume(|buffer| {
                     let buffer_slice = buffer.slice(..);
                     render_pass.set_vertex_buffer(*v, buffer_slice);
                 });
