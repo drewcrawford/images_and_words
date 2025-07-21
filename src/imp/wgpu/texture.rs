@@ -12,8 +12,10 @@ use crate::pixel_formats::pixel_as_bytes;
 use crate::pixel_formats::sealed::PixelFormat;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::sync::Arc;
 use wgpu::util::{DeviceExt, TextureDataOrder};
+use wgpu::{Extent3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo};
 
 impl TextureUsage {
     pub const fn wgpu_usage(&self) -> wgpu::TextureUsages {
@@ -184,6 +186,9 @@ impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped
 
     fn height(&self) -> u16 {
         self.height
+    }
+    fn as_slice(&self) -> &[u8] {
+        self.imp.as_slice()
     }
 }
 
@@ -361,16 +366,67 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
         false
     }
 
-    fn copy_from_mappable(
-        &self,
-        _source: &mut dyn crate::imp::MappableTextureWrapped,
-        _copy_info: &mut crate::imp::CopyInfo,
-    ) -> Result<(), String> {
-        // The sync copy interface is deprecated for GPUableTexture2.
-        // Copies should happen during acquire guards using the async copy_from_mappable_texture2 method.
-        panic!(
-            "Sync copy interface removed for GPUableTexture2 - use async copy during acquire guards"
-        );
+    unsafe fn copy_from_mappable<'f>(
+        &'f self,
+        source: &'f mut dyn crate::imp::MappableTextureWrapped,
+        copy_info: &'f mut crate::imp::CopyInfo<'_>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'f>> {
+        Box::pin(async move {
+            //update staging buffer
+            assert!(self.format_matches(source), "Texture formats do not match");
+            let r = self.staging_buffer.assume(|staging_buffer| {
+                let (s, r) = r#continue::continuation();
+                let map_op = staging_buffer.map_async(wgpu::MapMode::Write, .., |op| {
+                    op.unwrap();
+                    s.send(());
+                });
+                self.bound_device.0.set_needs_poll();
+                r
+            });
+            //MAP OP
+            r.await;
+
+            self.staging_buffer.assume(|buffer| {
+                let mut entire_map = buffer.slice(0..buffer.size()).get_mapped_range_mut();
+                entire_map.copy_from_slice(&source.as_slice());
+                drop(entire_map);
+                buffer.unmap();
+
+                self.gpu_texture.assume(|gpu_texture| {
+                    //catch this op in debugger
+                    copy_info.command_encoder.copy_buffer_to_texture(
+                        TexelCopyBufferInfo {
+                            buffer,
+                            layout: TexelCopyBufferLayout {
+                                offset: 0,
+                                bytes_per_row: Some(
+                                    MappableTexture2::<Format>::aligned_bytes_per_row(
+                                        self.width as u16,
+                                    )
+                                    .try_into()
+                                    .unwrap(),
+                                ),
+                                rows_per_image: Some(self.height),
+                            },
+                        },
+                        TexelCopyTextureInfo {
+                            texture: gpu_texture,
+                            mip_level: 0,
+                            origin: wgpu::Origin3d { x: 0, y: 0, z: 0 },
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        Extent3d {
+                            width: self.width,
+                            height: self.height,
+                            depth_or_array_layers: 1,
+                        },
+                    )
+                });
+                logwise::info_sync!("Scheduled texture copy!");
+            });
+
+            Ok(())
+        })
     }
 }
 

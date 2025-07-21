@@ -203,32 +203,22 @@ impl<Format: PixelFormat> Debug for TextureRenderSide<Format> {
 }
 impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
     unsafe fn acquire_gpu_texture(&self) -> GPUAccess {
-        let mut guard = unsafe { self.shared.multibuffer.access_gpu() };
-
-        // Take the dirty guard if present
-        let dirty_guard = guard.take_dirty_guard();
+        let guard = unsafe { self.shared.multibuffer.access_gpu() };
 
         // Get the render side and GPU texture
         let render_side = guard.as_imp().render_side();
-        let gpu_texture: Box<dyn imp::GPUableTextureWrapped> = Box::new(guard.as_imp().clone());
 
         // Create GPUGuard with the dirty guard stored separately
         let our_guard = GPUGuard {
             underlying: guard,
-            dirty_guard,
             render_side: render_side.clone(),
         };
 
         // Create the dirty guard wrapper if we have dirty data
-        let dirty_guard_box = if our_guard.dirty_guard.is_some() {
-            Some(Box::new(our_guard) as Box<dyn DynGuard>)
-        } else {
-            None
-        };
+        let dirty_guard_box = Box::new(our_guard) as Box<dyn DynGuard>;
 
         GPUAccess {
-            dirty_guard: dirty_guard_box,
-            gpu_texture,
+            underlying: dirty_guard_box,
             render_side,
         }
     }
@@ -315,9 +305,6 @@ pub struct CPUReadGuard<Format: PixelFormat> {
 struct GPUGuard<Format: PixelFormat> {
     underlying:
         crate::multibuffer::GPUGuard<imp::MappableTexture2<Format>, imp::GPUableTexture2<Format>>,
-    // Store the dirty guard separately so we can access the source texture
-    dirty_guard:
-        Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableTexture2<Format>>>,
     render_side: imp::TextureRenderSide,
 }
 
@@ -330,29 +317,13 @@ impl<Format: PixelFormat> Debug for GPUGuard<Format> {
     }
 }
 
-impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
-    fn perform_copy(
-        &mut self,
-        _destination: &mut dyn imp::GPUableTextureWrapped,
-        _copy_info: &mut imp::CopyInfo<'_>,
-    ) -> Result<(), String> {
-        // The sync copy interface is being removed.
-        // For GPUableTexture2, copies should happen during acquire guards using async methods.
-        panic!("DynGuard sync copy interface removed - use async copy during acquire guards");
-    }
-}
-
 /// Guards access to the underlying GPU texture during rendering.
 ///
 /// `GPUAccess` provides access to the GPU texture with optional dirty data
 /// that needs to be copied. This type is created internally by the rendering
 /// system and maintains the texture's availability for GPU operations.
 pub(crate) struct GPUAccess {
-    // Option<Box<DynGuard>> if we need to perform a copy, otherwise None (how we erase Format in this field)
-    dirty_guard: Option<Box<dyn DynGuard>>,
-    // Underlying GPU type, typecast to Box<dyn GPUableTextureWrapped> (how we erase Format in this field)
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) gpu_texture: Box<dyn imp::GPUableTextureWrapped>,
+    underlying: Box<dyn DynGuard>,
     // The render side for creating views (always available)
     pub(crate) render_side: imp::TextureRenderSide,
 }
@@ -360,29 +331,57 @@ pub(crate) struct GPUAccess {
 impl Debug for GPUAccess {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GPUAccess")
-            .field("dirty_guard", &self.dirty_guard.is_some())
             .field("render_side", &self.render_side)
             .finish()
     }
 }
 
 impl GPUAccess {
-    #[allow(dead_code)] //nop implementation does not use
-    pub fn take_dirty_guard(&mut self) -> Option<Box<dyn DynGuard>> {
-        self.dirty_guard.take()
+    pub fn take_dirty_guard(&mut self) -> Option<Box<dyn DynDirtyGuard>> {
+        self.underlying.take_dirty_guard()
+    }
+    pub fn as_imp(&self) -> &dyn crate::imp::GPUableTextureWrapped {
+        self.underlying.as_imp()
     }
 }
 
 /// Trait for type-erased guard that provides access to source texture for copying
 pub(crate) trait DynGuard: Debug + Send + Sync {
-    //pretty sure we actually want Send here - cell should be used for our cell issues
-    /// Perform the copy from the stored source to the given destination
-    #[allow(dead_code)] //nop implementation does not use
-    fn perform_copy(
-        &mut self,
-        destination: &mut dyn imp::GPUableTextureWrapped,
-        copy_info: &mut imp::CopyInfo<'_>,
-    ) -> Result<(), String>;
+    fn take_dirty_guard(&mut self) -> Option<Box<dyn DynDirtyGuard>>;
+    fn as_imp(&self) -> &dyn crate::imp::GPUableTextureWrapped;
+}
+
+impl<Format> DynGuard for GPUGuard<Format>
+where
+    Format: PixelFormat,
+{
+    fn take_dirty_guard(&mut self) -> Option<Box<dyn DynDirtyGuard>> {
+        // This is a nop implementation, as we don't use dirty guards in this context
+        self.underlying
+            .take_dirty_guard()
+            .map(|e| Box::new(e) as Box<dyn DynDirtyGuard>)
+    }
+    fn as_imp(&self) -> &dyn imp::GPUableTextureWrapped {
+        self.underlying.as_imp()
+    }
+}
+
+pub(crate) trait DynDirtyGuard: Debug + Send + Sync {
+    fn as_imp(&mut self) -> &mut dyn crate::imp::MappableTextureWrapped;
+}
+
+impl<Format> DynDirtyGuard
+    for crate::bindings::resource_tracking::GPUGuard<imp::MappableTexture2<Format>>
+where
+    Format: PixelFormat,
+{
+    fn as_imp(&mut self) -> &mut dyn crate::imp::MappableTextureWrapped {
+        let mappable_texture: &mut imp::MappableTexture2<Format> = &mut *self;
+        // Convert to the trait object
+        let mappable_texture_wrapped: &mut dyn crate::imp::MappableTextureWrapped =
+            mappable_texture;
+        mappable_texture_wrapped
+    }
 }
 
 ///Shared between FrameTexture and TextureRenderSide

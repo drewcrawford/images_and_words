@@ -439,7 +439,8 @@ pub struct AcquiredGuards {
     // Texture guards, keyed by bind index
     texture_guards: HashMap<u32, Arc<crate::bindings::forward::dynamic::frame_texture::GPUAccess>>,
     // Texture copy guards that need to be kept alive during GPU operations
-    _texture_copy_guards: Vec<Box<dyn crate::bindings::forward::dynamic::frame_texture::DynGuard>>,
+    _texture_copy_guards:
+        Vec<Box<dyn crate::bindings::forward::dynamic::frame_texture::DynDirtyGuard>>,
     camera_guard: Option<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
 }
 
@@ -526,11 +527,15 @@ impl AcquiredGuards {
                     // Safety: keep the guard alive
                     let mut gpu_access = unsafe { texture.acquire_gpu_texture() };
 
-                    // Handle the copy if there's a dirty guard
-                    if let Some(dirty_guard) = gpu_access.take_dirty_guard() {
-                        // TODO: Implement async texture copying similar to buffer copying
-                        // For now, we'll skip the copy and just keep the guard alive
-                        // This requires implementing the async copy pattern like buffers
+                    if let Some(mut dirty_guard) = gpu_access.take_dirty_guard() {
+                        // Get the source texture from the dirty guard
+                        let source: &mut dyn imp::MappableTextureWrapped = dirty_guard.as_imp();
+
+                        // Perform the copy operation using the new GPUableTexture2 method
+                        //safety: guards are live
+                        unsafe { gpu_access.as_imp().copy_from_mappable(source, copy_info) }
+                            .await
+                            .unwrap();
                         texture_copy_guards.push(dirty_guard);
                     }
 
