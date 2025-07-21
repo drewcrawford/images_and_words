@@ -12,29 +12,45 @@ Another distinction is that the receivers can be 'lately-bound' - that is, they 
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
+#[derive(Clone)]
 struct OneShot {
-    c: Option<r#continue::Sender<()>>,
+    c: Arc<Mutex<Option<r#continue::Sender<()>>>>,
 }
 impl Drop for OneShot {
     fn drop(&mut self) {
-        // continue API requires us to send from all senders
-        if let Some(sender) = self.c.take() {
-            sender.send(()); //send a signal to avoid deadlocks
-        }
+        self.send_if_needed();
     }
 }
 impl OneShot {
-    fn new() -> Self {
-        OneShot { c: None }
+    fn new(sender: r#continue::Sender<()>) -> Self {
+        OneShot {
+            c: Arc::new(Mutex::new(Some(sender))),
+        }
     }
-    fn set(&mut self, sender: r#continue::Sender<()>) {
-        self.c = Some(sender);
+
+    fn send_if_needed(&mut self) {
+        // continue API requires us to send from all senders
+        if let Some(sender) = self.c.lock().unwrap().take() {
+            sender.send(()); //send a signal to avoid deadlocks
+        }
     }
 }
 
 struct SendState {
     dirty: bool,
-    continuation: Arc<Mutex<OneShot>>,
+    continuations: Vec<OneShot>,
+}
+
+impl SendState {
+    fn gc(&mut self) {
+        self.continuations.retain(|e| {
+            let l = e.c.lock().unwrap();
+            match &*l {
+                None => false, //if the continuation is already sent, we can remove it
+                Some(e) => !e.is_cancelled(),
+            }
+        })
+    }
 }
 struct SharedSendReceive {
     debug_label: String,
@@ -60,22 +76,27 @@ impl DirtySender {
                 debug_label: label.into(),
                 send_state: Mutex::new(SendState {
                     dirty,
-                    continuation: Arc::new(Mutex::new(OneShot::new())),
+                    continuations: Vec::new(),
                 }),
             }),
         }
     }
     pub fn mark_dirty(&self, dirty: bool) {
+        logwise::info_sync!(
+            "Marking dirty {dirty} on {label}",
+            dirty = dirty,
+            label = self.shared.debug_label.clone()
+        );
         let mut l = self.shared.send_state.lock().unwrap();
         l.dirty = dirty;
         if dirty {
-            let continuation = l.continuation.lock().unwrap().c.take();
+            let continuations = l.continuations.drain(..).collect::<Vec<_>>();
             drop(l); //allow lock to be retaken
-            //send continuation if it exists
-            if let Some(c) = continuation {
-                c.send(())
+            for mut continuation in continuations {
+                continuation.send_if_needed();
             }
         }
+        //otherwise only drop the lock itself.
     }
 }
 
@@ -143,12 +164,6 @@ impl DirtyAggregateReceiver {
             .collect()
     }
 
-    #[allow(dead_code)]
-    pub fn is_dirty(&self) -> bool {
-        // Check if any of the receivers are dirty
-        self.receivers.iter().any(|receiver| receiver.is_dirty())
-    }
-
     ///Waits for a dirty signal.
     pub async fn wait_for_dirty(&self) {
         // it used to work like this (just a test implementation that correctly renders frames every 100ms)
@@ -157,21 +172,25 @@ impl DirtyAggregateReceiver {
         //instead let's use real dirty tracking to wait for the next frame
 
         let (sender, receiver) = r#continue::continuation();
-        let o = Arc::new(Mutex::new(OneShot::new()));
-        o.lock().unwrap().set(sender);
+        let o = OneShot::new(sender);
 
         for receiver in &self.receivers {
-            let shared = receiver.shared.clone();
+            let shared = &receiver.shared;
             let mut send_state = shared.send_state.lock().unwrap();
+            send_state.gc(); //clean up old continuations
             if send_state.dirty {
                 // we can return immediately
                 return;
             } else {
                 // otherwise we need to set up a continuation
-                send_state.continuation = o.clone();
+                send_state.continuations.push(o.clone());
             }
             //next receiver
         }
+        logwise::info_sync!(
+            "Will wait for dirty signal on {receivers}",
+            receivers = logwise::privacy::LogIt(&self.receivers)
+        );
         receiver.await;
         // println!("Continuation received");
     }

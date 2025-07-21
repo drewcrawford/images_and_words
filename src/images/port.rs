@@ -536,7 +536,6 @@ impl Port {
     /// visual updates.
     pub async fn force_render(&mut self) {
         //force render the next frame, even if nothing is dirty
-        logwise::info_sync!("Hi findme");
         let frame_time = logwise::perfwarn_begin!("Port::force_render");
         self.imp.render_frame().await;
         drop(frame_time);
@@ -609,8 +608,13 @@ impl Port {
         self.force_render().await;
         loop {
             let receiver = DirtyAggregateReceiver::new(self.collect_dirty_receivers());
+            logwise::info_sync!("waiting for dirty");
+
             receiver.wait_for_dirty().await;
-            println!("Rendering frame due to {:?}", receiver.who_is_dirty());
+            logwise::info_sync!(
+                "Rendering frame due to {reason}",
+                reason = logwise::privacy::LogIt(receiver.who_is_dirty())
+            );
             self.force_render().await;
         }
     }
@@ -619,7 +623,7 @@ impl Port {
         //this is a test-only function that returns true if the port needs to render.
         //it is used in tests to check if the port is rendering correctly.
         let receiver = DirtyAggregateReceiver::new(self.collect_dirty_receivers());
-        receiver.is_dirty()
+        !receiver.who_is_dirty().is_empty()
     }
 
     /// Returns the port reporter for monitoring performance metrics.

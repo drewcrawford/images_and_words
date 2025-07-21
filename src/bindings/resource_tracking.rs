@@ -323,6 +323,10 @@ impl<Resource> ResourceTrackerInternal<Resource> {
                 match self.cpu_write_or() {
                     Ok(guard) => Ok(guard),
                     Err(NotAvailable { read_state }) => {
+                        logwise::warn_sync!(
+                            "Failing to acquire CPU write access to resource in state {read_state}",
+                            read_state = read_state
+                        );
                         let (s, r) = r#continue::continuation();
                         wakelist_lock.push(s);
                         Err(r)
@@ -358,8 +362,8 @@ impl<Resource> ResourceTrackerInternal<Resource> {
             .mark_dirty(Self::dirty_state_for_state(UNUSED));
         let take = self
             .pending_cpu_write
-            .lock()
-            .unwrap()
+            .try_lock()
+            .expect("Failed to lock pending_cpu_write")
             .drain(..)
             .collect::<Vec<_>>();
         for sender in take {
@@ -381,14 +385,14 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     }
 
     fn entered_pending_write_to_gpu(&self) {
-        self.dirty_pending_cpu_to_gpu.mark_dirty(true);
+        self.dirty_pending_cpu_to_gpu
+            .mark_dirty(Self::dirty_state_for_state(PENDING_WRITE_TO_GPU));
         let take = self
             .pending_cpu_write
-            .lock()
-            .unwrap()
+            .try_lock()
+            .expect("Failed to lock pending_cpu_write")
             .drain(..)
             .collect::<Vec<_>>();
-        self.dirty_pending_cpu_to_gpu.mark_dirty(true);
         for sender in take {
             sender.send(());
         }
