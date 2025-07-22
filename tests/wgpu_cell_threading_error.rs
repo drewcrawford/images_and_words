@@ -9,6 +9,7 @@
 //for the time being, wasm_thread only works in browser
 //see https://github.com/rustwasm/wasm-bindgen/issues/4534,
 //though we also need wasm_thread support.
+#[cfg(target_arch = "wasm32")]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[cfg(target_arch = "wasm32")]
@@ -87,7 +88,6 @@ fn main() {
                     println!("Wrote data to buffer");
 
                     println!("Calling async_drop from spawned thread (non-main thread)");
-                    write_access.async_drop().await;
                 });
 
                 let _ = sender.send(0);

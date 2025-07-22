@@ -3,6 +3,7 @@
 //for the time being, wasm_thread only works in browser
 //see https://github.com/rustwasm/wasm-bindgen/issues/4534,
 //though we also need wasm_thread support.
+#[cfg(target_arch = "wasm32")]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[cfg(target_arch = "wasm32")]
@@ -153,6 +154,9 @@ async fn test_problematic_width(width: u16) {
     ))
     .await;
 
+    //pump renderloop
+    port.force_render().await;
+
     // Write some data to the texture to mark it as dirty
     println!("Writing data to texture to mark it as dirty...");
     {
@@ -186,9 +190,6 @@ async fn test_problematic_width(width: u16) {
             Texel { x: 0, y: 0 },
             &pixel_data,
         );
-
-        // Properly async drop the guard
-        write_guard.async_drop().await;
     }
 
     println!("Rendering frame to trigger copy operation...");

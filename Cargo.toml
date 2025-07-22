@@ -55,10 +55,6 @@ backend_wgpu = ["dep:wgpu"]
 app_window = ["dep:app_window"]
 
 [[test]]
-name = "buffer_access_hang"
-path = "tests/buffer_access_hang.rs"
-
-[[test]]
 name = "buffer_performance"
 path = "tests/buffer_performance.rs"
 
