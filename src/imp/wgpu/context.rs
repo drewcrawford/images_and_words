@@ -81,14 +81,14 @@ where
                 f();
             } else {
                 // If we're not on the main thread, we need to run it on the main thread executor.
-                let hop_on_main_thread =
-                    logwise::perfwarn_begin!("wgpu_begin_context hop_on_main_thread");
+                // let hop_on_main_thread =
+                //     logwise::perfwarn_begin!("wgpu_begin_context hop_on_main_thread");
                 submit_to_main_thread(|| {
-                    drop(hop_on_main_thread);
-                    let main_thread_closure =
-                        logwise::perfwarn_begin!("wgpu_begin_context main_thread_closure");
+                    // drop(hop_on_main_thread);
+                    // let main_thread_closure =
+                    //     logwise::perfwarn_begin!("wgpu_begin_context main_thread_closure");
                     f();
-                    drop(main_thread_closure);
+                    // drop(main_thread_closure);
                 });
             }
         }

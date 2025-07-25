@@ -235,18 +235,18 @@ impl<T> WgpuCell<T> {
         C: FnOnce() -> F + Send + 'static,
         F: Future<Output = T> + 'static,
     {
-        logwise::info_sync!("WgpuCell::new_on_thread() started");
-        logwise::info_sync!("About to call smuggle_async...");
+        // logwise::info_sync!("WgpuCell::new_on_thread() started");
+        // logwise::info_sync!("About to call smuggle_async...");
         let value = smuggle_async("WgpuCell::new_on_thread".to_string(), move || async move {
-            logwise::info_sync!("Inside smuggle_async closure");
+            // logwise::info_sync!("Inside smuggle_async closure");
             let f = c();
-            logwise::info_sync!("Calling provided closure f()...");
+            // logwise::info_sync!("Calling provided closure f()...");
             let r = f.await;
-            logwise::info_sync!("Closure completed, creating WgpuCell...");
+            // logwise::info_sync!("Closure completed, creating WgpuCell...");
             WgpuCell::new(r)
         })
         .await;
-        logwise::info_sync!("smuggle_async completed, returning value");
+        // logwise::info_sync!("smuggle_async completed, returning value");
         value
     }
 }

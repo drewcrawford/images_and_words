@@ -49,15 +49,15 @@ struct DebugCaptureData {
 struct PassConfig {
     pass_descriptors: Vec<PassDescriptor>,
     enable_depth: bool,
-    surface_format: Option<TextureFormat>,
+    surface_format: TextureFormat,
 }
 
 impl PassConfig {
-    fn new() -> Self {
+    fn new(surface_format: TextureFormat) -> Self {
         PassConfig {
             pass_descriptors: Vec::new(),
             enable_depth: false,
-            surface_format: None,
+            surface_format,
         }
     }
 
@@ -363,10 +363,12 @@ impl PreparedPass {
         } else {
             None
         };
+        logwise::debuginternal_sync!(
+            "surface format is {surface_format}",
+            surface_format = logwise::privacy::LogIt(pass_config.surface_format)
+        );
         let color_target_state = ColorTargetState {
-            format: pass_config
-                .surface_format
-                .unwrap_or(TextureFormat::Bgra8UnormSrgb),
+            format: pass_config.surface_format,
             blend,
             write_mask: Default::default(),
         };
@@ -859,11 +861,36 @@ impl PortInternal {
                 WgpuCell::new(s)
             })
             .await;
+        //find surface format
+        let view_gpu_impl = view.gpu_impl.as_ref().expect("gpu_impl").surface.clone();
+        let format = match view_gpu_impl {
+            None => {
+                logwise::info_sync!(
+                    "Port surface not initialized - picking Bgra8UnormSrgb as default format"
+                );
+                // For test views, set a default surface format if not already set
+                TextureFormat::Bgra8UnormSrgb
+            }
+            Some(surface) => {
+                let format = engine
+                    .bound_device()
+                    .0
+                    .adapter
+                    .with(move |adapter| {
+                        let capabilities =
+                            surface.assume(|surface| surface.get_capabilities(adapter));
+                        capabilities.formats[0]
+                    })
+                    .await;
+                format
+            }
+        };
+
         Ok(PortInternal {
             engine: engine.clone(),
             camera_buffer,
             camera,
-            pass_config: RenderInput::new(PassConfig::new()),
+            pass_config: RenderInput::new(PassConfig::new(format)),
             prepared_passes: Vec::new(),
             view,
             port_reporter_send,
@@ -1256,10 +1283,6 @@ impl PortInternal {
         match surface {
             None => {
                 println!("Port surface not initialized");
-                // For test views, set a default surface format if not already set
-                if self.pass_config.requested.surface_format.is_none() {
-                    self.pass_config.requested.surface_format = Some(TextureFormat::Bgra8UnormSrgb);
-                }
             }
             Some(surface) => {
                 let extra_usage = if self.dump_framebuffer {
@@ -1277,15 +1300,13 @@ impl PortInternal {
                     let scaled_size = self.scaled_size.requested.unwrap();
 
                     // Update the surface format to match what we'll actually use
-                    let preferred_format = surface_capabilities.formats[0];
-                    self.pass_config.requested.surface_format = Some(preferred_format);
                     device.0.device.assume(|device| {
                         surface.assume(|surface| {
                             surface.configure(
                                 device,
                                 &wgpu::SurfaceConfiguration {
                                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT | extra_usage,
-                                    format: preferred_format,
+                                    format: self.pass_config.requested.surface_format,
                                     width: scaled_size.0,
                                     height: scaled_size.1,
                                     present_mode: wgpu::PresentMode::Fifo,
@@ -1320,11 +1341,7 @@ impl PortInternal {
                         mip_level_count: 1,
                         sample_count: 1,
                         dimension: wgpu::TextureDimension::D2,
-                        format: self
-                            .pass_config
-                            .requested
-                            .surface_format
-                            .expect("configured format"),
+                        format: self.pass_config.requested.surface_format,
                         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                         view_formats: &[],
                     })

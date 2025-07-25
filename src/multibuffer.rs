@@ -101,16 +101,16 @@ pub(crate) struct GPUGuard<T: Mappable, U: Clone> {
 //drop impl for GPUGuard
 impl<T: Mappable, U: Clone> Drop for GPUGuard<T, U> {
     fn drop(&mut self) {
-        logwise::info_sync!(
-            "GPUGuard::drop() called for {f}",
-            f = logwise::privacy::LogIt(self.debug_label.clone())
-        );
+        // logwise::info_sync!(
+        //     "GPUGuard::drop() called for {f}",
+        //     f = logwise::privacy::LogIt(self.debug_label.clone())
+        // );
         // Drop the dirty guard if present
         let _ = self.dirty_guard.take();
-        logwise::info_sync!(
-            "GPUGuard::drop() finished for {f}",
-            f = logwise::privacy::LogIt(self.debug_label.clone())
-        );
+        // logwise::info_sync!(
+        //     "GPUGuard::drop() finished for {f}",
+        //     f = logwise::privacy::LogIt(self.debug_label.clone())
+        // );
     }
 }
 
@@ -213,19 +213,19 @@ where
         match self.mappable.poll_gpu() {
             Ok(gpu_guard) => {
                 // Resource was in PENDING_WRITE_TO_GPU state, need to copy
-                logwise::info_sync!(
-                    "Multibuffer: GPU resource {f} is dirty, copying to GPU",
-                    f = self.debug_label.clone()
-                );
+                // logwise::info_sync!(
+                //     "Multibuffer: GPU resource {f} is dirty, copying to GPU",
+                //     f = self.debug_label.clone()
+                // );
 
                 // TODO: This copy will be pushed down to the callers
                 // Previously: copy_from_buffer(0, 0, gpu_guard.byte_len(), copy_info, gpu_guard)
 
                 // Store the dirty guard - callers will handle the copy
-                logwise::info_sync!(
-                    "Access resource {label} for GPU access (copying)",
-                    label = logwise::privacy::LogIt(self.debug_label.clone())
-                );
+                // logwise::info_sync!(
+                //     "Access resource {label} for GPU access (copying)",
+                //     label = logwise::privacy::LogIt(self.debug_label.clone())
+                // );
                 GPUGuard {
                     dirty_guard: Some(gpu_guard),
                     gpu_buffer: self.gpu.clone(),
@@ -238,10 +238,10 @@ where
                 //     "Multibuffer: GPU resource {f} not dirty, no copy needed",
                 //     f = self.debug_label.clone()
                 // );
-                logwise::info_sync!(
-                    "Access resource {label} for GPU access (no copy)",
-                    label = logwise::privacy::LogIt(self.debug_label.clone())
-                );
+                // logwise::info_sync!(
+                //     "Access resource {label} for GPU access (no copy)",
+                //     label = logwise::privacy::LogIt(self.debug_label.clone())
+                // );
                 GPUGuard {
                     dirty_guard: None,
                     gpu_buffer: self.gpu.clone(),
