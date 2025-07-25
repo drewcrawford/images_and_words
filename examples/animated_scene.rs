@@ -311,6 +311,8 @@ async fn run_animated_rendering_with_engine_arc(
 
     while frame_count < max_frames {
         let elapsed = start_time.elapsed().as_secs_f32();
+        // Render the frame
+        port.force_render().await;
 
         // Update animation uniforms each frame
         {
@@ -325,8 +327,6 @@ async fn run_animated_rendering_with_engine_arc(
             // Properly async drop the guard to unmap the resource
         }
 
-        // Render the frame
-        port.force_render().await;
         frame_count += 1;
 
         // Progress reporting
