@@ -879,7 +879,15 @@ impl PortInternal {
                     .with(move |adapter| {
                         let capabilities =
                             surface.assume(|surface| surface.get_capabilities(adapter));
-                        capabilities.formats[0]
+                        let selected_format = capabilities.formats[0];
+
+                        logwise::info_sync!(
+                            "Available surface formats: {formats}, Selected: {selected}",
+                            formats = logwise::privacy::LogIt(&capabilities.formats),
+                            selected = logwise::privacy::LogIt(&selected_format)
+                        );
+
+                        selected_format
                     })
                     .await;
                 format
@@ -1271,7 +1279,7 @@ impl PortInternal {
         mut encoder: wgpu::CommandEncoder,
         frame_guard: crate::images::port::FrameGuard,
     ) {
-        logwise::info_sync!("finish_render_frame");
+        logwise::trace_sync!("finish_render_frame");
         let unscaled_size = self.view.fast_size_scale();
         // Setup frame reporting and surface configuration
         let current_scaled_size = (
@@ -1302,6 +1310,14 @@ impl PortInternal {
                     // Update the surface format to match what we'll actually use
                     device.0.device.assume(|device| {
                         surface.assume(|surface| {
+                            //On WebGPU we're sometimes forbidden to use srgb formats
+                            //so we need to use with a view
+
+                            let mut view_formats = Vec::new();
+                            if !self.pass_config.requested.surface_format.is_srgb() {
+                                view_formats.push(TextureFormat::Bgra8UnormSrgb)
+                            }
+
                             surface.configure(
                                 device,
                                 &wgpu::SurfaceConfiguration {
@@ -1312,7 +1328,7 @@ impl PortInternal {
                                     present_mode: wgpu::PresentMode::Fifo,
                                     desired_maximum_frame_latency: 1,
                                     alpha_mode: CompositeAlphaMode::Opaque,
-                                    view_formats: Vec::new(),
+                                    view_formats,
                                 },
                             )
                         });
@@ -1373,6 +1389,24 @@ impl PortInternal {
                 frame_texture = surface_texture.texture.clone();
 
                 frame = Some(surface_texture);
+                let format = if self.pass_config.requested.surface_format.is_srgb() {
+                    None
+                } else {
+                    // If the surface format is not sRGB, we need to use a view with sRGB format
+                    Some(TextureFormat::Bgra8UnormSrgb)
+                };
+
+                let descriptor = wgpu::TextureViewDescriptor {
+                    label: "surface texture view".into(),
+                    format,
+                    dimension: None,
+                    usage: None,
+                    aspect: Default::default(),
+                    base_mip_level: 0,
+                    mip_level_count: None,
+                    base_array_layer: 0,
+                    array_layer_count: None,
+                };
 
                 wgpu_view = frame
                     .as_ref()
@@ -1509,7 +1543,7 @@ impl Port {
     }
 
     pub async fn render_frame(&mut self) {
-        logwise::info_sync!("Rendering frame...");
+        //logwise::info_sync!("Rendering frame...");
         let mut internal = self.internal.take().expect("Port internal missing");
         internal = smuggle_async("render_frame".to_string(), || async move {
             internal.render_frame_internal().await;

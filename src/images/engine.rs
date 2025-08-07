@@ -37,9 +37,7 @@ impl Engine {
         logwise::info_sync!("EntryPoint created successfully");
 
         logwise::info_sync!("Providing EntryPoint to view...");
-        view.provide_entry_point(&entry_point)
-            .await
-            .expect("Can't provide entry point");
+        view.provide_entry_point(&entry_point).await?;
         logwise::info_sync!("EntryPoint provided to view successfully");
 
         logwise::info_sync!("Getting view size and scale...");
@@ -130,4 +128,6 @@ pub enum CreateError {
     Port(#[from] super::port::Error),
     #[error("Implementation error {0}")]
     Imp(#[from] imp::Error),
+    #[error("View error {0}")]
+    View(#[from] crate::images::view::Error),
 }

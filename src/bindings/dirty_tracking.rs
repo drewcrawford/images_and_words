@@ -82,11 +82,11 @@ impl DirtySender {
         }
     }
     pub fn mark_dirty(&self, dirty: bool) {
-        logwise::info_sync!(
-            "Marking dirty {dirty} on {label}",
-            dirty = dirty,
-            label = self.shared.debug_label.clone()
-        );
+        // logwise::info_sync!(
+        //     "Marking dirty {dirty} on {label}",
+        //     dirty = dirty,
+        //     label = self.shared.debug_label.clone()
+        // );
         let mut l = self.shared.send_state.lock().unwrap();
         l.dirty = dirty;
         if dirty {
@@ -187,10 +187,6 @@ impl DirtyAggregateReceiver {
             }
             //next receiver
         }
-        logwise::info_sync!(
-            "Will wait for dirty signal on {receivers}",
-            receivers = logwise::privacy::LogIt(&self.receivers)
-        );
         receiver.await;
         // println!("Continuation received");
     }

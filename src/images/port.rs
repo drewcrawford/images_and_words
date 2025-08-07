@@ -536,9 +536,9 @@ impl Port {
     /// visual updates.
     pub async fn force_render(&mut self) {
         //force render the next frame, even if nothing is dirty
-        let frame_time = logwise::perfwarn_begin!("Port::force_render");
+        //let frame_time = logwise::perfwarn_begin!("Port::force_render");
         self.imp.render_frame().await;
-        drop(frame_time);
+        //drop(frame_time);
     }
 
     fn collect_dirty_receivers(&self) -> Vec<DirtyReceiver> {
@@ -608,10 +608,10 @@ impl Port {
         self.force_render().await;
         loop {
             let receiver = DirtyAggregateReceiver::new(self.collect_dirty_receivers());
-            logwise::info_sync!("waiting for dirty");
+            logwise::trace_sync!("waiting for dirty");
 
             receiver.wait_for_dirty().await;
-            logwise::info_sync!(
+            logwise::trace_sync!(
                 "Rendering frame due to {reason}",
                 reason = logwise::privacy::LogIt(receiver.who_is_dirty())
             );

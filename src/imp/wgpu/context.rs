@@ -113,21 +113,22 @@ where
     }
 }
 
-pub async fn smuggle<F, R>(label: String, f: F) -> R
+pub async fn smuggle<F, R>(_label: String, f: F) -> R
 where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
 {
-    let prior_context = logwise::context::Context::current();
+    let parent_context = logwise::context::Context::current();
     let (s, r) = continuation();
     begin(move || {
-        let c = logwise::context::Context::new_task(Some(prior_context), "smuggle");
+        let c = logwise::context::Context::from_parent(parent_context);
+        let prior_context = Context::current();
         let id = c.context_id();
         c.set_current();
-        logwise::info_sync!("smuggle {label}", label = label);
+        // logwise::info_sync!("smuggle {label}", label = label);
         let r = f();
         s.send(r);
-        Context::pop(id);
+        prior_context.set_current();
     });
     r.await
 }

@@ -19,9 +19,12 @@ impl View {
         entrypoint: &crate::entry_point::EntryPoint,
         view: ViewForImp,
     ) -> Result<Self, super::Error> {
+        logwise::debuginternal_sync!("a");
         let entrypoint = entrypoint.clone();
         let view_clone = Arc::new(view);
         let view_clone2 = view_clone.clone();
+        logwise::debuginternal_sync!("b");
+
         match view_clone.window_handle() {
             Ok(_e) => {}
             Err(_not_supported_error) => {
@@ -31,14 +34,14 @@ impl View {
                 });
             }
         }
-        let wgpu_surface = WgpuCell::new_on_thread(async move || {
-            entrypoint.0.0.assume(|entrypoint| {
-                entrypoint
-                    .create_surface(view_clone)
-                    .expect("Failed to create surface")
-            })
+        let wgpu_surface = WgpuCell::new_on_thread_or(async move || {
+            entrypoint
+                .0
+                .0
+                .assume(|entrypoint| entrypoint.create_surface(view_clone))
         })
-        .await;
+        .await?;
+        logwise::debuginternal_sync!("c");
 
         Ok(View {
             surface: Some(wgpu_surface),

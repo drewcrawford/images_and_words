@@ -46,6 +46,7 @@
 //!
 //! These components work together to prepare geometry data for GPU consumption.
 
+pub use engine::CreateError;
 pub use engine::Engine;
 
 pub mod render_pass;

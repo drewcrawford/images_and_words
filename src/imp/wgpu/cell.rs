@@ -249,8 +249,30 @@ impl<T> WgpuCell<T> {
         // logwise::info_sync!("smuggle_async completed, returning value");
         value
     }
+    pub async fn new_on_thread_or<C, F, E>(c: C) -> Result<WgpuCell<T>, E>
+    where
+        C: FnOnce() -> F + Send + 'static,
+        F: Future<Output = Result<T, E>> + 'static,
+        E: Send + 'static,
+    {
+        let value = smuggle_async(
+            "WgpuCell::new_on_thread_or".to_string(),
+            move || async move {
+                let f = c();
+                let r = f.await;
+                match r {
+                    Ok(v) => Ok(WgpuCell::new(v)),
+                    Err(e) => Err(e),
+                }
+            },
+        )
+        .await;
+        value
+    }
 }
 unsafe impl<T> Send for WgpuCell<T> {}
+
+impl<T> WgpuCell<T> {}
 
 impl<T: Debug> Debug for WgpuCell<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

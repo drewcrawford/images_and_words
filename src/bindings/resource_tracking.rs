@@ -150,15 +150,15 @@ impl<Resource> DerefMut for GPUGuard<Resource> {
 
 impl<Resource> Drop for GPUGuard<Resource> {
     fn drop(&mut self) {
-        logwise::info_sync!(
-            "DEBUG: GPUGuard::drop called on tracker for {label}",
-            label = self.tracker.debug_label.clone()
-        );
+        // logwise::info_sync!(
+        //     "DEBUG: GPUGuard::drop called on tracker for {label}",
+        //     label = self.tracker.debug_label.clone()
+        // );
         self.tracker.unuse_gpu();
-        logwise::info_sync!(
-            "DEBUG: GPUGuard::drop finished on tracker for {label}",
-            label = self.tracker.debug_label.clone()
-        );
+        // logwise::info_sync!(
+        //     "DEBUG: GPUGuard::drop finished on tracker for {label}",
+        //     label = self.tracker.debug_label.clone()
+        // );
     }
 }
 
@@ -323,7 +323,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
                 match self.cpu_write_or() {
                     Ok(guard) => Ok(guard),
                     Err(NotAvailable { read_state }) => {
-                        logwise::warn_sync!(
+                        logwise::trace_sync!(
                             "Failing to acquire CPU write access to resource in state {read_state}",
                             read_state = read_state
                         );
@@ -362,7 +362,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
             .mark_dirty(Self::dirty_state_for_state(UNUSED));
         let take = self
             .pending_cpu_write
-            .try_lock()
+            .lock()
             .expect("Failed to lock pending_cpu_write")
             .drain(..)
             .collect::<Vec<_>>();
@@ -389,7 +389,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
             .mark_dirty(Self::dirty_state_for_state(PENDING_WRITE_TO_GPU));
         let take = self
             .pending_cpu_write
-            .try_lock()
+            .lock()
             .expect("Failed to lock pending_cpu_write")
             .drain(..)
             .collect::<Vec<_>>();
@@ -448,7 +448,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     where
         Resource: sealed::Mappable,
     {
-        let interval = logwise::perfwarn_begin!("rt unuse_cpu");
+        // let interval = logwise::perfwarn_begin!("rt unuse_cpu");
         unsafe {
             (*self.resource.get()).unmap();
         }
@@ -473,8 +473,8 @@ impl<Resource> ResourceTrackerInternal<Resource> {
         } else if old_state == CPU_READ {
             self.entered_unused();
         }
-        logwise::info_sync!("DEBUG: async_unuse_cpu finished on tracker");
-        drop(interval);
+        // logwise::info_sync!("DEBUG: async_unuse_cpu finished on tracker");
+        // drop(interval);
     }
     /// Releases GPU access to the resource
     ///

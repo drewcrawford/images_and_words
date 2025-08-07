@@ -422,7 +422,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
                         },
                     )
                 });
-                logwise::info_sync!("Scheduled texture copy!");
+                //logwise::info_sync!("Scheduled texture copy!");
             });
 
             Ok(())

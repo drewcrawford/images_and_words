@@ -70,7 +70,7 @@ path = "tests/texture_alignment.rs"
 name = "wgpu_cell_threading_error"
 path = "tests/wgpu_cell_threading_error.rs"
 
-[[example]]
+[[finsihed ]]
 name = "simple_scene"
 path = "examples/simple_scene.rs"
 required-features = ["app_window", "backend_wgpu"]
