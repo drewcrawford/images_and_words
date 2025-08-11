@@ -39,6 +39,9 @@ logwise = "0.2.4"
 [target.'cfg(target_arch="wasm32")'.dependencies]
 web-time = "1.1.0"
 wasm-bindgen-test = "0.3"
+web-sys = {version = "0.3", features=[
+    "Performance"
+]}
 
 [dev-dependencies]
 futures = "0.3"

@@ -49,39 +49,118 @@ use crate::images::view::View;
 use crate::imp;
 use await_values::{Observer, Value};
 use std::fmt::Formatter;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use crate::sys::time::Instant;
 
+//for some reason we don't understand, using web_time here triggers
+//safari to reload the page eventually
+//mt2-782
+#[cfg(target_arch = "wasm32")]
+mod perf {
+    use std::marker::PhantomData;
+    use std::time::Duration;
+
+    fn performance() -> web_sys::Performance {
+        use web_sys::wasm_bindgen::JsCast;
+        let global = web_sys::js_sys::global();
+        if let Some(window) = global.dyn_ref::<web_sys::Window>() {
+            window.performance().unwrap()
+        } else {
+            panic!("No performance API available in this context");
+        }
+    }
+    #[derive(Debug, Clone, Copy)]
+    pub struct Instant {
+        time: f64,
+    }
+
+    impl Instant {
+        pub fn now() -> Self {
+            Self {
+                time: performance().now(),
+            }
+        }
+
+        pub fn duration_since(&self, earlier: &Self) -> Duration {
+            let self_nanos = (self.time * 1_000_000.0) as u64;
+            let earlier_nanos = (earlier.time * 1_000_000.0) as u64;
+            Duration::from_nanos(self_nanos - earlier_nanos)
+        }
+        pub fn to_u64(&self) -> u64 {
+            //bitcast
+            unsafe { std::mem::transmute(self.time) }
+        }
+        pub fn from_u64(u: u64) -> Self {
+            //bitcast
+            let time: f64 = unsafe { std::mem::transmute(u) };
+            Self { time }
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+mod perf {
+    use std::sync::LazyLock;
+    use std::time::Duration;
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct Instant(std::time::Instant);
+
+    //we need to ensure values we get are >=0
+    static EPOCH: LazyLock<std::time::Instant> = LazyLock::new(|| {
+        std::time::Instant::now()
+            .checked_sub(Duration::from_secs(1))
+            .unwrap()
+    });
+    impl Instant {
+        pub fn now() -> Self {
+            Self(std::time::Instant::now())
+        }
+        pub fn duration_since(&self, earlier: &Self) -> std::time::Duration {
+            self.0.duration_since(earlier.0)
+        }
+        pub fn to_u64(&self) -> u64 {
+            let dur = self.0.duration_since(*EPOCH);
+            dur.as_nanos() as u64
+        }
+        pub fn from_u64(u: u64) -> Self {
+            let dur = std::time::Duration::from_nanos(u);
+            Self(std::time::Instant::now() - dur)
+        }
+    }
+}
 /**
 Guard type for tracking frame timing information.
 Created when a frame begins and dropped when frame is complete.
 */
 #[derive(Debug)]
 pub(crate) struct FrameGuard {
-    frame_start: Instant,
-    cpu_end: Mutex<Option<Instant>>,
-    gpu_end: Mutex<Option<Instant>>,
+    frame_start: perf::Instant,
+    cpu_end: AtomicU64,
+    gpu_end: AtomicU64, //instant
     port_reporter: Arc<PortReporterImpl>,
 }
 
 impl FrameGuard {
     pub(crate) fn new(port_reporter: Arc<PortReporterImpl>) -> Self {
         Self {
-            frame_start: Instant::now(),
-            cpu_end: Mutex::new(None),
-            gpu_end: Mutex::new(None),
+            frame_start: perf::Instant::now(),
+            cpu_end: AtomicU64::new(0),
+            gpu_end: AtomicU64::new(0),
             port_reporter,
         }
     }
     #[allow(dead_code)]
     pub(crate) fn mark_cpu_complete(&self) {
-        *self.cpu_end.lock().unwrap() = Some(Instant::now());
+        let time = perf::Instant::now().to_u64();
+        self.cpu_end.store(time, Ordering::Relaxed);
     }
     #[allow(dead_code)]
     pub(crate) fn mark_gpu_complete(&self) {
-        *self.gpu_end.lock().unwrap() = Some(Instant::now());
+        let time = perf::Instant::now().to_u64();
+        self.gpu_end.store(time, Ordering::Relaxed);
     }
 }
 
@@ -90,8 +169,13 @@ impl Drop for FrameGuard {
         if std::thread::panicking() {
             return; //don't insert guard!
         }
-        let cpu_end = self.cpu_end.lock().unwrap().expect("CPU end time not set");
-        let gpu_end = self.gpu_end.lock().unwrap().expect("GPU end time not set");
+        let cpu_end = self.cpu_end.load(Ordering::Relaxed);
+        let gpu_end = self.gpu_end.load(Ordering::Relaxed);
+        assert!(cpu_end != 0, "CPU end time not set");
+        assert!(gpu_end != 0, "GPU end time not set");
+
+        let cpu_end = perf::Instant::from_u64(cpu_end);
+        let gpu_end = perf::Instant::from_u64(gpu_end);
 
         let frame_info = FrameInfo {
             frame_start: self.frame_start,
@@ -108,25 +192,25 @@ Complete timing information for a finished frame.
 */
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct FrameInfo {
-    frame_start: Instant,
-    cpu_end: Instant,
-    gpu_end: Instant,
+    frame_start: perf::Instant,
+    cpu_end: perf::Instant,
+    gpu_end: perf::Instant,
 }
 
 impl FrameInfo {
     #[allow(dead_code)]
     pub(crate) fn cpu_duration_ms(&self) -> i32 {
-        self.cpu_end.duration_since(self.frame_start).as_millis() as i32
+        self.cpu_end.duration_since(&self.frame_start).as_millis() as i32
     }
 
     #[allow(dead_code)]
     pub(crate) fn gpu_duration_ms(&self) -> i32 {
-        self.gpu_end.duration_since(self.cpu_end).as_millis() as i32
+        self.gpu_end.duration_since(&self.cpu_end).as_millis() as i32
     }
 
     #[allow(dead_code)]
     pub(crate) fn total_duration_ms(&self) -> i32 {
-        self.gpu_end.duration_since(self.frame_start).as_millis() as i32
+        self.gpu_end.duration_since(&self.frame_start).as_millis() as i32
     }
 }
 
@@ -319,7 +403,7 @@ impl PortReporterImpl {
             for i in 1..history.len() {
                 let interval = history[i]
                     .frame_start
-                    .duration_since(history[i - 1].frame_start)
+                    .duration_since(&history[i - 1].frame_start)
                     .as_secs_f64();
                 total_interval += interval;
                 min_interval = min_interval.min(interval);

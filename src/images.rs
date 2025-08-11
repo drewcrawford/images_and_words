@@ -61,6 +61,7 @@ mod frame;
 mod frame_pacing;
 pub mod index_algorithms;
 pub mod projection;
+pub(crate) mod request_animation_frame;
 pub mod shader;
 pub mod vertex_algorithms;
 pub mod vertex_layout;
