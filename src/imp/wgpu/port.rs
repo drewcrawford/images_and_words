@@ -5,7 +5,7 @@ use crate::bindings::forward::dynamic::buffer::{Buffer, SomeRenderSide};
 use crate::bindings::sampler::SamplerType;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::camera::Camera;
-use crate::images::port::PortReporterSend;
+use crate::images::port::{FrameGuard, PortReporterSend};
 use crate::images::render_pass::{DrawCommand, PassDescriptor};
 use crate::images::vertex_layout::VertexFieldType;
 use crate::imp;
@@ -21,11 +21,11 @@ use std::sync::Arc;
 use wgpu::wgt::BufferDescriptor;
 use wgpu::{
     BindGroup, BindGroupEntry, BindGroupLayoutEntry, BindingResource, BindingType, BlendState,
-    BufferBinding, BufferBindingType, BufferSize, Color, ColorTargetState, CompareFunction,
-    CompositeAlphaMode, DepthStencilState, Face, FrontFace, LoadOp, MultisampleState, Operations,
-    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
-    RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType,
-    StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType,
+    BufferBinding, BufferBindingType, BufferSize, Color, ColorTargetState, CommandEncoder,
+    CompareFunction, CompositeAlphaMode, DepthStencilState, Face, FrontFace, LoadOp,
+    MultisampleState, Operations, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
+    PrimitiveTopology, RenderPassDepthStencilAttachment, RenderPipeline, RenderPipelineDescriptor,
+    SamplerBindingType, StencilFaceState, StencilState, StoreOp, TextureFormat, TextureSampleType,
     TextureViewDimension, VertexAttribute, VertexBufferLayout, VertexState, VertexStepMode,
 };
 
@@ -1240,7 +1240,7 @@ impl PortInternal {
             self.pass_config.requested.pass_descriptors.len()
         );
     }
-    async fn render_frame_internal(&mut self) {
+    async fn begin_render_frame_internal(&mut self) -> (CommandEncoder, FrameGuard) {
         let frame_guard = self.port_reporter_send.create_frame_guard(self.frame);
 
         //basically we want to bunch up all our awaits here,
@@ -1276,8 +1276,7 @@ impl PortInternal {
             self.update_pass_configuration(enable_depth, &mut copy_info)
                 .await;
         }
-
-        self.finish_render_frame(encoder, frame_guard);
+        (encoder, frame_guard)
     }
 
     //a synchronous function to finish the render frame
@@ -1549,7 +1548,13 @@ impl Port {
         //logwise::info_sync!("Rendering frame...");
         let mut internal = self.internal.take().expect("Port internal missing");
         internal = smuggle_async("render_frame".to_string(), || async move {
-            internal.render_frame_internal().await;
+            let (encoder, frame_guard) = internal.begin_render_frame_internal().await;
+            let internal =
+                crate::images::request_animation_frame::request_animation_frame_async(move || {
+                    internal.finish_render_frame(encoder, frame_guard);
+                    internal
+                })
+                .await;
             internal
         })
         .await;
