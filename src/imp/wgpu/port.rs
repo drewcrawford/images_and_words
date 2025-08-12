@@ -14,6 +14,7 @@ use crate::imp::wgpu::cell::WgpuCell;
 use crate::imp::wgpu::context::smuggle_async;
 use crate::imp::{CopyInfo, Error};
 use crate::stable_address_vec::StableAddressVec;
+use logwise::context::Context;
 use send_cells::send_cell::SendCell;
 use std::collections::HashMap;
 use std::num::NonZero;
@@ -1285,7 +1286,7 @@ impl PortInternal {
         mut encoder: wgpu::CommandEncoder,
         frame_guard: crate::images::port::FrameGuard,
     ) {
-        logwise::trace_sync!("finish_render_frame");
+        logwise::trace_sync!("finish_render_frame begin");
         let unscaled_size = self.view.fast_size_scale();
         // Setup frame reporting and surface configuration
         let current_scaled_size = (
@@ -1343,6 +1344,8 @@ impl PortInternal {
                 }
             }
         }
+        logwise::trace_sync!("wgpu::port::A");
+
         // Create per-frame resources
         let wgpu_view;
         let frame;
@@ -1389,10 +1392,12 @@ impl PortInternal {
                 };
             }
             Some(surface) => {
+                logwise::trace_sync!("wgpu::port::A0");
                 let surface_texture = surface
                     .assume(|surface| surface.get_current_texture())
                     .expect("Acquire swapchain texture");
                 frame_texture = surface_texture.texture.clone();
+                logwise::trace_sync!("wgpu::port::A1");
 
                 frame = Some(surface_texture);
                 let format = if self.pass_config.requested.surface_format.is_srgb() {
@@ -1401,6 +1406,7 @@ impl PortInternal {
                     // If the surface format is not sRGB, we need to use a view with sRGB format
                     Some(TextureFormat::Bgra8UnormSrgb)
                 };
+                logwise::trace_sync!("wgpu::port::A2");
 
                 let descriptor = wgpu::TextureViewDescriptor {
                     label: "surface texture view".into(),
@@ -1415,6 +1421,7 @@ impl PortInternal {
                 };
 
                 wgpu_view = frame.as_ref().unwrap().texture.create_view(&descriptor);
+                logwise::trace_sync!("wgpu::port::A3");
                 color_attachment = wgpu::RenderPassColorAttachment {
                     view: &wgpu_view,
                     depth_slice: None,
@@ -1426,6 +1433,7 @@ impl PortInternal {
                 };
             }
         };
+        logwise::trace_sync!("port::A.5");
         // Setup depth buffer
         let (depth_texture, depth_view) = self.setup_depth_buffer();
         // Execute render passes
@@ -1446,6 +1454,7 @@ impl PortInternal {
         } else {
             None
         };
+        logwise::trace_sync!("wgpu::port::B");
 
         // Extract bind groups and acquired guards from prepared passes
         let mut frame_bind_groups = Vec::new();
@@ -1457,6 +1466,7 @@ impl PortInternal {
             }
         }
 
+        logwise::trace_sync!("wgpu::port::C");
         // Encode render passes
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Port render"),
@@ -1500,6 +1510,7 @@ impl PortInternal {
         }
 
         std::mem::drop(render_pass);
+        logwise::trace_sync!("wgpu::port::D");
 
         // Setup debug framebuffer capture
         let debug_capture =
@@ -1507,6 +1518,8 @@ impl PortInternal {
 
         // Submit and present frame
         let frame_guard_arc = std::sync::Arc::new(frame_guard);
+        logwise::trace_sync!("wgpu::port::E");
+
         self.submit_and_present_frame(
             encoder,
             frame,
@@ -1515,6 +1528,7 @@ impl PortInternal {
             frame_guard_arc,
             debug_capture,
         );
+        logwise::trace_sync!("finish_render_frame end");
     }
 }
 
@@ -1548,6 +1562,7 @@ impl Port {
         //logwise::info_sync!("Rendering frame...");
         let mut internal = self.internal.take().expect("Port internal missing");
         internal = smuggle_async("render_frame".to_string(), || async move {
+            Context::begin_trace();
             let (encoder, frame_guard) = internal.begin_render_frame_internal().await;
             let internal =
                 crate::images::request_animation_frame::request_animation_frame_async(move || {

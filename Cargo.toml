@@ -46,6 +46,7 @@ web-sys = {version = "0.3", features=[
 [dev-dependencies]
 futures = "0.3"
 
+
 env_logger = {version = "0.11.8"}
 
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
@@ -94,3 +95,4 @@ portable_async_sleep = {path = "../portable_async_sleep"}
 vectormatrix = {path = "../vectormatrix"}
 continue = {path = "../continue"}
 logwise = {path = "../logwise"}
+test_executors = {path = "../test_executors"}

@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 struct OneShot {
-    c: Arc<Mutex<Option<r#continue::Sender<()>>>>,
+    c: Arc<AtomicPtr<r#continue::Sender<()>>>,
 }
 impl Drop for OneShot {
     fn drop(&mut self) {
@@ -26,14 +26,16 @@ impl Drop for OneShot {
 impl OneShot {
     fn new(sender: r#continue::Sender<()>) -> Self {
         OneShot {
-            c: Arc::new(Mutex::new(Some(sender))),
+            c: Arc::new(AtomicPtr::new(Box::into_raw(Box::new(sender)))),
         }
     }
 
     fn send_if_needed(&mut self) {
-        // continue API requires us to send from all senders
-        if let Some(sender) = self.c.lock().unwrap().take() {
-            sender.send(()); //send a signal to avoid deadlocks
+        let swap = self.c.swap(std::ptr::null_mut(), Ordering::Relaxed);
+        if !swap.is_null() {
+            //we have a continuation, so we need to send it
+            let boxed_sender = unsafe { Box::from_raw(swap) };
+            boxed_sender.send(()); // send the signal
         }
     }
 }

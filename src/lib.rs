@@ -189,3 +189,5 @@ Re-export the `app_window` module if the `app_window` feature is enabled.
 */
 #[cfg(feature = "app_window")]
 pub use app_window;
+
+logwise::declare_logging_domain!();
