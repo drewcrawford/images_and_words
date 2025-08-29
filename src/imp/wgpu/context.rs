@@ -68,11 +68,18 @@ pub const WGPU_STRATEGY: WGPUStrategy =
 #[cfg(not(feature = "app_window"))]
 pub const WGPU_STRATEGY: WGPUStrategy = WGPUStrategy::Relaxed;
 
-pub fn begin<F>(f: F)
+#[cfg(feature = "app_window")]
+pub const WGPU_SURFACE_STRATEGY: WGPUStrategy =
+    WGPUStrategy::from_appwindow_strategy(app_window::WGPU_SURFACE_STRATEGY);
+
+#[cfg(not(feature = "app_window"))]
+pub const WGPU_SURFACE_STRATEGY: WGPUStrategy = WGPUStrategy::Relaxed;
+
+fn begin_strategy<F>(strategy: &WGPUStrategy, f: F)
 where
     F: FnOnce() + Send + 'static,
 {
-    match WGPU_STRATEGY {
+    match strategy {
         #[cfg(feature = "app_window")]
         WGPUStrategy::MainThread => {
             let is_main = app_window::application::is_main_thread();
@@ -113,6 +120,20 @@ where
     }
 }
 
+pub fn begin<F>(f: F)
+where
+    F: FnOnce() + Send + 'static,
+{
+    begin_strategy(&WGPU_STRATEGY, f)
+}
+
+pub fn begin_surface<F>(f: F)
+where
+    F: FnOnce() + Send + 'static,
+{
+    begin_strategy(&WGPU_SURFACE_STRATEGY, f);
+}
+
 pub async fn smuggle<F, R>(_label: String, f: F) -> R
 where
     F: FnOnce() -> R + Send + 'static,
@@ -121,6 +142,26 @@ where
     let parent_context = logwise::context::Context::current();
     let (s, r) = continuation();
     begin(move || {
+        let c = logwise::context::Context::from_parent(parent_context);
+        let prior_context = Context::current();
+        let id = c.context_id();
+        c.set_current();
+        // logwise::info_sync!("smuggle {label}", label = label);
+        let r = f();
+        s.send(r);
+        prior_context.set_current();
+    });
+    r.await
+}
+
+pub async fn smuggle_surface<F, R>(_label: String, f: F) -> R
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    let parent_context = logwise::context::Context::current();
+    let (s, r) = continuation();
+    begin_surface(move || {
         let c = logwise::context::Context::from_parent(parent_context);
         let prior_context = Context::current();
         let id = c.context_id();

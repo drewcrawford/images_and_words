@@ -1285,13 +1285,13 @@ impl PortInternal {
         &mut self,
         mut encoder: wgpu::CommandEncoder,
         frame_guard: crate::images::port::FrameGuard,
+        fast_size_scale: (u16, u16, f64),
     ) {
         logwise::trace_sync!("finish_render_frame begin");
-        let unscaled_size = self.view.fast_size_scale();
         // Setup frame reporting and surface configuration
         let current_scaled_size = (
-            (unscaled_size.0 as f64 * unscaled_size.2) as u32,
-            (unscaled_size.1 as f64 * unscaled_size.2) as u32,
+            (fast_size_scale.0 as f64 * fast_size_scale.2) as u32,
+            (fast_size_scale.1 as f64 * fast_size_scale.2) as u32,
         );
         self.scaled_size.update(Some(current_scaled_size));
         let surface = self.view.gpu_impl.as_ref().unwrap().surface.as_ref();
@@ -1564,9 +1564,10 @@ impl Port {
         internal = smuggle_async("render_frame".to_string(), || async move {
             Context::begin_trace();
             let (encoder, frame_guard) = internal.begin_render_frame_internal().await;
+            let size_scale = internal.view.size_scale().await;
             let internal =
                 crate::images::request_animation_frame::request_animation_frame_async(move || {
-                    internal.finish_render_frame(encoder, frame_guard);
+                    internal.finish_render_frame(encoder, frame_guard, size_scale);
                     internal
                 })
                 .await;

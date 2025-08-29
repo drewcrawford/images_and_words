@@ -543,7 +543,7 @@ impl<Format: PixelFormat> Texture<Format> {
             let t = Texel::from_vec_offset(width, index);
             initialize_with(t)
         });
-        let mut clone_box = some_executor::current_executor::current_executor();
+        let mut clone_box = vec_parallel::some_executor::current_executor::current_executor();
 
         let f = build_vec.spawn_on(&mut clone_box, priority, Hint::CPU);
 

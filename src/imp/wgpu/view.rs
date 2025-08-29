@@ -34,13 +34,16 @@ impl View {
                 });
             }
         }
-        let wgpu_surface = WgpuCell::new_on_thread_or(async move || {
-            entrypoint
+        use crate::imp::wgpu::context::smuggle_surface;
+        let wgpu_surface = smuggle_surface("wgpu_create_surface".to_string(), move || {
+            let result = entrypoint
                 .0
                 .0
-                .assume(|entrypoint| entrypoint.create_surface(view_clone))
+                .assume(|entrypoint| entrypoint.create_surface(view_clone));
+            result.map(WgpuCell::new)
         })
         .await?;
+
         logwise::debuginternal_sync!("c");
 
         Ok(View {

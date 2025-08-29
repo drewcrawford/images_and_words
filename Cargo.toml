@@ -10,7 +10,7 @@ license = "Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0"
 keywords = ["gpu", "middleware", "graphics", "rendering","wgpu"]
 categories = ["game-development","graphics","rendering::engine","rust-patterns"]
 exclude = [".*"]
-rust-version = "1.85.1"
+rust-version = "1.88.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,7 +18,7 @@ rust-version = "1.85.1"
 thiserror = "~2"
 png = "~0"
 tgar = "~1"
-some_executor = "0.5.1"
+some_executor = "0.6.0"
 vectormatrix = "0.1"
 vec_parallel = {version = "0.1.0", features = ["some_executor"]}
 async_file = "0.1.0"
@@ -29,12 +29,12 @@ half = "2.6"
 portable_async_sleep = "0.1.0"
 await_values = "0.1.0"
 # optional
-app_window = {version = "0.2", optional=true}
+app_window = {version = "0.3.0", optional=true}
 # used for app_window
-send_cells = {version = "0.1"}
+send_cells = {version = "0.2"}
 # used for wgpu backend
 wgpu = {version = "25", optional = true}
-logwise = "0.2.4"
+logwise = "0.3"
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 web-time = "1.1.0"
@@ -74,7 +74,7 @@ path = "tests/texture_alignment.rs"
 name = "wgpu_cell_threading_error"
 path = "tests/wgpu_cell_threading_error.rs"
 
-[[finsihed ]]
+[[example]]
 name = "simple_scene"
 path = "examples/simple_scene.rs"
 required-features = ["app_window", "backend_wgpu"]
@@ -85,14 +85,12 @@ path = "examples/animated_scene.rs"
 required-features = ["app_window", "backend_wgpu"]
 
 [patch.crates-io]
-#vec_parallel = {path = "../vec_parallel"}
-app_window = {path = "../app_window"}
-send_cells = {path = "../send_cells"}
-some_executor = {path = "../some_executor"}
+vec_parallel = {path = "../vec_parallel"}
+#some_executor = {path = "../some_executor"}
 # for debugging
 wgpu = {path = "../wgpu/wgpu"}
 portable_async_sleep = {path = "../portable_async_sleep"}
 vectormatrix = {path = "../vectormatrix"}
-continue = {path = "../continue"}
-logwise = {path = "../logwise"}
-test_executors = {path = "../test_executors"}
+#continue = {path = "../continue"}
+#logwise = {path = "../logwise"}
+#test_executors = {path = "../test_executors"}
