@@ -95,7 +95,7 @@ pub(crate) enum BindTarget {
 ///
 /// This struct pairs a binding target with the shader stage it should be bound to.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BindInfo {
+pub(crate) struct BindInfo {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) stage: Stage,
     pub(crate) target: BindTarget,
