@@ -725,3 +725,38 @@ impl<Format: PixelFormat> FrameTexture<Format> {
         self.shared.multibuffer.gpu_dirty_receiver()
     }
 }
+
+// Boilerplate
+
+impl<Format: PixelFormat> PartialEq for FrameTexture<Format> {
+    fn eq(&self, other: &Self) -> bool {
+        // Two FrameTexture instances are equal if they refer to the same underlying texture
+        // and have the same dimensions
+        Arc::ptr_eq(&self.shared, &other.shared)
+            && self.width == other.width
+            && self.height == other.height
+    }
+}
+
+impl<Format: PixelFormat> Eq for FrameTexture<Format> {}
+
+impl<Format: PixelFormat> std::hash::Hash for FrameTexture<Format> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Hash based on the Arc pointer and dimensions
+        (Arc::as_ptr(&self.shared) as *const u8).hash(state);
+        self.width.hash(state);
+        self.height.hash(state);
+    }
+}
+
+impl<Format: PixelFormat> std::fmt::Display for FrameTexture<Format> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "FrameTexture<{}>({}x{})",
+            std::any::type_name::<Format>(),
+            self.width,
+            self.height
+        )
+    }
+}

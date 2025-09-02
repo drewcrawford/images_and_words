@@ -281,3 +281,35 @@ impl<Element> Buffer<Element> {
         })
     }
 }
+
+// Boilerplate
+
+// Clone makes sense here as Buffer represents a shared handle to a GPU resource.
+// Cloning creates another reference to the same underlying buffer, similar to Arc semantics.
+impl<Element> Clone for Buffer<Element> {
+    fn clone(&self) -> Self {
+        Self {
+            imp: self.imp.clone(),
+            count: self.count,
+            element: PhantomData,
+        }
+    }
+}
+
+// Two buffers are equal if they refer to the same underlying GPU resource.
+// Since static buffers contain immutable data, Eq is appropriate (no floating-point values).
+impl<Element> PartialEq for Buffer<Element> {
+    fn eq(&self, other: &Self) -> bool {
+        self.imp == other.imp && self.count == other.count
+    }
+}
+
+impl<Element> Eq for Buffer<Element> {}
+
+// Hash implementation follows from Eq - allows Buffer to be used as HashMap/HashSet keys
+impl<Element> std::hash::Hash for Buffer<Element> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.imp.hash(state);
+        self.count.hash(state);
+    }
+}
