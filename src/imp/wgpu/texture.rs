@@ -314,7 +314,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
         _visible_to: TextureUsage,
         mipmaps: bool,
         usage: wgpu::TextureUsages,
-    ) -> wgpu::TextureDescriptor {
+    ) -> wgpu::TextureDescriptor<'_> {
         let mip_level_count = if mipmaps {
             width.max(height).ilog2() + 1
         } else {
@@ -376,7 +376,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
             assert!(self.format_matches(source), "Texture formats do not match");
             let r = self.staging_buffer.assume(|staging_buffer| {
                 let (s, r) = r#continue::continuation();
-                let map_op = staging_buffer.map_async(wgpu::MapMode::Write, .., |op| {
+                staging_buffer.map_async(wgpu::MapMode::Write, .., |op| {
                     op.unwrap();
                     s.send(());
                 });
@@ -492,7 +492,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
         _visible_to: TextureUsage,
         mipmaps: bool,
         usage: wgpu::TextureUsages,
-    ) -> wgpu::TextureDescriptor {
+    ) -> wgpu::TextureDescriptor<'_> {
         let mip_level_count = if mipmaps {
             width.max(height).ilog2() + 1
         } else {

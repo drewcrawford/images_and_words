@@ -144,7 +144,6 @@ where
     begin(move || {
         let c = logwise::context::Context::from_parent(parent_context);
         let prior_context = Context::current();
-        let id = c.context_id();
         c.set_current();
         // logwise::info_sync!("smuggle {label}", label = label);
         let r = f();
@@ -164,7 +163,6 @@ where
     begin_surface(move || {
         let c = logwise::context::Context::from_parent(parent_context);
         let prior_context = Context::current();
-        let id = c.context_id();
         c.set_current();
         // logwise::info_sync!("smuggle {label}", label = label);
         let r = f();

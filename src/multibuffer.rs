@@ -17,42 +17,42 @@ use crate::bindings::resource_tracking;
 use crate::bindings::resource_tracking::ResourceTracker;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use std::ops::{Deref, DerefMut};
-
-//We need to wrap the ResourceTracker types in a newtype so that we can implement multibuffering behaviors.
-//primarily, we want to mark things dirty.
-pub struct CPUReadGuard<'a, Element, U>
-where
-    Element: Mappable,
-    U: Clone,
-{
-    //option so we can take on drop
-    imp: Option<crate::bindings::resource_tracking::CPUReadGuard<'a, Element>>,
-    _buffer: &'a Multibuffer<Element, U>,
-}
-
-impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U>
-where
-    Element: Mappable,
-    U: Clone,
-{
-    type Target = Element;
-    fn deref(&self) -> &Self::Target {
-        self.imp.as_ref().unwrap()
-    }
-}
-
-impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U>
-where
-    Element: Mappable,
-    U: Clone,
-{
-    fn drop(&mut self) {
-        // If we haven't taken the guard, panic
-        if self.imp.is_some() && !std::thread::panicking() {
-            panic!("Dropped CPUReadGuard without calling async_drop");
-        }
-    }
-}
+//
+// //We need to wrap the ResourceTracker types in a newtype so that we can implement multibuffering behaviors.
+// //primarily, we want to mark things dirty.
+// pub struct CPUReadGuard<'a, Element, U>
+// where
+//     Element: Mappable,
+//     U: Clone,
+// {
+//     //option so we can take on drop
+//     imp: Option<crate::bindings::resource_tracking::CPUReadGuard<'a, Element>>,
+//     _buffer: &'a Multibuffer<Element, U>,
+// }
+//
+// impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U>
+// where
+//     Element: Mappable,
+//     U: Clone,
+// {
+//     type Target = Element;
+//     fn deref(&self) -> &Self::Target {
+//         self.imp.as_ref().unwrap()
+//     }
+// }
+//
+// impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U>
+// where
+//     Element: Mappable,
+//     U: Clone,
+// {
+//     fn drop(&mut self) {
+//         // If we haven't taken the guard, panic
+//         if self.imp.is_some() && !std::thread::panicking() {
+//             panic!("Dropped CPUReadGuard without calling async_drop");
+//         }
+//     }
+// }
 
 #[derive(Debug)]
 pub struct CPUWriteGuard<'a, Element, U>
@@ -61,7 +61,7 @@ where
     U: Clone,
 {
     imp: crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>,
-    buffer: &'a Multibuffer<Element, U>,
+    _buffer: &'a Multibuffer<Element, U>,
 }
 
 impl<'a, Element, U> DerefMut for CPUWriteGuard<'a, Element, U>
@@ -93,7 +93,7 @@ Multibuffer type.
 #[derive(Debug)]
 pub(crate) struct GPUGuard<T: Mappable, U: Clone> {
     dirty_guard: Option<resource_tracking::GPUGuard<T>>,
-    debug_label: String,
+    _debug_label: String,
     gpu_buffer: U,
 }
 
@@ -184,14 +184,14 @@ where
         &self.gpu
     }
 
-    pub async fn access_write(&self) -> CPUWriteGuard<T, U>
+    pub async fn access_write(&self) -> CPUWriteGuard<'_, T, U>
     where
         T: Mappable,
     {
         let underlying = self.mappable.cpu_write().await;
         CPUWriteGuard {
             imp: underlying,
-            buffer: self,
+            _buffer: self,
         }
     }
 
@@ -228,7 +228,7 @@ where
                 GPUGuard {
                     dirty_guard: Some(gpu_guard),
                     gpu_buffer: self.gpu.clone(),
-                    debug_label: self.debug_label.clone(),
+                    _debug_label: self.debug_label.clone(),
                 }
             }
             Err(_) => {
@@ -244,7 +244,7 @@ where
                 GPUGuard {
                     dirty_guard: None,
                     gpu_buffer: self.gpu.clone(),
-                    debug_label: self.debug_label.clone(),
+                    _debug_label: self.debug_label.clone(),
                 }
             }
         }

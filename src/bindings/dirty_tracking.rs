@@ -255,7 +255,7 @@ impl DirtyAggregateReceiver {
                     //we're dirty
                     return;
                 }
-                Err(continuation) => {
+                Err(_) => {
                     // we have a continuation, so we need to wait for it
                 }
             }

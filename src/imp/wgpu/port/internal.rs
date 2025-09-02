@@ -533,11 +533,6 @@ impl PortInternal {
                     wgpu::TextureUsages::empty()
                 };
                 if self.scaled_size.is_dirty() {
-                    let surface_capabilities =
-                        self.engine.bound_device().0.adapter.assume(|adapter| {
-                            surface.assume(|surface| surface.get_capabilities(adapter))
-                        });
-
                     let device = self.engine.bound_device().as_ref();
                     let scaled_size = self.scaled_size.requested.unwrap();
 

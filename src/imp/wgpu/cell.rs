@@ -1,16 +1,12 @@
 //SPDX-License-Identifier: MPL-2.0
 
 use super::context::{WGPU_STRATEGY, WGPUStrategy, begin, smuggle, smuggle_async};
-#[cfg(test)]
-use crate::sys::time::{Duration, Instant};
 use send_cells::UnsafeSendCell;
 use send_cells::unsafe_sync_cell::UnsafeSyncCell;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::task::{Context, Poll};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::*;
@@ -249,26 +245,6 @@ impl<T> WgpuCell<T> {
         // logwise::info_sync!("smuggle_async completed, returning value");
         value
     }
-    pub async fn new_on_thread_or<C, F, E>(c: C) -> Result<WgpuCell<T>, E>
-    where
-        C: FnOnce() -> F + Send + 'static,
-        F: Future<Output = Result<T, E>> + 'static,
-        E: Send + 'static,
-    {
-        let value = smuggle_async(
-            "WgpuCell::new_on_thread_or".to_string(),
-            move || async move {
-                let f = c();
-                let r = f.await;
-                match r {
-                    Ok(v) => Ok(WgpuCell::new(v)),
-                    Err(e) => Err(e),
-                }
-            },
-        )
-        .await;
-        value
-    }
 }
 unsafe impl<T> Send for WgpuCell<T> {}
 
@@ -289,46 +265,6 @@ impl<T: Default> Default for WgpuCell<T> {
 impl<T> From<T> for WgpuCell<T> {
     fn from(value: T) -> Self {
         WgpuCell::new(value)
-    }
-}
-
-#[derive(Debug)]
-pub struct WgpuFuture<T: 'static> {
-    inner: Shared<T>,
-}
-
-unsafe impl<T> Send for WgpuFuture<T> {}
-
-impl<T: Future> Future for WgpuFuture<T> {
-    type Output = T::Output;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Verify we're polling from the correct thread
-        match WGPU_STRATEGY {
-            #[cfg(feature = "app_window")]
-            WGPUStrategy::MainThread => {
-                assert!(
-                    app_window::application::is_main_thread(),
-                    "WgpuFuture polled from non-main thread when strategy is MainThread"
-                );
-            }
-            #[cfg(feature = "app_window")]
-            WGPUStrategy::NotMainThread => {
-                assert!(
-                    !app_window::application::is_main_thread(),
-                    "WgpuFuture polled from main thread when strategy is NotMainThread"
-                );
-            }
-            WGPUStrategy::Relaxed => {
-                // No verification needed
-            }
-        }
-        let inner = unsafe {
-            let self_mut = self.get_unchecked_mut();
-            let _lock = self_mut.inner.mutex.lock().unwrap();
-            Pin::new_unchecked(self_mut.inner.inner.as_mut().unwrap().get_mut().get_mut())
-        };
-        inner.poll(cx)
     }
 }
 
@@ -373,24 +309,6 @@ mod tests {
             assert_eq!(**cell.get(), 42);
         }
     }
-
-    struct TestFuture {
-        ready: bool,
-    }
-
-    impl Future for TestFuture {
-        type Output = i32;
-
-        fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-            if self.ready {
-                Poll::Ready(42)
-            } else {
-                self.ready = true;
-                Poll::Pending
-            }
-        }
-    }
-
     // Test constructors that don't require thread access
     #[test]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

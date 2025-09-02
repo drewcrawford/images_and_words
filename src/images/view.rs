@@ -128,17 +128,6 @@ impl WindowingImpl {
             }
         }
     }
-
-    fn fast_size_scale(&self) -> (u16, u16, f64) {
-        match self {
-            WindowingImpl::Testing => (800, 600, 1.0),
-            #[cfg(feature = "app_window")]
-            WindowingImpl::AppWindow(surface) => {
-                let (size, scale) = surface.size_main();
-                (size.width() as u16, size.height() as u16, scale)
-            }
-        }
-    }
 }
 
 //we need this to port across to render thread
@@ -255,15 +244,6 @@ impl View {
             gpu_impl: None,
             windowing_impl: WindowingImpl::Testing,
         }
-    }
-
-    /**
-        Implements a fast, inline size-scale system.
-
-        This may require some coordination with the OS windowing system,
-    */
-    pub(crate) fn fast_size_scale(&self) -> (u16, u16, f64) {
-        self.windowing_impl.fast_size_scale()
     }
 
     /// Creates a view suitable for testing.

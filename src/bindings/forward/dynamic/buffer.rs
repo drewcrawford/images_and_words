@@ -88,11 +88,10 @@
 //! - [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 
 use crate::bindings::dirty_tracking::DirtyReceiver;
-use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp;
-use crate::imp::{BackendSend, BackendSync, SendPhantom};
+use crate::imp::SendPhantom;
 use crate::multibuffer::Multibuffer;
 use crate::multibuffer::{CPUWriteGuard, GPUGuard};
 use std::fmt::{Debug, Display, Formatter};

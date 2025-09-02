@@ -94,7 +94,7 @@ fn main() {
             });
             thread::spawn(move || {
                 // Wait for the spawned thread to complete
-                let result = receiver
+                receiver
                     .recv()
                     .expect("Failed to receive result from spawned thread");
 

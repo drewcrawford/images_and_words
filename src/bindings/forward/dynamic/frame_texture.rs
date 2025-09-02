@@ -665,7 +665,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # }, "frame_texture_dequeue_doctest");
     /// # }
     /// ```
-    pub async fn dequeue(&mut self) -> CPUWriteGuard<Format> {
+    pub async fn dequeue(&mut self) -> CPUWriteGuard<'_, Format> {
         let write_guard = self.shared.multibuffer.access_write().await;
         CPUWriteGuard {
             underlying: write_guard,

@@ -294,7 +294,7 @@ impl<Resource> ResourceTrackerInternal<Resource> {
     ///
     /// This method is async because it calls `map_write()` on the resource,
     /// which may need to wait for GPU operations or data transfers.
-    fn cpu_write_or(&self) -> Result<CPUWriteGuard<Resource>, NotAvailable>
+    fn cpu_write_or(&self) -> Result<CPUWriteGuard<'_, Resource>, NotAvailable>
     where
         Resource: sealed::Mappable,
     {
@@ -309,10 +309,10 @@ impl<Resource> ResourceTrackerInternal<Resource> {
                 return Err(NotAvailable { read_state: other });
             }
         }
-        unsafe { Ok(CPUWriteGuard { tracker: self }) }
+        Ok(CPUWriteGuard { tracker: self })
     }
 
-    async fn cpu_write(&self) -> CPUWriteGuard<Resource>
+    async fn cpu_write(&self) -> CPUWriteGuard<'_, Resource>
     where
         Resource: sealed::Mappable,
     {
@@ -371,10 +371,10 @@ impl<Resource> ResourceTrackerInternal<Resource> {
         }
     }
 
-    fn entered_cpu_read(&self) {
-        self.dirty_pending_cpu_to_gpu
-            .mark_dirty(Self::dirty_state_for_state(CPU_READ));
-    }
+    // fn entered_cpu_read(&self) {
+    //     self.dirty_pending_cpu_to_gpu
+    //         .mark_dirty(Self::dirty_state_for_state(CPU_READ));
+    // }
     fn entered_cpu_write(&self) {
         self.dirty_pending_cpu_to_gpu
             .mark_dirty(Self::dirty_state_for_state(CPU_WRITE));
@@ -526,7 +526,7 @@ impl<Resource> ResourceTracker<Resource> {
     /// Acquires the resource for CPU write access
     ///
     /// See [`ResourceTrackerInternal::cpu_write`] for details.
-    pub async fn cpu_write(&self) -> CPUWriteGuard<Resource>
+    pub async fn cpu_write(&self) -> CPUWriteGuard<'_, Resource>
     where
         Resource: sealed::Mappable,
     {

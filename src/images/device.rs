@@ -5,7 +5,7 @@
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::entry_point::{EntryPoint, EntryPointError};
+use crate::entry_point::EntryPoint;
 use crate::images::view::View;
 use crate::imp;
 
@@ -51,27 +51,6 @@ impl std::fmt::Display for BindError {
     }
 }
 impl std::error::Error for BindError {}
-
-#[derive(thiserror::Error, Debug)]
-pub(crate) enum EitherError {
-    #[error("Error with entrypoint {0}")]
-    EntryPoint(#[from] EntryPointError),
-    #[error("Error binding a device {0}")]
-    Bind(BindError),
-    #[error("Error picking a device {0}")]
-    Pick(PickError),
-}
-impl From<BindError> for EitherError {
-    fn from(e: BindError) -> Self {
-        Self::Bind(e)
-    }
-}
-
-impl From<PickError> for EitherError {
-    fn from(e: PickError) -> Self {
-        Self::Pick(e)
-    }
-}
 
 impl BoundDevice {
     /*

@@ -54,6 +54,7 @@ web-time = "1.1.0"
 default = ["backend_wgpu"]
 backend_wgpu = ["dep:wgpu"]
 app_window = ["dep:app_window"]
+logwise_internal = []
 
 [[test]]
 name = "buffer_performance"
