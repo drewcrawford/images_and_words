@@ -657,6 +657,83 @@ unsafe impl CRepr for i32 {}
 unsafe impl CRepr for i16 {}
 unsafe impl CRepr for i8 {}
 
+// Boilerplate trait implementations
+
+impl<Element> PartialEq for Buffer<Element> {
+    /// Compares two buffers for equality.
+    ///
+    /// Two buffers are considered equal if they reference the same underlying
+    /// shared buffer data, regardless of their generic type parameter.
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.shared, &other.shared)
+    }
+}
+
+impl<Element> Eq for Buffer<Element> {}
+
+impl<Element> std::hash::Hash for Buffer<Element> {
+    /// Hashes the buffer based on its shared data pointer.
+    ///
+    /// This allows buffers to be used as keys in hash-based collections.
+    /// The hash is based on the identity of the underlying shared buffer,
+    /// not its contents.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.shared).hash(state);
+    }
+}
+
+// Clone implementation rationale: Buffer is a reference type that holds an Arc<Shared>,
+// making it safe and cheap to clone. Cloning creates a new reference to the same
+// underlying multibuffer, which is the expected behavior for shared GPU resources.
+
+// Copy implementation rationale: Buffer cannot be Copy because it contains an Arc,
+// which requires explicit cloning to manage reference counting properly.
+
+// Send/Sync implementation rationale: Buffer is automatically Send + Sync because
+// Arc<Shared> is Send + Sync, and all other fields are Send + Sync as well.
+// This allows buffers to be safely shared between threads.
+
+impl<Element> PartialEq for RenderSide<Element> {
+    /// Compares two render-side handles for equality.
+    ///
+    /// Two render-side handles are considered equal if they reference the same underlying
+    /// shared buffer data, regardless of their generic type parameter.
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.shared, &other.shared)
+    }
+}
+
+impl<Element> Eq for RenderSide<Element> {}
+
+impl<Element> std::hash::Hash for RenderSide<Element> {
+    /// Hashes the render-side handle based on its shared data pointer.
+    ///
+    /// This allows render-side handles to be used as keys in hash-based collections.
+    /// The hash is based on the identity of the underlying shared buffer.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.shared).hash(state);
+    }
+}
+
+impl<Element> Clone for RenderSide<Element> {
+    /// Clones the render-side handle.
+    ///
+    /// Creates a new reference to the same underlying multibuffer. This is safe
+    /// and efficient since the shared data is reference-counted.
+    fn clone(&self) -> Self {
+        Self {
+            shared: self.shared.clone(),
+            count: self.count,
+            debug_name: self.debug_name.clone(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+// Clone implementation rationale for RenderSide: Similar to Buffer, RenderSide is a reference
+// type that holds an Arc<Shared>. Cloning is safe and creates a new handle to the same
+// underlying GPU resource.
+
 #[cfg(test)]
 mod tests {
     #[test]
