@@ -50,9 +50,7 @@ use crate::imp;
 use await_values::{Observer, Value};
 use std::fmt::Formatter;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use std::sync::{Arc, LazyLock, Mutex};
-
-use crate::sys::time::Instant;
+use std::sync::{Arc, Mutex};
 
 //for some reason we don't understand, using web_time here triggers
 //safari to reload the page eventually

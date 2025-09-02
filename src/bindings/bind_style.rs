@@ -436,7 +436,7 @@ pub enum Stage {
 /// # }, "bind_style_debug_doctest");
 /// # }
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BindSlot {
     pub(crate) pass_index: u32,
 }
@@ -452,5 +452,42 @@ impl BindSlot {
     }
 }
 
+// Boilerplate implementations for BindSlot
+
+impl Default for BindSlot {
+    /// Creates a binding slot with index 0.
+    ///
+    /// Slot 0 is commonly used as the default binding location for primary resources.
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
+
+impl std::fmt::Display for BindSlot {
+    /// Formats the binding slot as "slot N" for readable output in logs and debugging.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "slot {}", self.pass_index)
+    }
+}
+
+impl From<u32> for BindSlot {
+    /// Creates a binding slot from a u32 index.
+    ///
+    /// This provides a convenient way to convert numeric binding indices
+    /// into BindSlot instances.
+    fn from(pass_index: u32) -> Self {
+        Self::new(pass_index)
+    }
+}
+
+impl AsRef<u32> for BindSlot {
+    /// Returns a reference to the underlying binding slot index.
+    ///
+    /// This allows easy access to the numeric value when needed
+    /// for backend implementations or debugging.
+    fn as_ref(&self) -> &u32 {
+        &self.pass_index
+    }
+}
+
 use crate::images::vertex_layout::VertexLayout;
-use crate::imp::{BackendSend, BackendSync};

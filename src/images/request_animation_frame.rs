@@ -1,4 +1,4 @@
-fn request_animation_frame<F>(mut callback: F)
+fn request_animation_frame<F>(callback: F)
 where
     F: FnOnce() + 'static,
 {
@@ -17,7 +17,7 @@ where
     }
 }
 
-pub async fn request_animation_frame_async<F, R>(mut callback: F) -> R
+pub async fn request_animation_frame_async<F, R>(callback: F) -> R
 where
     F: FnOnce() -> R + 'static,
     R: Send + 'static,

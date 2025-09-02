@@ -12,12 +12,11 @@ The objects here are fully generic, and may support buffers or textures.
 
 */
 
-use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
+use crate::bindings::dirty_tracking::DirtyReceiver;
 use crate::bindings::resource_tracking;
+use crate::bindings::resource_tracking::ResourceTracker;
 use crate::bindings::resource_tracking::sealed::Mappable;
-use crate::bindings::resource_tracking::{NotAvailable, ResourceTracker};
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
 
 //We need to wrap the ResourceTracker types in a newtype so that we can implement multibuffering behaviors.
 //primarily, we want to mark things dirty.

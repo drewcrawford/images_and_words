@@ -9,10 +9,9 @@ its own signal between clean/dirty, whereas it would be challenging to yank valu
 Another distinction is that the receivers can be 'lately-bound' - that is, they can be bound after the sender is created.
 */
 
-use r#continue::Sender;
 use std::hash::Hash;
-use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 #[derive(Clone)]
 struct OneShot {

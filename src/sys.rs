@@ -12,7 +12,7 @@ pub mod time {
     //! On WASM platforms, this re-exports `web_time` types for compatibility.
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub use std::time::{Duration, Instant};
+    pub use std::time::Instant;
 
     #[cfg(target_arch = "wasm32")]
     pub use web_time::{Duration, Instant};

@@ -35,7 +35,7 @@ use crate::bindings::dirty_tracking::DirtySender;
 use std::cell::UnsafeCell;
 use std::fmt::{Debug, Formatter};
 use std::ops::{Deref, DerefMut};
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 
 const UNUSED: u8 = 0;
