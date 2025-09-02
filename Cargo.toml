@@ -85,9 +85,9 @@ path = "examples/animated_scene.rs"
 required-features = ["app_window", "backend_wgpu"]
 
 [patch.crates-io]
-vec_parallel = {path = "../vec_parallel"}
-portable_async_sleep = {path = "../portable_async_sleep"}
-vectormatrix = {path = "../vectormatrix"}
+#vec_parallel = {path = "../vec_parallel"}
+#portable_async_sleep = {path = "../portable_async_sleep"}
+#vectormatrix = {path = "../vectormatrix"}
 #continue = {path = "../continue"}
 #logwise = {path = "../logwise"}
 #test_executors = {path = "../test_executors"}
