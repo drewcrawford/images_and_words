@@ -378,13 +378,25 @@ impl BindStyle {
 /// Resources can be made available to different stages of the graphics pipeline.
 /// This enum allows you to specify whether a resource should be accessible from
 /// the vertex shader, fragment shader, or both.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Stage {
     /// Resource will be bound to fragment (pixel) shaders.
     Fragment,
     /// Resource will be bound to vertex shaders.
     Vertex,
+}
+
+// Boilerplate implementations for Stage
+
+impl std::fmt::Display for Stage {
+    /// Formats the stage for readable output in logs and debugging.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Stage::Fragment => write!(f, "fragment"),
+            Stage::Vertex => write!(f, "vertex"),
+        }
+    }
 }
 
 /// Represents a binding slot where a resource can be bound.
