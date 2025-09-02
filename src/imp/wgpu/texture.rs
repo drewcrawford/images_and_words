@@ -684,6 +684,20 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
 unsafe impl<Format> Send for GPUableTexture2Static<Format> {}
 unsafe impl<Format> Sync for GPUableTexture2Static<Format> {}
 
+impl<Format> PartialEq for GPUableTexture2Static<Format> {
+    fn eq(&self, other: &Self) -> bool {
+        self.gpu_texture == other.gpu_texture
+    }
+}
+
+impl<Format> Eq for GPUableTexture2Static<Format> {}
+
+impl<Format> std::hash::Hash for GPUableTexture2Static<Format> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.gpu_texture.hash(state);
+    }
+}
+
 impl<Format> GPUableTextureWrapper for GPUableTexture2Static<Format> {}
 
 #[derive(Debug, Clone)]

@@ -67,6 +67,15 @@ impl<T> PartialEq for WgpuCell<T> {
     }
 }
 
+impl<T> Eq for WgpuCell<T> {}
+
+impl<T> std::hash::Hash for WgpuCell<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let s = self.shared.as_ref().unwrap();
+        (s.as_ref() as *const Shared<T>).hash(state);
+    }
+}
+
 impl<T> Clone for WgpuCell<T> {
     fn clone(&self) -> Self {
         WgpuCell {

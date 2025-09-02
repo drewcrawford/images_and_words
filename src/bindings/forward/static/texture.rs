@@ -361,3 +361,28 @@ impl<Format: PixelFormat> Texture<Format> {
         self.height
     }
 }
+
+// Boilerplate
+
+// Two textures are equal if they refer to the same underlying GPU resource and have the same dimensions.
+// Since static textures contain immutable data, Eq is appropriate (no floating-point values).
+// Note: We compare dimensions in addition to the GPU resource to ensure complete equality.
+impl<Format> PartialEq for Texture<Format> {
+    fn eq(&self, other: &Self) -> bool {
+        // Compare dimensions first (cheap comparison)
+        self.width == other.width && self.height == other.height
+            // Then compare the underlying GPU texture identity
+            && self.imp == other.imp
+    }
+}
+
+impl<Format> Eq for Texture<Format> {}
+
+// Hash implementation follows from Eq - allows Texture to be used as HashMap/HashSet keys
+impl<Format> std::hash::Hash for Texture<Format> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.imp.hash(state);
+        self.width.hash(state);
+        self.height.hash(state);
+    }
+}

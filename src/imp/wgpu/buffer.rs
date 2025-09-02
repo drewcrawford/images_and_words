@@ -346,6 +346,14 @@ impl PartialEq for GPUableBufferStatic {
     }
 }
 
+impl Eq for GPUableBufferStatic {}
+
+impl std::hash::Hash for GPUableBufferStatic {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.device_buffer.hash(state);
+    }
+}
+
 impl GPUableBufferStatic {
     pub(super) fn storage_type(&self) -> StorageType {
         self.storage_type
