@@ -11,8 +11,10 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use wgpu::{Limits, PollType, Trace};
 
+/// Internal resource management for BoundDevice
+/// This type owns the actual GPU resources and handles cleanup
 #[derive(Debug)]
-pub struct BoundDevice {
+struct BoundDeviceResources {
     pub(super) device: WgpuCell<wgpu::Device>,
     pub(super) queue: WgpuCell<wgpu::Queue>,
     pub(super) adapter: WgpuCell<wgpu::Adapter>,
@@ -22,6 +24,13 @@ pub struct BoundDevice {
     poll_shutdown: Arc<AtomicBool>,
     #[cfg(not(target_arch = "wasm32"))]
     poll_trigger: Sender<()>,
+}
+
+/// Cross-platform bound device that can be safely cloned
+/// Multiple instances share the same underlying GPU resources
+#[derive(Debug, Clone)]
+pub struct BoundDevice {
+    resources: Arc<BoundDeviceResources>,
 }
 
 impl BoundDevice {
@@ -78,22 +87,28 @@ impl BoundDevice {
                     }
                 })
                 .expect("Failed to spawn wgpu polling thread");
-            Ok(BoundDevice {
+            let resources = BoundDeviceResources {
                 device,
                 queue,
                 adapter: unbound_device.0.adapter,
                 poll_thread: Some(poll_thread),
                 poll_shutdown,
                 poll_trigger: poll_sender,
+            };
+            Ok(BoundDevice {
+                resources: Arc::new(resources),
             })
         }
         #[cfg(target_arch = "wasm32")]
         {
             // On wasm32, we don't need a separate polling thread
-            Ok(BoundDevice {
+            let resources = BoundDeviceResources {
                 device,
                 queue,
                 adapter: unbound_device.0.adapter,
+            };
+            Ok(BoundDevice {
+                resources: Arc::new(resources),
             })
         }
     }
@@ -102,7 +117,7 @@ impl BoundDevice {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn set_needs_poll(&self) {
         // Send a signal to the polling thread (ignore if channel is full/closed)
-        let _ = self.poll_trigger.send(());
+        let _ = self.resources.poll_trigger.send(());
     }
 
     /// No-op on wasm32 where polling is not needed
@@ -110,10 +125,25 @@ impl BoundDevice {
     pub fn set_needs_poll(&self) {
         // On wasm32, polling is handled automatically
     }
+
+    /// Access to the wgpu device
+    pub(super) fn device(&self) -> &WgpuCell<wgpu::Device> {
+        &self.resources.device
+    }
+
+    /// Access to the wgpu queue
+    pub(super) fn queue(&self) -> &WgpuCell<wgpu::Queue> {
+        &self.resources.queue
+    }
+
+    /// Access to the wgpu adapter
+    pub(super) fn adapter(&self) -> &WgpuCell<wgpu::Adapter> {
+        &self.resources.adapter
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl Drop for BoundDevice {
+impl Drop for BoundDeviceResources {
     fn drop(&mut self) {
         // Signal the polling thread to shut down
         self.poll_shutdown.store(true, Ordering::Relaxed);

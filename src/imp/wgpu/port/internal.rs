@@ -77,7 +77,7 @@ impl PortInternal {
         let mipmapped_sampler = engine
             .bound_device()
             .0
-            .device
+            .device()
             .with(|device| {
                 let s = device.create_sampler(&wgpu::SamplerDescriptor {
                     label: Some("mipmapped sampler"),
@@ -110,7 +110,7 @@ impl PortInternal {
                 let format = engine
                     .bound_device()
                     .0
-                    .adapter
+                    .adapter()
                     .with(move |adapter| {
                         let capabilities =
                             surface.assume(|surface| surface.get_capabilities(adapter));
@@ -155,7 +155,7 @@ impl PortInternal {
 
         let device = self.engine.bound_device().as_ref();
         let scaled_size = self.scaled_size.requested.unwrap();
-        let depth_texture = device.0.device.assume(|device| {
+        let depth_texture = device.0.device().assume(|device| {
             device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("depth texture"),
                 size: wgpu::Extent3d {
@@ -268,7 +268,7 @@ impl PortInternal {
             .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
             .unwrap();
 
-        let buf = device.0.device.assume(|device| {
+        let buf = device.0.device().assume(|device| {
             device.create_buffer(&BufferDescriptor {
                 label: "dump framebuffer".into(),
                 size: (scaled_size.1 * wgpu_bytes_per_row_256) as u64,
@@ -306,7 +306,7 @@ impl PortInternal {
             .checked_mul(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
             .unwrap();
 
-        let depth_buf = device.0.device.assume(|device| {
+        let depth_buf = device.0.device().assume(|device| {
             device.create_buffer(&BufferDescriptor {
                 label: "dump depth buffer".into(),
                 size: (scaled_size.1 * depth_wgpu_bytes_per_row_256) as u64,
@@ -362,7 +362,7 @@ impl PortInternal {
         //this closure requires Send but I don't think we actually do on wgpu
         let frame_acquired_guards = SendCell::new(frame_acquired_guards);
 
-        device.0.queue.assume(|queue| {
+        device.0.queue().assume(|queue| {
             queue.on_submitted_work_done(move || {
                 //at runtime, on non-wasm32 platforms, this is polled
                 //from a different thread
@@ -477,7 +477,7 @@ impl PortInternal {
         self.update_camera_buffer().await;
         let mut encoder = {
             let device = self.engine.bound_device().as_ref();
-            device.0.device.assume(|device| {
+            device.0.device().assume(|device| {
                 device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("wgpu port"),
                 })
@@ -537,7 +537,7 @@ impl PortInternal {
                     let scaled_size = self.scaled_size.requested.unwrap();
 
                     // Update the surface format to match what we'll actually use
-                    device.0.device.assume(|device| {
+                    device.0.device().assume(|device| {
                         surface.assume(|surface| {
                             //On WebGPU we're sometimes forbidden to use srgb formats
                             //so we need to use with a view
@@ -577,7 +577,7 @@ impl PortInternal {
             None => {
                 let scaled_size = self.scaled_size.requested.unwrap();
                 let device = self.engine.bound_device().as_ref();
-                let texture = device.0.device.assume(|device| {
+                let texture = device.0.device().assume(|device| {
                     device.create_texture(&wgpu::TextureDescriptor {
                         label: Some("dummy texture"),
                         size: wgpu::Extent3d {

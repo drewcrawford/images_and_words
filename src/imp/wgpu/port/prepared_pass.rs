@@ -129,14 +129,14 @@ impl PreparedPass {
         }
         // println!("Will create bind group layout {:?}", layouts);
 
-        let bind_group_layout = bind_device.0.device.assume(|device| {
+        let bind_group_layout = bind_device.0.device().assume(|device| {
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some(descriptor.name()),
                 entries: layouts.as_slice(),
             })
         });
 
-        let pipeline_layout = bind_device.0.device.assume(|device| {
+        let pipeline_layout = bind_device.0.device().assume(|device| {
             device.create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some(descriptor.name()),
                 bind_group_layouts: &[&bind_group_layout],
@@ -144,7 +144,7 @@ impl PreparedPass {
             })
         });
 
-        let vertex_module = bind_device.0.device.assume(|device| {
+        let vertex_module = bind_device.0.device().assume(|device| {
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some(descriptor.vertex_shader.label),
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
@@ -246,7 +246,7 @@ impl PreparedPass {
             alpha_to_coverage_enabled: false,
         };
 
-        let fragment_module = bind_device.0.device.assume(|device| {
+        let fragment_module = bind_device.0.device().assume(|device| {
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some(descriptor.fragment_shader.label),
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
@@ -296,7 +296,7 @@ impl PreparedPass {
         };
         let pipeline = bind_device
             .0
-            .device
+            .device()
             .assume(|device| device.create_render_pipeline(&render_descriptor));
 
         // Create the BindGroupGuard using the constructed bind_group_layout

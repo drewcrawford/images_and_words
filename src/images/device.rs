@@ -66,3 +66,34 @@ impl BoundDevice {
         Ok(Self(bind))
     }
 }
+
+// Boilerplate implementations
+
+impl Clone for BoundDevice {
+    fn clone(&self) -> Self {
+        // Safe to clone - resources are shared via Arc in the backend implementation.
+        // Multiple BoundDevice instances can safely share the same GPU resources.
+        Self(self.0.clone())
+    }
+}
+
+impl PartialEq for BoundDevice {
+    fn eq(&self, other: &Self) -> bool {
+        // Two BoundDevices are equal if they reference the same underlying resources.
+        // This is equivalent to Arc pointer equality in the backend.
+        std::ptr::eq(&self.0 as *const _, &other.0 as *const _)
+    }
+}
+
+impl Eq for BoundDevice {
+    // BoundDevice can implement Eq since it represents a resource handle,
+    // and equality is well-defined (same underlying GPU resources).
+}
+
+impl std::hash::Hash for BoundDevice {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Hash based on the pointer to the underlying implementation.
+        // This ensures that cloned instances have the same hash.
+        std::ptr::hash(&self.0 as *const _, state);
+    }
+}

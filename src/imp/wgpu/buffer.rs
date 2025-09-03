@@ -176,7 +176,7 @@ impl GPUableBuffer {
 
         // Create staging buffer
         let staging_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device.0.device.assume(move |device| {
+            move_device.0.device().assume(move |device| {
                 let descriptor = BufferDescriptor {
                     label: Some(&staging_debug_name),
                     size: size as u64,
@@ -190,7 +190,7 @@ impl GPUableBuffer {
 
         // Create device buffer
         let device_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device2.0.device.assume(move |device| {
+            move_device2.0.device().assume(move |device| {
                 let descriptor = BufferDescriptor {
                     label: Some(&device_debug_name),
                     size: size as u64,
@@ -222,7 +222,7 @@ impl GPUableBuffer {
             GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
                 if move_bound_device
                     .0
-                    .device
+                    .device()
                     .assume(|c| c.limits())
                     .max_uniform_buffer_binding_size as usize
                     > size
@@ -393,7 +393,7 @@ impl GPUableBufferStatic {
                 GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
                     if move_bound_device
                         .0
-                        .device
+                        .device()
                         .assume(|c| c.limits())
                         .max_uniform_buffer_binding_size as usize
                         > size
@@ -437,7 +437,7 @@ impl GPUableBufferStatic {
 
         // Create device buffer with mapped_at_creation=true for direct initialization
         let device_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device.0.device.assume(move |device| {
+            move_device.0.device().assume(move |device| {
                 let descriptor = BufferDescriptor {
                     label: Some(&device_debug_name),
                     size: size as u64,

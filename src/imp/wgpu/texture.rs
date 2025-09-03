@@ -262,7 +262,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
 
         // Create staging buffer
         let staging_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device.0.device.assume(move |device| {
+            move_device.0.device().assume(move |device| {
                 let descriptor = wgpu::BufferDescriptor {
                     label: Some(&staging_debug_name),
                     size: staging_buffer_size as u64,
@@ -282,7 +282,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2<Format> 
         let config_mipmaps = config.mipmaps;
 
         let gpu_texture = WgpuCell::new_on_thread(move || async move {
-            move_device2.0.device.assume(move |device| {
+            move_device2.0.device().assume(move |device| {
                 let descriptor = Self::get_texture_descriptor(
                     &config_debug_name,
                     config_width,
@@ -463,7 +463,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
         let config_mipmaps = config.mipmaps;
 
         let gpu_texture = WgpuCell::new_on_thread(move || async move {
-            move_device.0.device.assume(move |device| {
+            move_device.0.device().assume(move |device| {
                 let descriptor = Self::get_texture_descriptor(
                     &texture_debug_name,
                     config_width,
@@ -545,7 +545,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
 
         let texture_debug_name = format!("{}_static", config.debug_name);
         let move_device = bound_device.clone();
-        let move_queue = bound_device.0.queue.clone();
+        let move_queue = bound_device.0.queue().clone();
 
         // Generate texture data
         let pixels = config.width as usize * config.height as usize;
@@ -650,7 +650,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> GPUableTexture2Static<Fo
 
         let gpu_texture = move_device
             .0
-            .device
+            .device()
             .with(move |device| {
                 move_queue.assume(move |q| {
                     let descriptor = Self::get_texture_descriptor(

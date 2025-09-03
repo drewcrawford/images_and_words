@@ -300,7 +300,7 @@ impl BindGroupGuard {
             entries.push(entry);
         }
 
-        let bind_group = bind_device.0.device.assume(|device| {
+        let bind_group = bind_device.0.device().assume(|device| {
             WgpuCell::new(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some(name),
                 layout: bind_group_layout,
