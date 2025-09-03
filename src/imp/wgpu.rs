@@ -12,17 +12,17 @@ mod texture;
 mod unbound_device;
 mod view;
 
-pub use bound_device::BoundDevice;
-pub use buffer::{CopyInfo, GPUableBuffer, GPUableBufferStatic, MappableBuffer2};
-pub use engine::Engine;
-pub use entry_point::EntryPoint;
+pub(crate) use bound_device::BoundDevice;
+pub(crate) use buffer::{CopyInfo, GPUableBuffer, GPUableBufferStatic, MappableBuffer2};
+pub(crate) use engine::Engine;
+pub(crate) use entry_point::EntryPoint;
 pub(crate) use error::Error;
-pub use pixel_format::PixelFormat;
-pub use port::Port;
-pub use texture::RenderSide as TextureRenderSide;
-pub use texture::{GPUableTexture2, GPUableTexture2Static, MappableTexture2};
-pub use unbound_device::UnboundDevice;
-pub use view::View;
+pub(crate) use pixel_format::PixelFormat;
+pub(crate) use port::Port;
+pub(crate) use texture::RenderSide as TextureRenderSide;
+pub(crate) use texture::{GPUableTexture2, GPUableTexture2Static, MappableTexture2};
+pub(crate) use unbound_device::UnboundDevice;
+pub(crate) use view::View;
 
 /**
 A trait for backend-specific synchronization requirements.
