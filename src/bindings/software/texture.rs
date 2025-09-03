@@ -178,7 +178,7 @@ pub struct Texture<Format: PixelFormat> {
 /// assert_eq!(origin.x, 0);
 /// assert_eq!(origin.y, 0);
 /// ```
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Texel {
     /// X coordinate (horizontal position)
     pub x: u16,
@@ -258,6 +258,29 @@ impl Texel {
     }
 }
 
+// Boilerplate
+
+impl Default for Texel {
+    /// Returns the origin texel at coordinates (0, 0).
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+impl From<(u16, u16)> for Texel {
+    /// Creates a texel from a tuple of coordinates.
+    fn from((x, y): (u16, u16)) -> Self {
+        Self { x, y }
+    }
+}
+
+impl std::fmt::Display for Texel {
+    /// Formats the texel as "(x, y)".
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
 /// Normalized texture coordinates in the range [0, 1].
 ///
 /// Normalized coordinates map the entire texture to a unit square, where:
@@ -332,6 +355,32 @@ impl Normalized {
     }
 }
 
+// Boilerplate
+
+impl PartialEq for Normalized {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y
+    }
+}
+
+impl Default for Normalized {
+    /// Returns normalized coordinates at the origin (0.0, 0.0).
+    fn default() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+}
+
+impl From<(f32, f32)> for Normalized {
+    /// Creates normalized coordinates from a tuple.
+    ///
+    /// # Panics
+    ///
+    /// Panics if x or y are outside the range [0, 1].
+    fn from((x, y): (f32, f32)) -> Self {
+        Self::new(x, y)
+    }
+}
+
 /// Trait for pixel types that can be sampled with filtering.
 ///
 /// This trait enables bilinear and other filtering operations on pixel data.
@@ -355,7 +404,13 @@ impl Normalized {
 /// let avg = i32::avg(&samples);
 /// assert_eq!(avg, 175.0);
 /// ```
-pub trait Sampleable: Sized + Clone {
+
+mod sealed {
+    /// Sealed trait to prevent external implementations of Sampleable.
+    pub trait Sealed {}
+}
+
+pub trait Sampleable: Sized + Clone + sealed::Sealed {
     /// The output type of sampling operations.
     /// Usually a floating-point type for smooth interpolation.
     type Sampled;
@@ -367,6 +422,8 @@ pub trait Sampleable: Sized + Clone {
     /// * `elements` - Slice of (weight, value) pairs where weights should sum to 1.0
     fn avg(elements: &[(f32, Self)]) -> Self::Sampled;
 }
+impl sealed::Sealed for f32 {}
+
 impl Sampleable for f32 {
     type Sampled = f32;
 
@@ -379,6 +436,8 @@ impl Sampleable for f32 {
     }
 }
 
+impl sealed::Sealed for i32 {}
+
 impl Sampleable for i32 {
     type Sampled = f32;
 
@@ -390,6 +449,8 @@ impl Sampleable for i32 {
         avg
     }
 }
+
+impl sealed::Sealed for Float4 {}
 
 impl Sampleable for Float4 {
     type Sampled = Float4;
@@ -499,11 +560,13 @@ impl<Format: PixelFormat> Texture<Format> {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// use images_and_words::bindings::software::texture::{Texture, Texel};
     /// use images_and_words::pixel_formats::{RGBA32Float, Float4};
     /// use images_and_words::{Priority, Strategy};
     ///
-    /// test_executors::sleep_on(async {
+    /// # test_executors::spawn_local(async {
     ///     // Create a complex procedural texture in parallel
     ///     let texture = Texture::<RGBA32Float>::new_with_parallel(
     ///         512, 512,
@@ -524,7 +587,8 @@ impl<Format: PixelFormat> Texture<Format> {
     ///     
     ///     assert_eq!(texture.width(), 512);
     ///     assert_eq!(texture.height(), 512);
-    /// });
+    /// }, "software_texture_parallel_doctest");
+    /// # }
     /// ```
     pub async fn new_with_parallel<
         F: Fn(Texel) -> Format::CPixel + Sync + Clone + Send + 'static,
@@ -540,7 +604,7 @@ impl<Format: PixelFormat> Texture<Format> {
             let t = Texel::from_vec_offset(width, index);
             initialize_with(t)
         });
-        let mut clone_box = some_executor::current_executor::current_executor();
+        let mut clone_box = vec_parallel::some_executor::current_executor::current_executor();
 
         let f = build_vec.spawn_on(&mut clone_box, priority, Hint::CPU);
 
@@ -571,16 +635,19 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// ```no_run
     /// # //this is no_run due to file IO
-    /// # async fn example() {
+    /// # #[cfg(feature = "testing")]
+    /// # {
     /// use images_and_words::bindings::software::texture::Texture;
     /// use images_and_words::pixel_formats::RGBA8UnormSRGB;
     /// use std::path::Path;
+    /// # test_executors::spawn_local(async {
     /// # let priority: async_file::Priority = todo!();
     ///
     /// let texture = Texture::<RGBA8UnormSRGB>::new_from_path(
     ///     Path::new("assets/texture.png"),
     ///     priority
     /// ).await;
+    /// # }, "software_texture_doctest");
     /// # }
     /// ```
     pub async fn new_from_path(path: &Path, priority: async_file::Priority) -> Self
@@ -885,3 +952,37 @@ impl<Format: PixelFormat> IndexMut<Texel> for Texture<Format> {
         &mut self.data[index.vec_offset(self.width)]
     }
 }
+
+// Boilerplate for Texture
+
+impl<Format: PixelFormat> Clone for Texture<Format>
+where
+    Format::CPixel: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            width: self.width,
+            height: self.height,
+        }
+    }
+}
+
+impl<Format: PixelFormat> PartialEq for Texture<Format>
+where
+    Format::CPixel: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        // Quick dimension check first
+        if self.width != other.width || self.height != other.height {
+            return false;
+        }
+
+        // Compare all pixel data
+        self.data == other.data
+    }
+}
+
+// Send/Sync: Texture automatically derives Send/Sync based on its fields.
+// Since it contains Vec<Format::CPixel> and u16 values, it will be Send/Sync
+// if and only if Format::CPixel is Send/Sync, which is the correct behavior.

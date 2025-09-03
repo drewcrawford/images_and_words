@@ -33,8 +33,9 @@
 //! # use images_and_words::bindings::visible_to::GPUBufferUsage;
 //! # use images_and_words::images::projection::WorldCoord;
 //! # use images_and_words::images::view::View;
-//! # test_executors::sleep_on(async {
-//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! # test_executors::spawn_local(async {
+//! # let view = View::for_testing();
+//! # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! # let device = engine.bound_device();
 //! // Define a vertex type
 //! #[repr(C)]
@@ -58,7 +59,7 @@
 //!         _ => unreachable!()
 //!     }
 //! ).await.expect("Failed to create buffer");
-//! # });
+//! # }, "static_buffer_creation_doctest");
 //! # }
 //! ```
 //!
@@ -68,7 +69,6 @@
 //! - [`forward::static::Texture`](crate::bindings::forward::static::texture::Texture) - For immutable image data
 //! - [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 
-use crate::bindings::buffer_access::MapType;
 use crate::bindings::forward::dynamic::buffer::CRepr;
 use crate::images::BoundDevice;
 use crate::imp;
@@ -106,8 +106,9 @@ use std::sync::Arc;
 /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
-/// # test_executors::sleep_on(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # test_executors::spawn_local(async {
+/// # let view = View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let device = engine.bound_device();
 /// // Create a buffer of precomputed sine values
 /// let sine_lut = Buffer::new(
@@ -117,12 +118,12 @@ use std::sync::Arc;
 ///     "sine_lookup_table",
 ///     |i| (i as f32 * std::f32::consts::TAU / 256.0).sin()
 /// ).await.expect("Failed to create buffer");
-/// # });
+/// # }, "static_buffer_sine_lut_doctest");
 /// # }
 /// ```
 #[derive(Debug)]
 pub struct Buffer<Element> {
-    pub(crate) imp: imp::GPUableBuffer,
+    pub(crate) imp: imp::GPUableBufferStatic,
     #[allow(dead_code)] //nop implementation does not use
     count: usize,
     element: PhantomData<Element>,
@@ -227,8 +228,9 @@ impl<Element> Buffer<Element> {
     /// # use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
-    /// # test_executors::sleep_on(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # test_executors::spawn_local(async {
+    /// # let view = View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
     /// # let device = engine.bound_device();
     /// // Create an index buffer for a quad (two triangles)
     /// let indices = Buffer::new(
@@ -242,17 +244,15 @@ impl<Element> Buffer<Element> {
     ///         _ => unreachable!()
     ///     }
     /// ).await.expect("Failed to create buffer");
-    /// # });
+    /// # }, "static_buffer_quad_indices_doctest");
     /// # }
     /// ```
     ///
     /// # Implementation Details
     ///
-    /// 1. Creates a CPU-mappable staging buffer
-    /// 2. Initializes the staging buffer using the provided initializer
-    /// 3. Creates the final GPU buffer with the specified usage
-    /// 4. Copies data from staging to GPU buffer
-    /// 5. The staging buffer is automatically cleaned up
+    /// 1. Creates a GPU buffer with `mapped_at_creation=true`
+    /// 2. Initializes the buffer directly during creation using the provided initializer
+    /// 3. No staging buffer or copy operation required (optimized for static data)
     pub async fn new(
         device: Arc<BoundDevice>,
         count: usize,
@@ -264,22 +264,52 @@ impl<Element> Buffer<Element> {
         Element: CRepr,
     {
         let byte_size = std::mem::size_of::<Element>() * count;
-        let mappable = imp::MappableBuffer::new(
-            device.clone(),
+
+        let imp = imp::GPUableBufferStatic::new_with_data(
+            device,
             byte_size,
-            MapType::Write,
+            usage,
             debug_name,
             |bytes| initialize_byte_array_with(count, bytes, initializer),
-        )?;
-
-        let imp = imp::GPUableBuffer::new(device, byte_size, usage, debug_name);
-
-        imp.copy_from_buffer(mappable, 0, 0, byte_size).await;
+        )
+        .await?;
 
         Ok(Self {
             imp,
             count,
             element: PhantomData,
         })
+    }
+}
+
+// Boilerplate
+
+// Clone makes sense here as Buffer represents a shared handle to a GPU resource.
+// Cloning creates another reference to the same underlying buffer, similar to Arc semantics.
+impl<Element> Clone for Buffer<Element> {
+    fn clone(&self) -> Self {
+        Self {
+            imp: self.imp.clone(),
+            count: self.count,
+            element: PhantomData,
+        }
+    }
+}
+
+// Two buffers are equal if they refer to the same underlying GPU resource.
+// Since static buffers contain immutable data, Eq is appropriate (no floating-point values).
+impl<Element> PartialEq for Buffer<Element> {
+    fn eq(&self, other: &Self) -> bool {
+        self.imp == other.imp && self.count == other.count
+    }
+}
+
+impl<Element> Eq for Buffer<Element> {}
+
+// Hash implementation follows from Eq - allows Buffer to be used as HashMap/HashSet keys
+impl<Element> std::hash::Hash for Buffer<Element> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.imp.hash(state);
+        self.count.hash(state);
     }
 }

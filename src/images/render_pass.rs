@@ -119,6 +119,10 @@ impl PassDescriptor {
         &self.bind_style
     }
 }
+
+// Boilerplate
+
+impl Eq for PassDescriptor {}
 /// Specifies how vertices are assembled into triangles for rendering.
 ///
 /// This enum controls the primitive topology - how the GPU interprets the stream
@@ -142,7 +146,7 @@ impl PassDescriptor {
 /// // Vertices: [A, B, C, D, E, F] form triangles: [A,B,C] and [D,E,F]
 /// let draw_quad = DrawCommand::TriangleList(6);
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum DrawCommand {
     /// Draws connected triangles where each vertex after the first two forms a

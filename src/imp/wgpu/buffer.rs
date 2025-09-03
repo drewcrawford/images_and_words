@@ -1,173 +1,45 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
-use crate::bindings::buffer_access::MapType;
+
+//! Buffer copy operations for the wgpu backend.
+//!
+//! This module provides three levels of buffer copying functionality:
+//!
+//! ## Copy Functions Overview
+//!
+//! 1. **`copy_from_buffer_internal`** - Low-level unsafe implementation
+//!    - Records copy command without resource management
+//!    - Used internally by higher-level functions
+//!    - Requires manual lifetime and synchronization management
+//!
+//! 2. **`copy_from_buffer`** - Standalone async operation
+//!    - Takes ownership of source buffer for lifetime safety
+//!    - Creates own command encoder and waits for completion
+//!    - Best for one-off operations like static buffer initialization
+//!
+//! 3. **`copy_mappable_to_gpuable_buffer`** - Batched render pipeline operation  
+//!    - Uses existing command encoder from render pipeline
+//!    - Allows batching multiple copies for efficiency
+//!    - Best for dynamic buffer updates during render passes
+//!
+//! ## Usage Guidelines
+//!
+//! - Use `copy_from_buffer` when you need guaranteed completion and can transfer ownership
+//! - Use `copy_mappable_to_gpuable_buffer` when batching operations in render pipelines
+//! - The choice depends on whether you need immediate completion vs. batched efficiency
+
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
-use std::mem::MaybeUninit;
+use crate::imp::wgpu::cell::WgpuCell;
+use crate::imp::wgpu::context::{smuggle, smuggle_async};
 use std::sync::Arc;
-use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder, Label, MaintainBase};
+use wgpu::MapMode;
+use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder};
 
 /**
-A buffer that can be mapped onto the host.
+Backend-specific information for copying between buffers.
 */
-#[derive(Debug)]
-pub struct MappableBuffer {
-    //not actually static!
-    mapped: Option<(*const u8, usize)>,
-    mapped_mut: Option<(*mut u8, usize)>,
-
-    pub(super) buffer: wgpu::Buffer,
-    bound_device: Arc<BoundDevice>,
-}
-//ignore the mapped raw pointers!
-unsafe impl Send for MappableBuffer {}
-unsafe impl Sync for MappableBuffer {}
-
-impl MappableBuffer {
-    pub(crate) fn new<Initializer: FnOnce(&mut [MaybeUninit<u8>]) -> &[u8]>(
-        bound_device: Arc<crate::images::BoundDevice>,
-        requested_size: usize,
-        map_type: crate::bindings::buffer_access::MapType,
-        debug_name: &str,
-        initialize_with: Initializer,
-    ) -> Result<Self, crate::imp::Error> {
-        let buffer_usage = match map_type {
-            MapType::Read => BufferUsages::MAP_READ,
-            MapType::Write => BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC,
-        };
-
-        //I think in order to make wgpu happy we need to round up to the nearest COPY_BUFFER_ALIGNMENT
-        let allocated_size = (requested_size as u64 + wgpu::COPY_BUFFER_ALIGNMENT - 1)
-            & !(wgpu::COPY_BUFFER_ALIGNMENT - 1);
-
-        let descriptor = BufferDescriptor {
-            label: Some(debug_name),
-            size: allocated_size,
-            usage: buffer_usage,
-            mapped_at_creation: true,
-        };
-        let buffer = bound_device.0.device.create_buffer(&descriptor);
-
-        //data we access is only up to the requested size, omitting any padding
-        let mut entire_map = buffer.slice(..).get_mapped_range_mut();
-
-        let map_entire_view = entire_map.as_mut();
-        //ensure we only access the requested size
-        let map_requested_view = &mut map_entire_view[..requested_size];
-        //These bytes are probably uninitialized and we should represent that to callers
-        let map_view: &mut [MaybeUninit<u8>] = unsafe { std::mem::transmute(map_requested_view) };
-        let map_view_ptr = map_view.as_ptr();
-        let map_view_len = map_view.len();
-        //initialize them
-        let initialized = initialize_with(map_view);
-
-        //very dumb check that they were the same pointer
-        assert_eq!(initialized.as_ptr(), map_view_ptr as *const u8);
-        //and have same length as requested
-        assert_eq!(initialized.len(), map_view_len);
-        std::mem::drop(entire_map);
-
-        buffer.unmap();
-        Ok(MappableBuffer {
-            buffer,
-            mapped: None,
-            mapped_mut: None,
-            bound_device,
-        })
-    }
-
-    pub fn as_slice(&self) -> &[u8] {
-        unsafe {
-            let (ptr, len) = self.mapped.as_ref().expect("Map first");
-            std::slice::from_raw_parts(*ptr, *len)
-        }
-    }
-
-    pub fn write(&mut self, data: &[u8], dst_offset: usize) {
-        unsafe {
-            let (ptr, len) = self.mapped_mut.as_ref().expect("Map first");
-            assert!(*len >= data.len() + dst_offset, "Buffer too small");
-            std::ptr::copy(data.as_ptr(), (*ptr).add(dst_offset), data.len());
-        }
-    }
-
-    pub async fn map_read(&mut self) {
-        let (s, r) = r#continue::continuation();
-        let slice = self.buffer.slice(..);
-
-        slice.map_async(wgpu::MapMode::Read, |r| {
-            r.unwrap();
-            s.send(());
-        });
-        self.bound_device
-            .0
-            .device
-            .poll(MaintainBase::Wait)
-            .expect("Poll failed");
-        r.await;
-        let range = slice.get_mapped_range();
-        self.mapped = Some((range.as_ptr(), range.len()));
-    }
-    pub async fn map_write(&mut self) {
-        let (s, r) = r#continue::continuation();
-        let slice = self.buffer.slice(..);
-        slice.map_async(wgpu::MapMode::Write, |r| {
-            r.unwrap();
-            s.send(());
-        });
-
-        // Use blocking poll to wait for map completion, avoiding VSync timing issues
-        self.bound_device
-            .0
-            .device
-            .poll(MaintainBase::Wait)
-            .expect("Poll failed");
-        r.await;
-        let mut range = slice.get_mapped_range_mut();
-        self.mapped_mut = Some((range.as_mut_ptr(), range.len()));
-    }
-    pub fn unmap(&mut self) {
-        self.buffer.unmap();
-        self.mapped = None;
-        self.mapped_mut = None;
-    }
-
-    pub fn byte_len(&self) -> usize {
-        self.buffer.size() as usize
-    }
-}
-
-impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
-    async fn map_read(&mut self) {
-        self.map_read().await
-    }
-
-    async fn map_write(&mut self) {
-        self.map_write().await
-    }
-
-    fn unmap(&mut self) {
-        self.unmap()
-    }
-
-    fn byte_len(&self) -> usize {
-        self.byte_len()
-    }
-}
-
-impl AsRef<MappableBuffer> for MappableBuffer {
-    fn as_ref(&self) -> &MappableBuffer {
-        self
-    }
-}
-
-/**
-A buffer that can (only) be mapped to GPU.
-*/
-#[derive(Debug, Clone)]
-pub struct GPUableBuffer {
-    pub(super) buffer: wgpu::Buffer,
-    bound_device: Arc<BoundDevice>,
-    storage_type: StorageType,
+pub struct CopyInfo<'a> {
+    pub(crate) command_encoder: &'a mut CommandEncoder,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -178,53 +50,180 @@ pub(super) enum StorageType {
     Index,
 }
 
+/**
+A simplified buffer that can be mapped onto the host using only Box<[u8]>.
+Unlike MappableBuffer, this doesn't use any wgpu types.
+*/
+#[derive(Debug)]
+pub struct MappableBuffer2 {
+    internal_buffer: Box<[u8]>,
+    _debug_label: String,
+}
+
+impl MappableBuffer2 {
+    pub async fn new<Initializer: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
+        _bound_device: Arc<crate::images::BoundDevice>,
+        requested_size: usize,
+        _map_type: crate::bindings::buffer_access::MapType,
+        debug_name: &str,
+        initialize_with: Initializer,
+    ) -> Result<Self, crate::imp::Error> {
+        let mut data = vec![std::mem::MaybeUninit::uninit(); requested_size];
+        let data_ptr = data.as_ptr();
+        let initialized = initialize_with(&mut data);
+
+        // Safety: we ensure that the data is initialized and has the correct length
+        // Very dumb check that they were the same pointer
+        assert_eq!(initialized.as_ptr(), data_ptr as *const u8);
+        // And have same length as requested
+        assert_eq!(initialized.len(), data.len());
+
+        // Convert to Vec<u8>
+        let initialized_data =
+            unsafe { std::mem::transmute::<Vec<std::mem::MaybeUninit<u8>>, Vec<u8>>(data) };
+        let internal_buffer = initialized_data.into_boxed_slice();
+
+        Ok(MappableBuffer2 {
+            internal_buffer,
+            _debug_label: debug_name.to_string(),
+        })
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        self.internal_buffer.as_ref()
+    }
+
+    pub fn write(&mut self, data: &[u8], dst_offset: usize) {
+        assert!(
+            dst_offset + data.len() <= self.internal_buffer.len(),
+            "Write out of bounds"
+        );
+        let slice = &mut self.internal_buffer[dst_offset..dst_offset + data.len()];
+        slice.copy_from_slice(data);
+    }
+
+    pub async fn map_write(&mut self) {
+        // Since we use a CPU view, this is a no-op
+    }
+
+    pub fn unmap(&mut self) {
+        // No-op as requested - we don't use wgpu types
+    }
+}
+
+impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer2 {
+    // async fn map_read(&mut self) {
+    //     self.map_read().await
+    // }
+
+    async fn map_write(&mut self) {
+        self.map_write().await
+    }
+
+    fn unmap(&mut self) {
+        self.unmap();
+    }
+
+    // fn byte_len(&self) -> usize {
+    //     self.byte_len()
+    // }
+}
+
+impl AsRef<MappableBuffer2> for MappableBuffer2 {
+    fn as_ref(&self) -> &MappableBuffer2 {
+        self
+    }
+}
+
+/**
+A buffer that holds two wgpu::Buffers for explicit staging operations.
+Contains a staging buffer with MAPPABLE | COPY_SRC and a private device buffer.
+*/
+#[derive(Debug, Clone)]
+pub struct GPUableBuffer {
+    staging_buffer: WgpuCell<wgpu::Buffer>,
+    device_buffer: WgpuCell<wgpu::Buffer>,
+    bound_device: Arc<BoundDevice>,
+    storage_type: StorageType,
+}
+
 impl PartialEq for GPUableBuffer {
-    fn eq(&self, _other: &Self) -> bool {
-        self.buffer == _other.buffer
+    fn eq(&self, other: &Self) -> bool {
+        self.device_buffer == other.device_buffer
     }
 }
 
 impl GPUableBuffer {
-    //only visible to wgpu backend
-    pub(super) fn new_imp(
+    pub(super) async fn new_imp(
         bound_device: Arc<crate::images::BoundDevice>,
         size: usize,
         debug_name: &str,
         storage_type: StorageType,
     ) -> Self {
-        let forward_flags = BufferUsages::COPY_DST;
-        let usage_type_only = match storage_type {
-            StorageType::Uniform => BufferUsages::UNIFORM,
-            StorageType::Storage => BufferUsages::STORAGE,
-            StorageType::Vertex => BufferUsages::VERTEX,
-            StorageType::Index => BufferUsages::INDEX,
-        };
-        let usage_type = usage_type_only | forward_flags;
-        let descriptor = BufferDescriptor {
-            label: Some(debug_name),
-            size: size as u64,
-            usage: usage_type,
-            mapped_at_creation: false,
-        };
-        let buffer = bound_device.0.device.create_buffer(&descriptor);
+        let staging_usage = BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC;
+        let device_usage = BufferUsages::COPY_DST
+            | match storage_type {
+                StorageType::Uniform => BufferUsages::UNIFORM,
+                StorageType::Storage => BufferUsages::STORAGE,
+                StorageType::Vertex => BufferUsages::VERTEX,
+                StorageType::Index => BufferUsages::INDEX,
+            };
+
+        let staging_debug_name = format!("{debug_name}_staging");
+        let device_debug_name = format!("{debug_name}_device");
+        let move_device = bound_device.clone();
+        let move_device2 = bound_device.clone();
+
+        // Create staging buffer
+        let staging_buffer = WgpuCell::new_on_thread(move || async move {
+            move_device.0.device().assume(move |device| {
+                let descriptor = BufferDescriptor {
+                    label: Some(&staging_debug_name),
+                    size: size as u64,
+                    usage: staging_usage,
+                    mapped_at_creation: false,
+                };
+                device.create_buffer(&descriptor)
+            })
+        })
+        .await;
+
+        // Create device buffer
+        let device_buffer = WgpuCell::new_on_thread(move || async move {
+            move_device2.0.device().assume(move |device| {
+                let descriptor = BufferDescriptor {
+                    label: Some(&device_debug_name),
+                    size: size as u64,
+                    usage: device_usage,
+                    mapped_at_creation: false,
+                };
+                device.create_buffer(&descriptor)
+            })
+        })
+        .await;
+
         GPUableBuffer {
-            buffer,
+            staging_buffer,
+            device_buffer,
             bound_device,
             storage_type,
         }
     }
-    pub(crate) fn new(
+
+    pub(crate) async fn new(
         bound_device: Arc<crate::images::BoundDevice>,
         size: usize,
         usage: GPUBufferUsage,
         debug_name: &str,
     ) -> Self {
-        let storage_type = match usage {
+        let debug_name = debug_name.to_string();
+        let move_bound_device = bound_device.clone();
+        let storage_type = smuggle("create buffer".to_string(), move || match usage {
             GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
-                if bound_device
+                if move_bound_device
                     .0
-                    .device
-                    .limits()
+                    .device()
+                    .assume(|c| c.limits())
                     .max_uniform_buffer_binding_size as usize
                     > size
                 {
@@ -235,98 +234,232 @@ impl GPUableBuffer {
             }
             GPUBufferUsage::VertexBuffer => StorageType::Vertex,
             GPUBufferUsage::Index => StorageType::Index,
-        };
-        Self::new_imp(bound_device, size, debug_name, storage_type)
+        })
+        .await;
+
+        Self::new_imp(bound_device, size, &debug_name, storage_type).await
     }
+
     pub(super) fn storage_type(&self) -> StorageType {
         self.storage_type
     }
-    /// Copy from buffer, taking the source buffer to ensure it lives long enough
-    ///
-    /// This creates a command encoder to do the copy.
-    ///
-    /// This function suspends until the copy operation is completed.
-    pub(crate) async fn copy_from_buffer(
-        &self,
-        source: MappableBuffer,
-        source_offset: usize,
-        dest_offset: usize,
-        copy_len: usize,
-    ) {
-        let mut encoder =
-            self.bound_device
-                .0
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Label::from("wgpu::GPUableBuffer::copy_from_buffer"),
-                });
-        //safety: we take the source, so nobody can deallocate it
-        unsafe {
-            self.copy_from_buffer_internal(
-                &source,
-                source_offset,
-                dest_offset,
-                copy_len,
-                &mut encoder,
-            )
-        }
 
-        let command = encoder.finish();
-        let submission_index = self.bound_device.0.queue.submit(std::iter::once(command));
-        let (s, r) = r#continue::continuation();
-        self.bound_device.0.queue.on_submitted_work_done(|| {
-            s.send(());
-        });
-        self.bound_device
-            .0
-            .device
-            .poll(MaintainBase::WaitForSubmissionIndex(submission_index))
-            .expect("Poll failed");
-        r.await;
+    #[allow(dead_code)]
+    pub(super) fn device_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+        &self.device_buffer
     }
-    /**
-    copies from the source buffer to this buffer
 
-    # Warning
-    This does no resource tracking - ensure that the source buffer is not deallocated before the copy is complete!
-    */
-    unsafe fn copy_from_buffer_internal(
+    /// Get a reference to the device buffer for GPU operations.
+    /// This is the buffer that should be used for binding to shaders.
+    pub(super) fn buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+        &self.device_buffer
+    }
+
+    /// Copy from a MappableBuffer2 to this GPUableBuffer2 using a CommandEncoder.
+    ///
+    /// This operation:
+    /// 1. Maps the staging buffer
+    /// 2. Copies data from MappableBuffer2 into the staging buffer
+    /// 3. Unmaps the staging buffer
+    /// 4. Schedules the copy from staging to device buffer with the encoder
+    ///
+    /// # Arguments
+    /// * `source` - The MappableBuffer2 to copy from
+    /// * `command_encoder` - The CommandEncoder to record the copy operation
+    pub(crate) async fn copy_from_mappable_buffer2(
         &self,
-        source: &MappableBuffer,
-        source_offset: usize,
-        dest_offset: usize,
-        copy_len: usize,
+        source: &MappableBuffer2,
         command_encoder: &mut CommandEncoder,
     ) {
-        command_encoder.copy_buffer_to_buffer(
-            &source.buffer,
-            source_offset as u64,
-            &self.buffer,
-            dest_offset as u64,
-            copy_len as u64,
-        );
+        let bound_device = self.bound_device.clone();
+        let staging_buffer_for_mapping = self.staging_buffer.clone();
+        let source_data = source.as_slice();
+        let copy_len = source_data.len();
+
+        // Copy the source data to avoid borrowing issues
+        let source_data_owned = source_data.to_vec();
+
+        // We need to capture the command encoder in a way that can be moved into the smuggle block
+        // Since we can't move the mutable reference, we'll record the copy command immediately
+        // but ensure it happens after the staging buffer is ready
+
+        smuggle_async(
+            "copy_from_mappable_buffer2".to_string(),
+            move || async move {
+                // Map the staging buffer
+                let specified_length = copy_len as u64;
+                let (s, r) = r#continue::continuation();
+                staging_buffer_for_mapping.assume(|buffer| {
+                    buffer.map_async(MapMode::Write, 0..specified_length, |c| {
+                        c.unwrap();
+                        s.send(());
+                    });
+                });
+
+                // Signal the polling thread that we need to poll
+                bound_device.0.set_needs_poll();
+                r.await;
+
+                // Copy data into the staging buffer
+                staging_buffer_for_mapping.assume(|buffer| {
+                    let mut entire_map = buffer.slice(0..specified_length).get_mapped_range_mut();
+                    entire_map.copy_from_slice(&source_data_owned);
+                    drop(entire_map);
+                    buffer.unmap();
+                });
+            },
+        )
+        .await;
+
+        // Now that the staging buffer is ready, schedule the copy from staging to device buffer
+        self.staging_buffer.assume(|staging| {
+            self.device_buffer.assume(|device| {
+                command_encoder.copy_buffer_to_buffer(staging, 0, device, 0, copy_len as u64);
+            });
+        });
     }
 }
 
 /**
-Backend-specific information for copying between buffers.
+A static buffer that holds only a single device wgpu::Buffer.
+Like GPUableBuffer2 but without the staging buffer - for static data that doesn't change.
 */
-pub struct CopyInfo<'a> {
-    pub(crate) command_encoder: &'a mut CommandEncoder,
-}
-//wrap the underlying guard type, no particular reason
-#[derive(Debug)]
-#[must_use = "Ensure this guard lives for the lifetime of the copy!"]
-pub struct CopyGuard<SourceGuard> {
-    #[allow(dead_code)] //guards work on drop
-    source_guard: SourceGuard,
-    gpu_buffer: GPUableBuffer,
+#[derive(Debug, Clone)]
+pub struct GPUableBufferStatic {
+    device_buffer: WgpuCell<wgpu::Buffer>,
+    #[allow(dead_code)]
+    bound_device: Arc<BoundDevice>,
+    storage_type: StorageType,
 }
 
-impl<SourceGuard> AsRef<GPUableBuffer> for CopyGuard<SourceGuard> {
-    fn as_ref(&self) -> &GPUableBuffer {
-        &self.gpu_buffer
+impl PartialEq for GPUableBufferStatic {
+    fn eq(&self, other: &Self) -> bool {
+        self.device_buffer == other.device_buffer
     }
 }
 
-//I don't think we need to do anything wgpu-specific on CopyGuard's Drop here?
+impl Eq for GPUableBufferStatic {}
+
+impl std::hash::Hash for GPUableBufferStatic {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.device_buffer.hash(state);
+    }
+}
+
+impl GPUableBufferStatic {
+    pub(super) fn storage_type(&self) -> StorageType {
+        self.storage_type
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn device_buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+        &self.device_buffer
+    }
+
+    /// Get a reference to the device buffer for GPU operations.
+    /// This is the buffer that should be used for binding to shaders.
+    pub(super) fn buffer(&self) -> &WgpuCell<wgpu::Buffer> {
+        &self.device_buffer
+    }
+
+    /// Creates a new static buffer with initial data provided during creation.
+    ///
+    /// This method creates a GPU buffer with `mapped_at_creation=true` and initializes
+    /// it with data using the provided initializer function. This is the most efficient
+    /// way to create static buffers since it avoids the need for a separate staging buffer
+    /// and copy operation.
+    ///
+    /// # Arguments
+    /// * `bound_device` - The GPU device to create the buffer on
+    /// * `size` - Size of the buffer in bytes
+    /// * `usage` - How the buffer will be used on the GPU
+    /// * `debug_name` - Human-readable name for debugging
+    /// * `initializer` - Function to initialize the buffer data
+    ///
+    /// # Returns
+    /// Returns a `GPUableBuffer2Static` with the initialized data.
+    pub(crate) async fn new_with_data<I: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
+        bound_device: Arc<crate::images::BoundDevice>,
+        size: usize,
+        usage: GPUBufferUsage,
+        debug_name: &str,
+        initializer: I,
+    ) -> Result<Self, crate::imp::Error> {
+        let debug_name = debug_name.to_string();
+        let move_bound_device = bound_device.clone();
+        let storage_type = smuggle(
+            "create static buffer with data".to_string(),
+            move || match usage {
+                GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
+                    if move_bound_device
+                        .0
+                        .device()
+                        .assume(|c| c.limits())
+                        .max_uniform_buffer_binding_size as usize
+                        > size
+                    {
+                        StorageType::Uniform
+                    } else {
+                        StorageType::Storage
+                    }
+                }
+                GPUBufferUsage::VertexBuffer => StorageType::Vertex,
+                GPUBufferUsage::Index => StorageType::Index,
+            },
+        )
+        .await;
+
+        let device_usage = BufferUsages::COPY_DST
+            | match storage_type {
+                StorageType::Uniform => BufferUsages::UNIFORM,
+                StorageType::Storage => BufferUsages::STORAGE,
+                StorageType::Vertex => BufferUsages::VERTEX,
+                StorageType::Index => BufferUsages::INDEX,
+            };
+
+        let device_debug_name = format!("{debug_name}_static_with_data");
+        let move_device = bound_device.clone();
+
+        // Prepare data for initialization
+        let mut data = vec![std::mem::MaybeUninit::uninit(); size];
+        let data_ptr = data.as_ptr();
+        let initialized = initializer(&mut data);
+
+        // Safety: we ensure that the data is initialized and has the correct length
+        assert_eq!(initialized.as_ptr(), data_ptr as *const u8);
+        assert_eq!(initialized.len(), size);
+
+        // Convert to Vec<u8>
+        let initialized_data =
+            unsafe { std::mem::transmute::<Vec<std::mem::MaybeUninit<u8>>, Vec<u8>>(data) };
+        let internal_buffer = std::sync::Arc::new(initialized_data.into_boxed_slice());
+        let _move_internal_buffer = internal_buffer.clone();
+
+        // Create device buffer with mapped_at_creation=true for direct initialization
+        let device_buffer = WgpuCell::new_on_thread(move || async move {
+            move_device.0.device().assume(move |device| {
+                let descriptor = BufferDescriptor {
+                    label: Some(&device_debug_name),
+                    size: size as u64,
+                    usage: device_usage,
+                    mapped_at_creation: true,
+                };
+                let buffer = device.create_buffer(&descriptor);
+                let mut entire_map = buffer.slice(0..size as u64).get_mapped_range_mut();
+                // Copy all data
+                entire_map.copy_from_slice(&internal_buffer);
+                drop(internal_buffer);
+                drop(entire_map);
+                buffer.unmap();
+                buffer
+            })
+        })
+        .await;
+
+        Ok(GPUableBufferStatic {
+            device_buffer,
+            bound_device,
+            storage_type,
+        })
+    }
+}

@@ -46,6 +46,7 @@
 //!
 //! These components work together to prepare geometry data for GPU consumption.
 
+pub use engine::CreateError;
 pub use engine::Engine;
 
 pub mod render_pass;
@@ -59,6 +60,7 @@ pub(crate) mod camera;
 mod frame;
 pub mod index_algorithms;
 pub mod projection;
+pub(crate) mod request_animation_frame;
 pub mod shader;
 pub mod vertex_algorithms;
 pub mod vertex_layout;

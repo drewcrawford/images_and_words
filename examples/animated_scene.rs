@@ -43,32 +43,31 @@
 //! cargo run --example animated_scene --features=backend_wgpu,testing
 //! ```
 
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::BindStyle;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::bind_style::{BindSlot, Stage};
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::forward::dynamic::buffer::{Buffer, CRepr};
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::bindings::visible_to::GPUBufferUsage;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::Engine;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::projection::WorldCoord;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::render_pass::{DrawCommand, PassDescriptor};
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::shader::{FragmentShader, VertexShader};
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use images_and_words::images::view::View;
-#[cfg(any(feature = "app_window", feature = "testing"))]
 use std::sync::Arc;
+
+use some_executor::task::{Configuration, Task};
+#[cfg(not(target_arch = "wasm32"))]
+use std::thread;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::{Duration, Instant};
+#[cfg(target_arch = "wasm32")]
+use wasm_thread as thread;
+#[cfg(target_arch = "wasm32")]
+use web_time::{Duration, Instant};
 
 /// Animation parameters passed to shaders each frame.
 ///
 /// This structure contains all the time-based parameters needed for animation,
 /// including the current time, frame count, and derived animation values.
-#[cfg(any(feature = "app_window", feature = "testing"))]
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct AnimationUniforms {
@@ -82,7 +81,6 @@ struct AnimationUniforms {
     cosine_time: f32,
 }
 
-#[cfg(any(feature = "app_window", feature = "testing"))]
 unsafe impl CRepr for AnimationUniforms {}
 
 /// WGSL vertex shader for animated scene with procedural geometry.
@@ -90,7 +88,6 @@ unsafe impl CRepr for AnimationUniforms {}
 /// This shader generates animated triangle vertices procedurally using the vertex index,
 /// similar to simple_scene but with dynamic animation parameters from uniform buffers.
 /// It applies multiple transformations based on real-time animation data.
-#[cfg(any(feature = "app_window", feature = "testing"))]
 const ANIMATED_VERTEX_SHADER: &str = r#"
 struct AnimationUniforms {
     time: f32,
@@ -182,7 +179,6 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 /// The fragment shader receives interpolated colors from the vertex shader
 /// and outputs them with basic processing. Animation effects are primarily
 /// handled in the vertex shader.
-#[cfg(any(feature = "app_window", feature = "testing"))]
 const ANIMATED_FRAGMENT_SHADER: &str = r#"
 @fragment
 fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
@@ -192,48 +188,32 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 
 /// Main entry point for the animated scene example.
 ///
-/// Supports both windowed and testing modes like the simple_scene example,
-/// but with enhanced animation capabilities using dynamic buffers.
+/// Creates a window and renders animated scene with dynamic buffers.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Starting animated scene example with dynamic buffers...");
+    logwise::info_sync!("Starting animated scene example with dynamic buffers...");
 
-    #[cfg(feature = "app_window")]
-    {
-        app_window::application::main(|| {
-            app_window::application::submit_to_main_thread(|| {
-                app_window::executor::already_on_main_thread_submit(run_app_window_example())
-            })
-        });
-        Ok(())
-    }
+    app_window::application::main(|| {
+        logwise::info_sync!("Inside app_window::application::main() closure");
 
-    #[cfg(all(not(feature = "app_window"), any(test, feature = "testing")))]
-    {
-        // Testing Mode: Use virtual surface for headless testing
-        println!("app_window feature not enabled, using test view...");
-        test_executors::sleep_on(run_testing_example())
-    }
-
-    #[cfg(all(not(feature = "app_window"), not(any(test, feature = "testing"))))]
-    {
-        println!(
-            "This example requires either the 'app_window' or 'testing' feature to be enabled."
-        );
-        println!("Run with: cargo run --example animated_scene --features=backend_wgpu,app_window");
-        println!(
-            "Or for testing: cargo run --example animated_scene --features=backend_wgpu,testing"
-        );
-        Ok(())
-    }
+        _ = thread::Builder::new().spawn(|| {
+            logwise::info_sync!("Inside spawned thread, about to create Task");
+            Task::without_notifications(
+                "animated_scene".to_string(),
+                Configuration::default(),
+                run_app_window_example(),
+            )
+            .spawn_static_current()
+        })
+    });
+    Ok(())
 }
 
-/// App Window Mode: Creates and renders animated scene to an actual window.
-#[cfg(feature = "app_window")]
+/// Creates and renders animated scene to an actual window.
 async fn run_app_window_example() {
     use app_window::coordinates::{Position, Size};
     use app_window::window::Window;
 
-    println!("Creating window for animated scene...");
+    logwise::info_sync!("Creating window for animated scene...");
     let mut window = Window::new(
         Position::default(),
         Size::new(800.0, 600.0),
@@ -243,10 +223,10 @@ async fn run_app_window_example() {
 
     let surface = window.surface().await;
 
-    println!("Creating view from surface...");
+    logwise::info_sync!("Creating view from surface...");
     let view = View::from_surface(surface).expect("View creation failed");
 
-    println!("Creating graphics engine...");
+    logwise::info_sync!("Creating graphics engine...");
     let initial_camera_position = WorldCoord::new(0.0, 0.0, 2.0);
     let engine_arc = Engine::rendering_to(view, initial_camera_position)
         .await
@@ -256,22 +236,8 @@ async fn run_app_window_example() {
         .await
         .expect("Engine creation failed");
 
-    println!("Keeping window alive during rendering...");
+    logwise::info_sync!("Keeping window alive during rendering...");
     drop(window);
-}
-
-/// Testing Mode: Renders animated scene without creating a window.
-#[cfg(all(not(feature = "app_window"), any(test, feature = "testing")))]
-async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
-    let view = View::for_testing();
-
-    println!("Creating graphics engine...");
-    let initial_camera_position = WorldCoord::new(0.0, 0.0, 2.0);
-    let engine = Engine::rendering_to(view, initial_camera_position)
-        .await
-        .expect("Failed to create engine");
-
-    run_animated_rendering_with_engine_arc(engine).await
 }
 
 /// Core animated rendering pipeline using dynamic uniform buffers.
@@ -282,19 +248,18 @@ async fn run_testing_example() -> Result<(), Box<dyn std::error::Error>> {
 /// 3. **Resource Binding**: Binds dynamic uniform buffer to shader binding points
 /// 4. **Animation Loop**: Updates buffer each frame with new animation data
 /// 5. **Render Execution**: Draws animated geometry with proper timing
-#[cfg(any(feature = "app_window", feature = "testing"))]
 async fn run_animated_rendering_with_engine_arc(
     engine: Arc<Engine>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let device = engine.bound_device();
 
-    println!("Creating animated shaders...");
+    logwise::info_sync!("Creating animated shaders...");
     let vertex_shader = VertexShader::new("animated_vertex", ANIMATED_VERTEX_SHADER.to_string());
     let fragment_shader =
         FragmentShader::new("animated_fragment", ANIMATED_FRAGMENT_SHADER.to_string());
 
     // Step 1: Create dynamic uniform buffer for animation parameters
-    println!("Creating dynamic uniform buffer...");
+    logwise::info_sync!("Creating dynamic uniform buffer...");
     let uniform_buffer = Buffer::<AnimationUniforms>::new(
         device.clone(),
         1, // Single uniform struct
@@ -307,17 +272,18 @@ async fn run_animated_rendering_with_engine_arc(
             cosine_time: 1.0,
         },
     )
+    .await
     .expect("Failed to create uniform buffer");
 
     // Step 2: Create bind style and bind dynamic uniform buffer
-    println!("Setting up resource bindings...");
+    logwise::info_sync!("Setting up resource bindings...");
     let mut bind_style = BindStyle::new();
 
     // Bind animation uniforms to binding 0 (accessible to vertex stage)
     bind_style.bind_dynamic_buffer(BindSlot::new(0), Stage::Vertex, &uniform_buffer);
 
     // Step 3: Create render pass descriptor
-    println!("Creating animated render pass...");
+    logwise::info_sync!("Creating animated render pass...");
     let pass_descriptor = PassDescriptor::new(
         "animated_pass".to_string(),
         vertex_shader,
@@ -329,20 +295,24 @@ async fn run_animated_rendering_with_engine_arc(
     );
 
     // Step 4: Register render pass with engine
-    println!("Adding render pass to engine...");
+    logwise::info_sync!("Adding render pass to engine...");
     let mut port = engine.main_port_mut();
     port.add_fixed_pass(pass_descriptor).await;
 
     // Step 5: Animation loop with dynamic buffer updates
-    println!("Starting animation loop...");
-    println!("Rendering complex animated scene with dynamic colors and transformations...");
+    logwise::info_sync!("Starting animation loop...");
+    logwise::info_sync!(
+        "Rendering complex animated scene with dynamic colors and transformations..."
+    );
 
     let mut frame_count = 0u32;
     let max_frames = 600; // 10 seconds at 60fps
-    let start_time = std::time::Instant::now();
+    let start_time = Instant::now();
 
     while frame_count < max_frames {
         let elapsed = start_time.elapsed().as_secs_f32();
+        // Render the frame
+        port.force_render().await;
 
         // Update animation uniforms each frame
         {
@@ -354,28 +324,27 @@ async fn run_animated_rendering_with_engine_arc(
                 cosine_time: elapsed.cos(),
             };
             uniform_guard.write(&[animation_data], 0);
-            // Guard automatically marks buffer as dirty when dropped
+            // Properly async drop the guard to unmap the resource
         }
 
-        // Render the frame
-        port.force_render().await;
         frame_count += 1;
 
         // Progress reporting
         if frame_count % 60 == 0 {
-            println!(
-                "Rendered {} animated frames (time: {:.2}s)",
-                frame_count, elapsed
+            logwise::info_sync!(
+                "Rendered {frame_count} animated frames (time: {secs}s)",
+                frame_count = frame_count,
+                secs = elapsed
             );
         }
 
         // Frame rate limiting: target 60fps
-        portable_async_sleep::async_sleep(std::time::Duration::from_millis(16)).await;
+        portable_async_sleep::async_sleep(Duration::from_millis(16)).await;
     }
 
-    println!(
-        "Animation complete! Rendered {} frames with dynamic buffers.",
-        frame_count
+    logwise::info_sync!(
+        "Animation complete! Rendered {frame} frames with dynamic buffers.",
+        frame = frame_count
     );
     Ok(())
 }

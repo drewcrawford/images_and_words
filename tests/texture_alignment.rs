@@ -1,5 +1,15 @@
-#![cfg(all(feature = "testing", feature = "backend_wgpu"))]
+#![cfg(feature = "backend_wgpu")]
 
+//for the time being, wasm_thread only works in browser
+//see https://github.com/rustwasm/wasm-bindgen/issues/4534,
+//though we also need wasm_thread support.
+#[cfg(target_arch = "wasm32")]
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
+use futures::FutureExt;
 use images_and_words::Priority;
 use images_and_words::bindings::BindStyle;
 use images_and_words::bindings::bind_style::{BindSlot, Stage};
@@ -13,48 +23,33 @@ use images_and_words::images::shader::{FragmentShader, VertexShader};
 use images_and_words::images::view::View;
 use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 use std::sync::Arc;
+use test_executors::async_test;
 
-/// Test that reproduces the COPY_BYTES_PER_ROW_ALIGNMENT error on Windows.
-///
-/// This test creates a texture with a width that results in a bytes_per_row
-/// that is NOT a multiple of 256 (wgpu's COPY_BYTES_PER_ROW_ALIGNMENT).
-///
-/// For example, with RGBA8 format (4 bytes per pixel):
-/// - Width 100 → 400 bytes per row (not divisible by 256)
-/// - Width 63 → 252 bytes per row (not divisible by 256)
-///
-/// The error occurs when copy_texture_internal tries to copy from the
-/// MappableTexture to the GPUableTexture without proper alignment.
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
+#[async_test]
 async fn test_texture_alignment_error_width_100() {
     println!("=== Testing texture alignment error with width 100 ===");
     test_problematic_width(100).await;
 }
 
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
+#[async_test]
 async fn test_texture_alignment_error_width_63() {
     println!("=== Testing texture alignment error with width 63 ===");
     test_problematic_width(63).await;
 }
 
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
+#[async_test]
 async fn test_texture_alignment_error_width_150() {
     println!("=== Testing texture alignment error with width 150 ===");
     test_problematic_width(150).await;
 }
 
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
+#[async_test]
 async fn test_texture_alignment_ok_width_64() {
     println!("=== Testing properly aligned texture with width 64 ===");
     test_problematic_width(64).await; // 64 * 4 = 256, which is aligned
 }
 
-#[test_executors::async_test]
-#[cfg(feature = "backend_wgpu")]
+#[async_test]
 async fn test_texture_alignment_ok_width_128() {
     println!("=== Testing properly aligned texture with width 128 ===");
     test_problematic_width(128).await; // 128 * 4 = 512, which is aligned
@@ -159,35 +154,52 @@ async fn test_problematic_width(width: u16) {
     ))
     .await;
 
+    //pump renderloop
+    port.force_render().await;
+
     // Write some data to the texture to mark it as dirty
     println!("Writing data to texture to mark it as dirty...");
     {
         let mut write_guard = frame_texture.dequeue().await;
 
-        // Write a red pixel at position (0, 0)
-        write_guard.replace(
-            width, // source width
-            Texel { x: 0, y: 0 },
-            &[Unorm4 {
+        // Create full texture data (width × height pixels)
+        let total_pixels = (width as usize) * (100 as usize); // height is 100
+        let mut pixel_data = vec![
+            Unorm4 {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255
+            };
+            total_pixels
+        ]; // Black background
+
+        // Set first pixel to red
+        if !pixel_data.is_empty() {
+            pixel_data[0] = Unorm4 {
                 r: 255,
                 g: 0,
                 b: 0,
                 a: 255,
-            }],
-        );
+            };
+        }
 
-        // Guard is dropped here, marking the texture as dirty
+        // Write the full texture data
+        write_guard.replace(
+            width, // source width
+            Texel { x: 0, y: 0 },
+            &pixel_data,
+        );
     }
 
     println!("Rendering frame to trigger copy operation...");
 
     // This should trigger the copy operation and cause the alignment error
     // on Windows if the bytes_per_row is not properly aligned
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        test_executors::sleep_on(async move {
-            port.force_render().await;
-        });
-    }));
+
+    let result = std::panic::AssertUnwindSafe(port.force_render())
+        .catch_unwind()
+        .await;
 
     match result {
         Ok(_) => {

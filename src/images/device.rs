@@ -5,7 +5,7 @@
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::entry_point::{EntryPoint, EntryPointError};
+use crate::entry_point::EntryPoint;
 use crate::images::view::View;
 use crate::imp;
 
@@ -52,27 +52,6 @@ impl std::fmt::Display for BindError {
 }
 impl std::error::Error for BindError {}
 
-#[derive(thiserror::Error, Debug)]
-pub(crate) enum EitherError {
-    #[error("Error with entrypoint {0}")]
-    EntryPoint(#[from] EntryPointError),
-    #[error("Error binding a device {0}")]
-    Bind(BindError),
-    #[error("Error picking a device {0}")]
-    Pick(PickError),
-}
-impl From<BindError> for EitherError {
-    fn from(e: BindError) -> Self {
-        Self::Bind(e)
-    }
-}
-
-impl From<PickError> for EitherError {
-    fn from(e: PickError) -> Self {
-        Self::Pick(e)
-    }
-}
-
 impl BoundDevice {
     /*
     Vulkan prefers to create this impl as Arc because it points to itself internally.
@@ -85,5 +64,36 @@ impl BoundDevice {
             .await
             .map_err(BindError)?;
         Ok(Self(bind))
+    }
+}
+
+// Boilerplate implementations
+
+impl Clone for BoundDevice {
+    fn clone(&self) -> Self {
+        // Safe to clone - resources are shared via Arc in the backend implementation.
+        // Multiple BoundDevice instances can safely share the same GPU resources.
+        Self(self.0.clone())
+    }
+}
+
+impl PartialEq for BoundDevice {
+    fn eq(&self, other: &Self) -> bool {
+        // Two BoundDevices are equal if they reference the same underlying resources.
+        // This is equivalent to Arc pointer equality in the backend.
+        std::ptr::eq(&self.0 as *const _, &other.0 as *const _)
+    }
+}
+
+impl Eq for BoundDevice {
+    // BoundDevice can implement Eq since it represents a resource handle,
+    // and equality is well-defined (same underlying GPU resources).
+}
+
+impl std::hash::Hash for BoundDevice {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Hash based on the pointer to the underlying implementation.
+        // This ensures that cloned instances have the same hash.
+        std::ptr::hash(&self.0 as *const _, state);
     }
 }

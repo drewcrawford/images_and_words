@@ -22,7 +22,7 @@
 //! # {
 //! use images_and_words::bindings::forward::r#static::buffer::Buffer;
 //! use images_and_words::pixel_formats::{BGRA8UNormSRGB};
-//! # test_executors::sleep_on(async {
+//! # test_executors::spawn_local(async {
 //! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! # let bound_device = engine.bound_device().clone();
 //! let my_buffer: Buffer<u8> = Buffer::new(bound_device, 1024, images_and_words::bindings::visible_to::GPUBufferUsage::VertexBuffer, "my_buffer", |index| 2).await.expect("can't create buffer");
@@ -37,7 +37,7 @@
 //!
 //! // Bind a static buffer to slot 1 for the fragment shader
 //! bind_style.bind_static_buffer(BindSlot::new(1), Stage::Fragment, &my_buffer);
-//! # });
+//! # }, "bind_style_overview_doctest");
 //! # }
 //! ```
 
@@ -58,7 +58,7 @@ use std::fmt::Debug;
 #[derive(Debug, Clone, PartialEq)]
 pub struct BindStyle {
     pub(crate) binds: HashMap<u32, BindInfo>,
-    pub(crate) index_buffer: Option<crate::imp::GPUableBuffer>,
+    pub(crate) index_buffer: Option<crate::imp::GPUableBufferStatic>,
 }
 
 /// Internal enumeration of all possible binding targets.
@@ -68,7 +68,7 @@ pub struct BindStyle {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum BindTarget {
     /// A static buffer that doesn't change during rendering
-    StaticBuffer(crate::imp::GPUableBuffer),
+    StaticBuffer(crate::imp::GPUableBufferStatic),
     /// A dynamic buffer that can be updated between frames
     DynamicBuffer(ErasedRenderSide),
     /// The camera transformation matrix (resolved at render time)
@@ -85,7 +85,7 @@ pub(crate) enum BindTarget {
     Sampler(SamplerType),
     /// A static vertex buffer with its layout description
     #[allow(dead_code)] //nop implementation does not use
-    VB(VertexLayout, crate::imp::GPUableBuffer),
+    VB(VertexLayout, crate::imp::GPUableBufferStatic),
     /// A dynamic vertex buffer with its layout description
     #[allow(dead_code)] //nop implementation does not use
     DynamicVB(VertexLayout, ErasedRenderSide),
@@ -95,7 +95,7 @@ pub(crate) enum BindTarget {
 ///
 /// This struct pairs a binding target with the shader stage it should be bound to.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BindInfo {
+pub(crate) struct BindInfo {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) stage: Stage,
     pub(crate) target: BindTarget,
@@ -139,7 +139,7 @@ impl BindStyle {
         let old = self
             .binds
             .insert(slot.pass_index, BindInfo { stage, target });
-        assert!(old.is_none(), "Already bound to slot {:?}", slot);
+        assert!(old.is_none(), "Already bound to slot {slot:?}");
     }
 
     /// Binds the camera transformation matrix to the specified slot.
@@ -378,13 +378,25 @@ impl BindStyle {
 /// Resources can be made available to different stages of the graphics pipeline.
 /// This enum allows you to specify whether a resource should be accessible from
 /// the vertex shader, fragment shader, or both.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Stage {
     /// Resource will be bound to fragment (pixel) shaders.
     Fragment,
     /// Resource will be bound to vertex shaders.
     Vertex,
+}
+
+// Boilerplate implementations for Stage
+
+impl std::fmt::Display for Stage {
+    /// Formats the stage for readable output in logs and debugging.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Stage::Fragment => write!(f, "fragment"),
+            Stage::Vertex => write!(f, "vertex"),
+        }
+    }
 }
 
 /// Represents a binding slot where a resource can be bound.
@@ -405,7 +417,7 @@ pub enum Stage {
 /// use images_and_words::images::view::View;
 /// use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
 /// use images_and_words::Priority;
-///  # test_executors::sleep_on(async {
+///  # test_executors::spawn_local(async {
 /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 /// # let bound_device = engine.bound_device().clone();
 /// let mut bind_style = BindStyle::new();
@@ -433,10 +445,10 @@ pub enum Stage {
 /// // In Rust:
 /// bind_style.bind_camera_matrix(BindSlot::new(0), Stage::Vertex);
 /// bind_style.bind_static_texture(BindSlot::new(1), Stage::Fragment, &texture, None);
-/// # });
+/// # }, "bind_style_debug_doctest");
 /// # }
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BindSlot {
     pub(crate) pass_index: u32,
 }
@@ -449,6 +461,44 @@ impl BindSlot {
     /// * `pass_index` - The numeric index of the binding slot
     pub fn new(pass_index: u32) -> Self {
         Self { pass_index }
+    }
+}
+
+// Boilerplate implementations for BindSlot
+
+impl Default for BindSlot {
+    /// Creates a binding slot with index 0.
+    ///
+    /// Slot 0 is commonly used as the default binding location for primary resources.
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
+
+impl std::fmt::Display for BindSlot {
+    /// Formats the binding slot as "slot N" for readable output in logs and debugging.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "slot {}", self.pass_index)
+    }
+}
+
+impl From<u32> for BindSlot {
+    /// Creates a binding slot from a u32 index.
+    ///
+    /// This provides a convenient way to convert numeric binding indices
+    /// into BindSlot instances.
+    fn from(pass_index: u32) -> Self {
+        Self::new(pass_index)
+    }
+}
+
+impl AsRef<u32> for BindSlot {
+    /// Returns a reference to the underlying binding slot index.
+    ///
+    /// This allows easy access to the numeric value when needed
+    /// for backend implementations or debugging.
+    fn as_ref(&self) -> &u32 {
+        &self.pass_index
     }
 }
 

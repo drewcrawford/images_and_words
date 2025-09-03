@@ -3,7 +3,7 @@
 //!
 //! A [`View`] represents a rendering surface that can be either:
 //! - A window surface (when using the `app_window` feature)
-//! - A test surface (when using the `testing` feature)
+//! - A test surface (always available)
 //!
 //! Views are the primary way to create rendering targets for the [`Engine`](crate::images::Engine).
 //! They manage the connection between the OS window system and the underlying graphics backend.
@@ -14,12 +14,9 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
-//! # #[cfg(feature = "testing")]
-//! # {
 //! use images_and_words::images::view::View;
 //!
 //! let view = View::for_testing();
-//! # }
 //! ```
 //!
 //! ## Creating a view from a window surface
@@ -38,8 +35,7 @@
 //!
 //! ```
 //! # if cfg!(not(feature="backend_wgpu")) { return; }
-//! # #[cfg(feature = "testing")]
-//! # test_executors::sleep_on(async {
+//! # test_executors::spawn_local(async {
 //! use images_and_words::images::{Engine, view::View};
 //! use images_and_words::images::projection::WorldCoord;
 //!
@@ -48,24 +44,13 @@
 //! let engine = Engine::rendering_to(view, camera_position)
 //!     .await
 //!     .expect("Failed to create engine");
-//! # });
+//! # }, "view_doctest");
 //! ```
 
 use crate::entry_point::EntryPoint;
-#[cfg(feature = "app_window")]
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
-
-#[derive(Debug)]
-enum OSImpl {
-    #[cfg(feature = "app_window")]
-    AppWindow(
-        app_window::surface::Surface,
-        RawWindowHandle,
-        RawDisplayHandle,
-    ),
-    #[cfg(any(test, feature = "testing"))]
-    Testing,
-}
+use raw_window_handle::{
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
+};
 
 /// Error type for view operations.
 ///
@@ -92,19 +77,57 @@ impl std::fmt::Display for Error {
 /// # Platform Support
 ///
 /// - **Window surfaces**: Requires the `app_window` feature
-/// - **Test surfaces**: Requires the `testing` feature
+/// - **Test surfaces**: Always available
 ///
 /// # Thread Safety
 ///
 /// Views implement `Send` to allow them to be moved between threads,
 /// which is necessary for the rendering architecture.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct View {
     #[allow(dead_code)] //nop implementation does not use
-    os_impl: OSImpl,
-    //late initialized once entrypoint is ready
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) imp: Option<crate::imp::View>,
+    //lazily created when we connect the entrypoint
+    pub(crate) gpu_impl: Option<crate::imp::View>,
+    //wgpu wants the windowing implementation to be dropped AFTER gpu implementation
+    windowing_impl: WindowingImpl,
+}
+
+#[derive(Debug, Clone)]
+enum WindowingImpl {
+    Testing,
+    #[cfg(feature = "app_window")]
+    AppWindow(std::sync::Arc<app_window::surface::Surface>),
+}
+
+impl WindowingImpl {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        match self {
+            WindowingImpl::Testing => Err(HandleError::NotSupported),
+            #[cfg(feature = "app_window")]
+            WindowingImpl::AppWindow(surface) => Ok(surface.window_handle()),
+        }
+    }
+
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        match self {
+            WindowingImpl::Testing => Err(HandleError::NotSupported),
+            #[cfg(feature = "app_window")]
+            WindowingImpl::AppWindow(surface) => Ok(surface.display_handle()),
+        }
+    }
+}
+
+impl WindowingImpl {
+    async fn size_scale(&self) -> (u16, u16, f64) {
+        match self {
+            WindowingImpl::Testing => (800, 600, 1.0),
+            #[cfg(feature = "app_window")]
+            WindowingImpl::AppWindow(surface) => {
+                let (size, scale) = surface.size_scale().await;
+                (size.width() as u16, size.height() as u16, scale)
+            }
+        }
+    }
 }
 
 //we need this to port across to render thread
@@ -128,39 +151,33 @@ impl View {
     /// backend view could not be created.
     pub(crate) async fn provide_entry_point(
         &mut self,
-        _entry_point: &EntryPoint,
+        entry_point: &EntryPoint,
     ) -> Result<(), Error> {
-        #[cfg(feature = "app_window")]
-        {
-            let (_window_handle, _display_handle): (RawWindowHandle, RawDisplayHandle) =
-                match &self.os_impl {
-                    OSImpl::AppWindow(_, window_handle, display_handle) => {
-                        (*window_handle, *display_handle)
-                    }
-                    #[cfg(any(test, feature = "testing"))]
-                    OSImpl::Testing => {
-                        // For testing, imp is already set in for_testing()
-                        return Ok(());
-                    }
-                };
-            self.imp = Some(
-                unsafe {
-                    crate::imp::View::from_surface(_entry_point, _window_handle, _display_handle)
-                }
-                .await?,
-            );
-            Ok(())
-        }
-        #[cfg(not(feature = "app_window"))]
-        {
-            match self.os_impl {
-                #[cfg(any(test, feature = "testing"))]
-                OSImpl::Testing => {
-                    // For testing, imp is already set in for_testing()
-                    Ok(())
-                }
-            }
-        }
+        let imp = crate::imp::View::from_surface(
+            entry_point,
+            ViewForImp {
+                windowing_impl: self.windowing_impl.clone(),
+            },
+        )
+        .await?;
+        self.gpu_impl = Some(imp);
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ViewForImp {
+    windowing_impl: WindowingImpl,
+}
+
+impl HasWindowHandle for ViewForImp {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        self.windowing_impl.window_handle()
+    }
+}
+impl HasDisplayHandle for ViewForImp {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        self.windowing_impl.display_handle()
     }
 }
 
@@ -180,30 +197,7 @@ impl View {
     ///
     /// For test views, this always returns (800, 600, 1.0).
     pub(crate) async fn size_scale(&self) -> (u16, u16, f64) {
-        #[cfg(feature = "app_window")]
-        {
-            match &self.os_impl {
-                OSImpl::AppWindow(surface, _, _) => {
-                    let (size, scale) = surface.size_scale().await;
-                    (size.width() as u16, size.height() as u16, scale)
-                }
-                #[cfg(any(test, feature = "testing"))]
-                OSImpl::Testing => {
-                    // Return a dummy size for testing
-                    (800, 600, 1.0)
-                }
-            }
-        }
-        #[cfg(not(feature = "app_window"))]
-        {
-            match self.os_impl {
-                #[cfg(any(test, feature = "testing"))]
-                OSImpl::Testing => {
-                    // Return a dummy size for testing
-                    (800, 600, 1.0)
-                }
-            }
-        }
+        self.windowing_impl.size_scale().await
     }
 
     /// Creates a view from an OS window surface.
@@ -239,12 +233,17 @@ impl View {
     /// This method is only available when the `app_window` feature is enabled.
     #[cfg(feature = "app_window")]
     pub fn from_surface(surface: app_window::surface::Surface) -> Result<Self, Error> {
-        let handle = surface.raw_window_handle();
-        let display_handle = surface.raw_display_handle();
         Ok(View {
-            os_impl: OSImpl::AppWindow(surface, handle, display_handle),
-            imp: None,
+            gpu_impl: None,
+            windowing_impl: WindowingImpl::AppWindow(std::sync::Arc::new(surface)),
         })
+    }
+
+    pub fn testing() -> Self {
+        View {
+            gpu_impl: None,
+            windowing_impl: WindowingImpl::Testing,
+        }
     }
 
     /// Creates a view suitable for testing.
@@ -257,13 +256,10 @@ impl View {
     ///
     /// ```
     /// # if cfg!(not(feature="backend_wgpu")) { return; }
-    /// # #[cfg(feature = "testing")]
-    /// # {
     /// use images_and_words::images::view::View;
     ///
     /// let test_view = View::for_testing();
     /// // Use with an engine for testing
-    /// # }
     /// ```
     ///
     /// # Testing Features
@@ -276,14 +272,50 @@ impl View {
     ///
     /// # Availability
     ///
-    /// This method is only available when either:
-    /// - Running tests (automatically enabled)
-    /// - The `testing` feature is enabled
-    #[cfg(any(test, feature = "testing"))]
+    /// This method is always available.
     pub fn for_testing() -> Self {
         View {
-            os_impl: OSImpl::Testing,
-            imp: Some(crate::imp::View::for_testing()),
+            gpu_impl: None,
+            windowing_impl: WindowingImpl::Testing,
         }
     }
 }
+
+// Boilerplate
+
+// Clone: The View type is cloneable since both gpu_impl (Option<imp::View>) and
+// windowing_impl (WindowingImpl) are cloneable. Backend View implementations use Arc
+// internally, so clones share the same underlying GPU resources efficiently.
+
+impl Default for View {
+    /// Creates a default View suitable for testing.
+    ///
+    /// This provides the same functionality as [`View::for_testing()`],
+    /// creating a view with fixed dimensions of 800x600 pixels and
+    /// a scale factor of 1.0.
+    fn default() -> Self {
+        Self::for_testing()
+    }
+}
+
+#[cfg(feature = "app_window")]
+impl From<app_window::surface::Surface> for View {
+    /// Creates a View from a window surface.
+    ///
+    /// This provides a convenient way to convert an `app_window::Surface`
+    /// directly into a `View`. This is equivalent to calling [`View::from_surface`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the surface cannot be converted to a view, though this
+    /// should not happen in normal usage.
+    fn from(surface: app_window::surface::Surface) -> Self {
+        Self::from_surface(surface).expect("Failed to create view from surface")
+    }
+}
+
+// PartialEq/Eq: Not appropriate for resource management types like View
+// Hash: Not applicable since View doesn't implement Eq
+// Copy: Not appropriate for resource management types
+// Display: Not particularly valuable for this type
+// AsRef/AsMut/Deref/DerefMut: Not applicable to this wrapper type

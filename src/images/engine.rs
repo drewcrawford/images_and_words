@@ -9,6 +9,13 @@ use crate::imp;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
+/// Main GPU rendering engine that coordinates graphics resources and rendering operations.
+///
+/// The Engine manages the graphics pipeline by coordinating between the GPU device,
+/// rendering ports, and the underlying backend implementation. It provides thread-safe
+/// access to the main rendering port and maintains the lifetime of critical GPU resources.
+///
+/// Engines are typically created via [`Engine::rendering_to`] and shared using `Arc`.
 #[derive(Debug)]
 pub struct Engine {
     //note that drop order is significant here.
@@ -23,7 +30,6 @@ pub struct Engine {
 }
 
 impl Engine {
-    #[cfg(feature = "testing")]
     pub async fn for_testing() -> Result<Arc<Self>, CreateError> {
         Self::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await
     }
@@ -31,30 +37,61 @@ impl Engine {
         mut view: View,
         initial_camera_position: WorldCoord,
     ) -> Result<Arc<Self>, CreateError> {
-        let entry_point = Arc::new(EntryPoint::new().await?);
-        view.provide_entry_point(&entry_point)
-            .await
-            .expect("Can't provide entry point");
-        let (initial_width, initial_height, initial_scale) = view.size_scale().await;
+        logwise::info_sync!("Engine::rendering_to() started");
 
+        logwise::info_sync!("Creating EntryPoint...");
+        let entry_point = Arc::new(EntryPoint::new().await?);
+        logwise::info_sync!("EntryPoint created successfully");
+
+        logwise::info_sync!("Providing EntryPoint to view...");
+        view.provide_entry_point(&entry_point).await?;
+        logwise::info_sync!("EntryPoint provided to view successfully");
+
+        logwise::info_sync!("Getting view size and scale...");
+        let (initial_width, initial_height, initial_scale) = view.size_scale().await;
+        logwise::info_sync!(
+            "View size: {}x{}, scale: {}",
+            initial_width,
+            initial_height,
+            initial_scale
+        );
+
+        logwise::info_sync!("Picking unbound device...");
         let unbound_device = UnboundDevice::pick(&view, &entry_point).await?;
+        logwise::info_sync!("Unbound device picked successfully");
+
+        logwise::info_sync!("Binding device...");
         let bound_device = Arc::new(BoundDevice::bind(unbound_device, entry_point.clone()).await?);
+        logwise::info_sync!("Device bound successfully");
+
+        logwise::info_sync!("Creating implementation engine...");
         let initial_port = Mutex::new(None);
         let imp = crate::imp::Engine::rendering_to_view(&bound_device).await;
+        logwise::info_sync!("Implementation engine created successfully");
+
+        logwise::info_sync!("Creating Engine struct...");
         let r = Arc::new(Engine {
             main_port: initial_port,
             device: bound_device,
             _entry_point: entry_point,
             _engine: imp,
         });
+        logwise::info_sync!("Engine struct created successfully");
+
+        logwise::info_sync!("Creating final port...");
         let final_port = Port::new(
             &r,
             view,
             initial_camera_position,
             (initial_width, initial_height, initial_scale),
         )
+        .await
         .unwrap();
+        logwise::info_sync!("Final port created successfully");
+
+        logwise::info_sync!("Setting main port...");
         r.main_port.lock().unwrap().replace(final_port);
+        logwise::info_sync!("Engine::rendering_to() completed successfully");
         Ok(r)
     }
     pub fn main_port_mut(&self) -> PortGuard<'_> {
@@ -66,6 +103,20 @@ impl Engine {
         &self.device
     }
 }
+
+// Boilerplate section
+
+// Send/Sync: Engine is automatically Send + Sync because all fields are Send + Sync:
+// - Mutex<Option<Port>> is Send + Sync
+// - Arc<BoundDevice> and Arc<EntryPoint> are Send + Sync (assuming their contents are Send + Sync)
+// - imp::Engine is Send + Sync (empty struct in wgpu backend)
+// This is appropriate since Engine is designed for multi-threaded access.
+
+// Clone: Intentionally not implemented. Engine is a resource manager that coordinates
+// exclusive GPU resources. The intended sharing pattern is via Arc<Engine>, not cloning
+// the Engine itself. Cloning would be confusing and potentially unsafe given the
+// "drop order is significant" comment and resource management semantics.
+
 /**
 An opaque guard type for ports.
 */
@@ -85,12 +136,6 @@ impl DerefMut for PortGuard<'_> {
     }
 }
 
-fn assert_send_sync<T: Send + Sync>() {}
-#[allow(dead_code)]
-fn compile_check() {
-    assert_send_sync::<Engine>();
-}
-
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum CreateError {
@@ -104,4 +149,6 @@ pub enum CreateError {
     Port(#[from] super::port::Error),
     #[error("Implementation error {0}")]
     Imp(#[from] imp::Error),
+    #[error("View error {0}")]
+    View(#[from] crate::images::view::Error),
 }

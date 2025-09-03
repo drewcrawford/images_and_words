@@ -55,8 +55,9 @@ Forward resources handle:
 # use images_and_words::images::view::View;
 # use images_and_words::pixel_formats::RGBA8UNorm;
 # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
-# test_executors::sleep_on(async {
-# let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+# test_executors::spawn_local(async {
+# let view = View::for_testing();
+# let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 # let device = engine.bound_device();
 # #[derive(Copy, Clone)]
 # #[repr(C)]
@@ -85,9 +86,10 @@ let uniforms = forward::dynamic::buffer::Buffer::<CameraMatrix>::new(
     GPUBufferUsage::VertexShaderRead,
     "uniforms",
     |_i| camera_matrix
-).expect("Failed to create uniform buffer");
+).await.expect("Failed to create uniform buffer");
 let mut uniform_write = uniforms.access_write().await;
 uniform_write.write(&[camera_matrix], 0);
+uniform_write.async_drop().await;
 
 // Static texture - loaded from file
 # let width = 256;
@@ -122,7 +124,7 @@ let target = forward::dynamic::frame_texture::FrameTexture::<RGBA8UNorm>::new(
     dynamic_config,
     |_texel| images_and_words::pixel_formats::Unorm4 { r: 0, g: 0, b: 0, a: 255 }, // Black background
 ).await;
-# });
+# }, "forward_doctest");
 # }
 ```
 

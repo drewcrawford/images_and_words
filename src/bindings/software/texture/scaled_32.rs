@@ -11,6 +11,9 @@ the fractional components.
 use crate::bindings::software::texture::Texel;
 use crate::bindings::software::texture::scaled_row_cell::ScaledRowCell;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 /// A texture coordinate with integer cell/row positions and floating-point sub-cell precision.
 ///
 /// `Scaled32` represents a position within a texture using:
@@ -359,6 +362,7 @@ impl From<ScaledRowCell> for Scaled32 {
 }
 
 #[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn clamped() {
     let f = Scaled32::new(0, 0, 0.0, 0.0);
     assert_eq!(

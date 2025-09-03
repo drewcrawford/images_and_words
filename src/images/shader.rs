@@ -59,7 +59,7 @@
 ///     "#.to_string()
 /// );
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FragmentShader {
     //may need additional type design for future backends
     #[allow(dead_code)] //nop implementation does not use
@@ -126,7 +126,7 @@ pub struct FragmentShader {
 ///     "#.to_string()
 /// );
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VertexShader {
     //may need additional type design for future backends
     #[allow(dead_code)] //nop implementation does not use
@@ -161,6 +161,19 @@ impl FragmentShader {
     }
 }
 
+// Boilerplate for FragmentShader
+impl std::fmt::Display for FragmentShader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FragmentShader({})", self.label)
+    }
+}
+
+impl AsRef<str> for FragmentShader {
+    fn as_ref(&self) -> &str {
+        &self.wgsl_code
+    }
+}
+
 impl VertexShader {
     /// Creates a new vertex shader with the given label and WGSL code.
     ///
@@ -184,5 +197,18 @@ impl VertexShader {
     /// ```
     pub fn new(label: &'static str, wgsl_code: String) -> Self {
         Self { label, wgsl_code }
+    }
+}
+
+// Boilerplate for VertexShader
+impl std::fmt::Display for VertexShader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "VertexShader({})", self.label)
+    }
+}
+
+impl AsRef<str> for VertexShader {
+    fn as_ref(&self) -> &str {
+        &self.wgsl_code
     }
 }

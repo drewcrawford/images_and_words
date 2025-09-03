@@ -59,7 +59,7 @@ pub struct VertexLayout {
     pub(crate) fields: Vec<VertexField>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct VertexField {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) name: &'static str,
@@ -81,7 +81,7 @@ pub(crate) struct VertexField {
 /// // Currently F32 is the only supported type
 /// let field_type = VertexFieldType::F32;
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum VertexFieldType {
     /// A 32-bit floating point value.
@@ -174,3 +174,5 @@ impl Default for VertexLayout {
         Self::new()
     }
 }
+
+// Boilerplate for types in order of appearance

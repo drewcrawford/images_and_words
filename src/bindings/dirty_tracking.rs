@@ -10,85 +10,180 @@ Another distinction is that the receivers can be 'lately-bound' - that is, they 
 */
 
 use std::hash::Hash;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
-// This represents the shared state between different LateBoundSenders
-#[derive(Debug)]
-struct SharedSend(Mutex<Option<r#continue::Sender<()>>>);
-
-impl SharedSend {
-    fn new() -> Self {
-        SharedSend(Mutex::new(None))
+#[derive(Clone)]
+struct OneShot {
+    c: Arc<AtomicPtr<r#continue::Sender<()>>>,
+}
+impl Drop for OneShot {
+    fn drop(&mut self) {
+        self.send_if_needed();
+    }
+}
+impl OneShot {
+    fn new(sender: r#continue::Sender<()>) -> Self {
+        OneShot {
+            c: Arc::new(AtomicPtr::new(Box::into_raw(Box::new(sender)))),
+        }
     }
 
-    fn set_sender(&self, sender: r#continue::Sender<()>) {
-        *self.0.lock().unwrap() = Some(sender);
-    }
-
-    fn r#continue(&self) {
-        if let Some(sender) = self.0.lock().unwrap().take() {
-            sender.send(());
+    fn send_if_needed(&mut self) {
+        let swap = self.c.swap(std::ptr::null_mut(), Ordering::Relaxed);
+        if !swap.is_null() {
+            //we have a continuation, so we need to send it
+            let boxed_sender = unsafe { Box::from_raw(swap) };
+            boxed_sender.send(()); // send the signal
         }
     }
 }
 
-#[derive(Debug)]
-struct LateBoundSender(Arc<SharedSend>);
+const CLEAN_PTR: *mut OneShot = std::ptr::null_mut();
+const DIRTY_PTR: *mut OneShot = 1 as *mut OneShot;
 
-impl LateBoundSender {
-    fn new() -> Self {
-        LateBoundSender(Arc::new(SharedSend::new()))
+struct SendState {
+    //semantics:
+    //if CLEAN_PTR, then the state is clean
+    //if DIRTY_PTR, then the state is dirty
+    //if some other pointer, then the state is clean and the pointer is a continuation to
+    // be called when the state becomes dirty.
+    dirty: AtomicPtr<OneShot>,
+}
+
+impl SendState {
+    fn dirty_or_continue(&self, one_shot: &OneShot) -> Result<(), ()> {
+        let mut load_continuations: *mut OneShot = std::ptr::null_mut();
+        //we don't particularly need lhs here
+        let mut dirty_detected = false;
+        _ = self
+            .dirty
+            .fetch_update(Ordering::AcqRel, Ordering::Relaxed, |current| {
+                if current == DIRTY_PTR {
+                    dirty_detected = true;
+                    None
+                } else if current == CLEAN_PTR {
+                    let c = one_shot.clone();
+                    Some(Box::into_raw(Box::new(c))) // mark as dirty and store continuation
+                } else {
+                    load_continuations = current;
+                    //swap the current pointer with a new one
+                    let c = one_shot.clone();
+                    Some(Box::into_raw(Box::new(c))) // mark as dirty and store continuation
+                }
+            });
+
+        if load_continuations != std::ptr::null_mut() {
+            //we had a continuation, so we need to send it
+            let mut boxed_continuation = unsafe { Box::from_raw(load_continuations) };
+            boxed_continuation.send_if_needed(); //why not
+        }
+        if dirty_detected {
+            Ok(()) // dirty
+        } else {
+            Err(()) // clean, but we had a continuation
+        }
+    }
+    fn new(dirty: bool) -> Self {
+        SendState {
+            dirty: AtomicPtr::new(if dirty { DIRTY_PTR } else { CLEAN_PTR }),
+        }
+    }
+    fn mark_dirty(&self) {
+        let mut load_continuations: *mut OneShot = std::ptr::null_mut();
+        //we don't particularly need lhs here
+        _ = self
+            .dirty
+            .fetch_update(Ordering::AcqRel, Ordering::Relaxed, |current| {
+                if current == CLEAN_PTR {
+                    Some(DIRTY_PTR) // mark as dirty
+                } else if current == DIRTY_PTR {
+                    None // already dirty, do nothing
+                } else {
+                    load_continuations = current;
+                    Some(DIRTY_PTR)
+                }
+            });
+        if load_continuations != std::ptr::null_mut() {
+            //we had a continuation, so we need to send it
+            let mut boxed_continuation = unsafe { Box::from_raw(load_continuations) };
+            boxed_continuation.send_if_needed();
+        }
     }
 
-    fn set_sender(&self, sender: r#continue::Sender<()>) {
-        self.0.set_sender(sender);
+    fn mark_clean(&self) {
+        _ = self
+            .dirty
+            .fetch_update(Ordering::AcqRel, Ordering::Relaxed, |current| {
+                if current == DIRTY_PTR {
+                    Some(CLEAN_PTR) // mark as clean
+                } else if current == CLEAN_PTR {
+                    None // already clean, do nothing
+                } else {
+                    //leave the continuation as is
+                    None
+                }
+            });
     }
-
-    fn clone_shared(&self) -> Self {
-        LateBoundSender(Arc::clone(&self.0))
-    }
-
-    fn r#continue(&self) {
-        self.0.r#continue();
+    fn is_dirty(&self) -> bool {
+        let current = self.dirty.load(Ordering::Relaxed);
+        if current == DIRTY_PTR {
+            true // dirty
+        } else if current == CLEAN_PTR {
+            false // clean
+        } else {
+            // if it's some other pointer, it means we have a continuation that is not yet called
+            // so we consider it clean until the continuation is called
+            false
+        }
     }
 }
 
-#[derive(Debug)]
 struct SharedSendReceive {
-    //each dirty can be independently set and unset
-    dirty: AtomicBool,
-    continuation: Mutex<LateBoundSender>,
+    debug_label: String,
+    send_state: SendState,
 }
-
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DirtySender {
     shared: Arc<SharedSendReceive>,
 }
 
+impl std::fmt::Debug for DirtySender {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DirtySender")
+            .field("label", &self.shared.debug_label)
+            .finish()
+    }
+}
+
 impl DirtySender {
-    pub fn new(dirty: bool) -> Self {
-        let s = LateBoundSender::new();
+    pub fn new(dirty: bool, label: impl Into<String>) -> Self {
         DirtySender {
             shared: Arc::new(SharedSendReceive {
-                dirty: AtomicBool::new(dirty),
-                continuation: Mutex::new(s),
+                debug_label: label.into(),
+                send_state: SendState::new(dirty),
             }),
         }
     }
     pub fn mark_dirty(&self, dirty: bool) {
-        self.shared.dirty.store(dirty, Ordering::Relaxed);
         if dirty {
-            if let Ok(continuation) = self.shared.continuation.lock() {
-                continuation.r#continue();
-            }
+            self.shared.send_state.mark_dirty();
+        } else {
+            self.shared.send_state.mark_clean();
         }
     }
 }
 
-#[derive(Debug)]
 pub struct DirtyReceiver {
     shared: Arc<SharedSendReceive>,
+}
+
+impl std::fmt::Debug for DirtyReceiver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DirtyReceiver")
+            .field("label", &self.shared.debug_label)
+            .finish()
+    }
 }
 impl DirtyReceiver {
     pub fn new(sender: &DirtySender) -> DirtyReceiver {
@@ -96,13 +191,12 @@ impl DirtyReceiver {
             shared: sender.shared.clone(),
         }
     }
-    fn attach_continuation(&self, continuation: &LateBoundSender) {
-        if let Ok(mut cont) = self.shared.continuation.lock() {
-            *cont = continuation.clone_shared();
-        }
+
+    pub fn debug_label(&self) -> &str {
+        &self.shared.debug_label
     }
     pub fn is_dirty(&self) -> bool {
-        self.shared.dirty.load(Ordering::Relaxed)
+        self.shared.send_state.is_dirty()
     }
 }
 
@@ -122,17 +216,26 @@ impl Hash for DirtyReceiver {
 pub struct DirtyAggregateReceiver {
     receivers: Vec<DirtyReceiver>,
 }
+
+impl std::fmt::Debug for DirtyAggregateReceiver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let labels: Vec<&str> = self.receivers.iter().map(|r| r.debug_label()).collect();
+        f.debug_struct("DirtyAggregateReceiver")
+            .field("receivers", &labels)
+            .finish()
+    }
+}
 impl DirtyAggregateReceiver {
     pub fn new(receivers: Vec<DirtyReceiver>) -> DirtyAggregateReceiver {
         DirtyAggregateReceiver { receivers }
     }
 
-    #[allow(dead_code)]
-    pub fn is_dirty(&self) -> bool {
-        // Check if any of the receivers are dirty
+    pub fn who_is_dirty(&self) -> Vec<&str> {
         self.receivers
             .iter()
-            .any(|receiver| receiver.shared.dirty.load(Ordering::Relaxed))
+            .filter(|receiver| receiver.is_dirty())
+            .map(|receiver| receiver.debug_label())
+            .collect()
     }
 
     ///Waits for a dirty signal.
@@ -143,25 +246,21 @@ impl DirtyAggregateReceiver {
         //instead let's use real dirty tracking to wait for the next frame
 
         let (sender, receiver) = r#continue::continuation();
-        let late_bound_sender = LateBoundSender::new();
-        late_bound_sender.set_sender(sender);
+        let o = OneShot::new(sender);
 
-        //set continuation up first
-        for dirty_receiver in &self.receivers {
-            dirty_receiver.attach_continuation(&late_bound_sender);
-            // println!("attached continuation {late_bound_sender:?} to receiver {dirty_receiver:?}");
-        }
-        // println!("Attached all continuations");
-        //now check dirty value
         for receiver in &self.receivers {
-            if receiver.shared.dirty.load(Ordering::Relaxed) {
-                //mark future as ready to go immediately; this ensures we don't miss any messages
-                late_bound_sender.r#continue();
-                break; // Only need one to trigger
+            let shared = &receiver.shared;
+            match shared.send_state.dirty_or_continue(&o) {
+                Ok(()) => {
+                    //we're dirty
+                    return;
+                }
+                Err(_) => {
+                    // we have a continuation, so we need to wait for it
+                }
             }
+            //next receiver
         }
-        // println!("Waiting for continuation");
-        //wait for next receiver!
         receiver.await;
         // println!("Continuation received");
     }

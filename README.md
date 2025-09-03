@@ -6,16 +6,18 @@ images_and_words is a GPU middleware and abstraction layer for high-performance 
 
 ## Demo
 
-![demo](art/demo.gif)
+![demo](art/demo.mp4)
 
 ## The pitch
 
 Suppose you want to write a game or graphics application. You may consider:
 
-* An off-the-shelf game engine, like Unity or Unreal. But these might be much more engine than you need, be difficult to customize, have vendor lockin, make that one feature tough to optimize, etc.
-* Writing directly to a low-level API like Vulkan, Metal, or DirectX. But these are complex, verbose, and require you to solve many problems that have already been solved, let alone the hassle of multiplatform support.
+* **Game engines** (Unity, Unreal, Godot) - But these might be much more than you need,
+  be difficult to customize, have vendor lock-in, or make optimization challenging.
+* **Low-level APIs** (Vulkan, Metal, DirectX) - But these are complex, verbose, and require
+  solving many already-solved problems, plus multiplatform support is difficult.
 
-Wouldn't it be nice to have a middle ground? And if you seriously look, those are out there. Here is my chart:
+Wouldn't it be nice to have a middle ground? Here's how images_and_words compares:
 
 | Strategy            | Examples             | API style   | API concepts                                                      | Synchronization concerns | Shaders                                 | Runtime size | Platform support                         | Development speed | Runtime speed                               |
 |---------------------|----------------------|-------------|--------------------------------------------------------------------|--------------------------|------------------------------------------|--------------|-------------------------------------------|-------------------|-----------------------------------------------|
@@ -25,39 +27,53 @@ Wouldn't it be nice to have a middle ground? And if you seriously look, those ar
 | Constructed APIs    | WebGPU               | Pass-based  | Passes, shaders, buffers, textures                                  | Medium-high              | BYO, customizable, though many features stuck in committee | It's complicated | Some browser support, some translation support | Medium-low      | Good                                          |
 | GPU middleware      | images_and_words     | Pass-based  | Passes, shaders, camera, higher-order buffers and textures, multibuffering, common patterns | Medium-low              | BYO, inherit from backends               | Some         | Good in theory; varies in practice        | Medium            | Good                                          |
 
-GPU middleware occupies a unique and overlooked niche in the ecosystem. It provides a cross-platform abstraction over GPU hardware, while also allowing you to bring your own sound, physics, accessibility, and your entire existing codebase to the table. These are the main advantages of the middleware category as a whole.
+GPU middleware occupies a unique and overlooked niche in the ecosystem.  It provides a
+cross-platform abstraction over GPU hardware, while also allowing you to bring your own
+sound, physics, accessibility, and your entire existing codebase to the table.  These are the main
+advantages of the middleware category as a whole.
 
-Beyond the pros and cons of GPU middleware as a category, images_and_words is specifically the dream GPU API I wanted in a career as a high-performance graphics application developer. Often, the motivation for GPU acceleration is we have some existing CPU code that we think is too slow, and we consider some ways to improve it including GPU acceleration, but that might take a week to prototype on one platform. The major #1 goal of IW is to prototype GPU acceleration on various platforms in a day or two at most.
+Beyond the pros and cons of GPU middleware as a category, images_and_words is specifically the dream GPU API I
+wanted in a career as a high-performance graphics application developer.  Often, the motivation for
+GPU acceleration is we have some existing CPU code that we think is too slow, and we consider
+some ways to improve it including GPU acceleration, but that might take a week to prototype on
+one platform.  The major #1 goal of IW is to prototytpe GPU acceleration on various platforms
+in a day or two at most.
 
-A second major design goal is that eventually, you are likely to hit a second performance wall. It should be easy to reason about the performance of IW applications, and to optimize its primitives to meet your needs. IW is designed to be a practical and performant target for my own career of applications, and I hope it can be for yours as well.
+A second major design goal is that eventually, you are likely to hit a second performance wall.
+It should be easy to reason about the performance of IW applications, and to optimize
+its primitives to meet your needs.  IW is designed to be a practical and performant target for my
+own career of applications, and I hope it can be for yours as well.
 
-## Higher-order memory types
+## Core Concepts
 
-The main innovation of IW is providing an obvious family of higher-order kinds of buffers and textures.
+### Higher-Order Memory Types
 
-These types are layered atop traditional GPU buffers/textures, but are customized for specific usecases, such as multibuffering or synchronization. Because each type encodes its usecase information, the behavior can be optimized in a usecase-specific way.
+The main innovation of images_and_words is providing a family of higher-order buffer and texture types.
+These types are layered atop traditional GPU resources but are optimized for specific use cases,
+with built-in multibuffering and synchronization to prevent pipeline stalls.
 
 ### The Three-Axis Type System
 
-IW organizes GPU resources along three orthogonal axes, allowing you to select the precise abstraction for your use case:
+images_and_words organizes GPU resources along three orthogonal axes, allowing you to select
+the precise abstraction for your use case:
 
-#### 1. Resource Type Axis: Buffer vs Texture
+#### Axis 1: Resource Type (Buffer vs Texture)
 
 **Buffers** provide:
 - Arbitrary memory layouts with full programmer control
-- Support for any type implementing `CRepr` trait
+- Support for any type implementing the `CRepr` trait
 - Direct indexed access patterns
 - Flexible size constraints
-- Examples: vertex data, uniform blocks, compute storage
+- Use cases: vertex data, uniform blocks, compute storage
 
 **Textures** provide:
 - GPU-optimized storage for image data
 - Hardware-accelerated sampling and filtering
-- Fixed pixel formats (RGBA8, etc.)
+- Fixed pixel formats (RGBA8UnormSRGB, etc.)
 - Spatial access patterns optimized for 2D/3D locality
-- Examples: images, render targets, lookup tables
+- Use cases: images, render targets, lookup tables
 
-#### 2. Mutability Axis: Static vs Dynamic
+#### Axis 2: Mutability (Static vs Dynamic)
 
 **Static** resources:
 - Immutable after creation
@@ -73,7 +89,7 @@ IW organizes GPU resources along three orthogonal axes, allowing you to select t
 - Transparent synchronization
 - Examples: per-frame uniforms, streaming data
 
-#### 3. Direction Axis: Data Flow Patterns
+#### Axis 3: Direction (Data Flow Patterns)
 
 | Direction | Flow | Use Cases | Status |
 |-----------|------|-----------|---------|
@@ -118,23 +134,217 @@ Examples include:
 | Reverse  | Write GPU->CPU | Unified vs discrete memory              | Builtin        | Builtin              |
 | Sideways | Write GPU->GPU | private, GPU-native format              | Builtin        | TBD                  |
 
-## Backends
+## Architecture
 
-In the interests of getting going, current development targets [wgpu](https://wgpu.rs) as backend, so we inherit its broad support for DX12, Vulkan, Metal, WebGPU, Angle, WebGL, etc.
+### Backend System
 
-On the other hand, I have intentionally designed IW to support multiple backends, and have prototyped Vulkan and Metal-based approaches myself. I intend to stand up other backends as I need them. If you need them before I do, get in touch.
+images_and_words uses a backend abstraction that allows different GPU API implementations.
+Currently, two backends are available:
 
-Longer-term I am skeptical of wgpu as a backend. I am skeptical I can meet native performance expectations with a web-based API, I am skeptical of wgpu's guidance on accepting contributions to solve these issues, and I am skeptical of any single graphics API as I've seen them come and go while I'm supporting an application.
+- **`nop` backend**: A no-operation stub implementation useful for testing and as a template for new backends
+- **`wgpu` backend**: The main production backend built on [wgpu](https://wgpu.rs), providing broad platform support
 
-A substantial motivation for creating IW is to design an API that can solve these problems and become a practical and performant target for my own applications. In the short term, I need features/optimizations that don't happen in design-by-committee APIs. In the long term, I need to maintain my applications after APIs have been deprecated. IW is the middleware to bridge this gap in one place.
+The wgpu backend inherits support for:
+- **Native APIs**: Direct3D 12, Vulkan, Metal
+- **Web APIs**: WebGPU, WebGL2 (via ANGLE)
+- **Platforms**: Windows, macOS, Linux, iOS, Android, WebAssembly
+
+### Key Modules
+
+The codebase is organized into several key modules:
+
+#### Core Rendering (`images`)
+Provides the main rendering infrastructure:
+- `Engine`: Main entry point for GPU operations
+- `render_pass`: Render pass configuration and draw commands
+- `shader`: Vertex and fragment shader management
+- `view`: Display surface abstraction
+- `port`: Viewport and camera management
+- `projection`: Coordinate systems and transformations
+
+#### Resource Bindings (`bindings`)
+Higher-order GPU resource types:
+- `forward`: CPU→GPU data transfer types
+  - `static`: Immutable resources
+  - `dynamic`: Mutable resources with multibuffering
+- `software`: CPU-side texture operations
+- `sampler`: Texture sampling configuration
+
+#### Pixel Formats (`pixel_formats`)
+Type-safe pixel format definitions:
+- Strong typing for different color spaces and formats
+- Compile-time format validation
+- Automatic conversion handling
+
+### Design Philosophy
+
+I have intentionally designed images_and_words to support multiple backends. While currently using wgpu,
+I've prototyped Vulkan and Metal-based approaches and intend to add more backends as needed.
+
+Longer-term I am skeptical of wgpu as a backend.  I am skeptical I can meet native performance expectations
+with a web-based API, I am skeptical of wgpu's guidance on accepting contributions to solve these issues,
+and I am skeptical of any single graphics API as I've seen them come and go while I'm supporting an
+application.
+
+The substantial motivation for creating images_and_words is to design an API that can solve real-world
+problems and become a practical, performant target for production applications. In the short term,
+it provides features and optimizations that don't happen in design-by-committee APIs. In the long term,
+it ensures application maintainability even as underlying graphics APIs evolve or become deprecated.
+
+## Getting Started
+
+### Basic Setup
+
+Create a rendering engine and access the main rendering port:
+
+```rust
+use images_and_words::images::Engine;
+
+// Create a rendering engine for testing
+let engine = Engine::for_testing().await
+    .expect("Failed to create engine");
+
+// Access the main rendering port
+let mut port = engine.main_port_mut();
+// Port is now ready for rendering operations
+```
+
+### Working with Buffers
+
+```rust
+use images_and_words::{
+    images::Engine,
+    bindings::{forward::r#static::buffer::Buffer, visible_to::GPUBufferUsage},
+};
+
+// Define a vertex type with C-compatible layout
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 4],
+}
+unsafe impl images_and_words::bindings::forward::dynamic::buffer::CRepr for Vertex {}
+
+let engine = Engine::for_testing().await.unwrap();
+let device = engine.bound_device();
+
+// Create a static buffer with 3 vertices
+let vertex_buffer = Buffer::new(
+    device.clone(),
+    3,  // count of vertices
+    GPUBufferUsage::VertexBuffer,
+    "triangle_vertices",
+    |index| match index {
+        0 => Vertex { position: [-0.5, -0.5, 0.0], color: [1.0, 0.0, 0.0, 1.0] },
+        1 => Vertex { position: [ 0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0, 1.0] },
+        2 => Vertex { position: [ 0.0,  0.5, 0.0], color: [0.0, 0.0, 1.0, 1.0] },
+        _ => unreachable!()
+    }
+).await.expect("Failed to create buffer");
+```
+
+### Working with Dynamic Resources
+
+Dynamic buffers support automatic multibuffering to prevent GPU pipeline stalls when updating data:
+
+```rust
+use images_and_words::{
+    bindings::{forward::dynamic::buffer, visible_to::GPUBufferUsage},
+};
+
+// Define a uniform data structure
+#[repr(C)]
+struct UniformData {
+    time: f32,
+    _padding: [f32; 3],
+}
+unsafe impl buffer::CRepr for UniformData {}
+
+let uniform_data = UniformData { 
+    time: 1.0, 
+    _padding: [0.0; 3] 
+};
+
+// This creates a buffer with automatic multibuffering:
+// let buffer = Buffer::new(device, 1, GPUBufferUsage::FragmentShaderRead, 
+//                         "uniforms", |_| uniform_data).await?;
+```
+
+## Examples
+
+### Complete Rendering Pipeline
+
+```rust
+use images_and_words::{
+    images::{Engine, projection::WorldCoord, view::View},
+    bindings::{forward::r#static::buffer::Buffer, visible_to::GPUBufferUsage},
+};
+
+// Create engine with camera position
+let engine = Engine::rendering_to(
+    View::for_testing(),
+    WorldCoord::new(0.0, 0.0, 5.0)
+).await.expect("Failed to create engine");
+
+let device = engine.bound_device();
+
+// Define vertex data
+#[repr(C)]
+struct Vertex {
+    position: [f32; 3],
+}
+unsafe impl images_and_words::bindings::forward::dynamic::buffer::CRepr for Vertex {}
+
+// Create GPU buffer with vertex data
+let vertex_buffer = Buffer::new(
+    device.clone(),
+    3,
+    GPUBufferUsage::VertexBuffer,
+    "triangle",
+    |index| match index {
+        0 => Vertex { position: [-1.0, -1.0, 0.0] },
+        1 => Vertex { position: [ 1.0, -1.0, 0.0] },
+        2 => Vertex { position: [ 0.0,  1.0, 0.0] },
+        _ => unreachable!()
+    }
+).await.expect("Failed to create vertex buffer");
+
+// Access the rendering port
+let mut port = engine.main_port_mut();
+// Ready to issue draw commands
+```
+
+## Performance Considerations
+
+### Multibuffering
+
+Dynamic resources automatically use multibuffering to prevent GPU pipeline stalls:
+
+- **Frame 1**: CPU writes to buffer A, GPU reads buffer B
+- **Frame 2**: CPU writes to buffer B, GPU reads buffer A  
+- **CPU never blocks** waiting for GPU to finish
+
+### Memory Placement
+
+Static resources are automatically placed in optimal GPU memory when possible,
+while dynamic resources use accessible memory for frequent updates.
+
+## Thread Safety and Async
+
+This project uses custom async executors (not tokio):
+- `test_executors` for test code
+- `some_executor` for production code
+
+Graphics operations typically require main thread execution, especially on platforms like macOS.
 
 ## Development Commands
 
 **Build:** `cargo build --features=backend_wgpu`
 
-**Run tests:** `cargo test --features=testing,backend_wgpu`
+**Run tests:** `cargo test --features=backend_wgpu`
 
-**Run single test:** `cargo test --features=testing,backend_wgpu test_name`
+**Run single test:** `cargo test --features=backend_wgpu test_name`
 
 **Build with app window support:** `cargo build --features=backend_wgpu,app_window`
 
@@ -144,7 +354,6 @@ A substantial motivation for creating IW is to design an API that can solve thes
 
 * `backend_wgpu` - Enables the wgpu GPU backend (required for most development)
 * `app_window` - Enables window surface creation for applications
-* `testing` - Enables testing APIs used by integration tests
 
 ## Contributions
 

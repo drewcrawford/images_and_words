@@ -79,8 +79,9 @@ ensures the GPU sees consistent data.
 # use images_and_words::pixel_formats::RGBA8UNorm;
 # use images_and_words::bindings::forward::dynamic::buffer::CRepr;
 # use images_and_words::Priority;
-# test_executors::sleep_on(async {
-# let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+# test_executors::spawn_local(async {
+# let view = View::for_testing();
+# let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 # let device = engine.bound_device();
 # #[derive(Copy, Clone)]
 # #[repr(C)]
@@ -100,9 +101,10 @@ let uniforms = dynamic::buffer::Buffer::<CameraUniforms>::new(
     GPUBufferUsage::VertexShaderRead,
     "camera_uniforms",
     |_i| current_camera
-).expect("Failed to create uniform buffer");
+).await.expect("Failed to create uniform buffer");
 let mut uniform_write = uniforms.access_write().await;
 uniform_write.write(&[current_camera], 0);
+uniform_write.async_drop().await;
 
 // Streaming vertices for particles
 let particles = dynamic::buffer::Buffer::<Particle>::new(
@@ -111,9 +113,10 @@ let particles = dynamic::buffer::Buffer::<Particle>::new(
     GPUBufferUsage::VertexShaderRead,
     "particles",
     |i| active_particles[i]
-).expect("Failed to create particle buffer");
+).await.expect("Failed to create particle buffer");
 let mut particle_write = particles.access_write().await;
 particle_write.write(&active_particles, 0);
+particle_write.async_drop().await;
 
 // Render target for post-processing
 # let width = 1920;
@@ -132,7 +135,7 @@ let framebuffer = dynamic::frame_texture::FrameTexture::<RGBA8UNorm>::new(
     config,
     |_texel| images_and_words::pixel_formats::Unorm4 { r: 0, g: 0, b: 0, a: 255 }, // Black background
 ).await;
-# });
+# }, "forward_dynamic_doctest");
 # }
 ```
 

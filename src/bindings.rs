@@ -92,7 +92,7 @@ pub use bind_style::BindStyle;
 pub(crate) mod buffer_access;
 pub mod coordinates;
 pub(crate) mod dirty_tracking;
-pub mod resource_tracking;
+pub(crate) mod resource_tracking;
 pub mod sampler;
 pub mod software;
 pub mod visible_to;

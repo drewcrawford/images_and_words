@@ -34,9 +34,10 @@ updated from the CPU side during runtime.
 # use images_and_words::images::projection::WorldCoord;
 # use images_and_words::images::view::View;
 # use images_and_words::Priority;
-test_executors::sleep_on(async {
-# let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-let device = engine.bound_device();
+# test_executors::spawn_local(async {
+# let view = View::for_testing();
+# let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+# let device = engine.bound_device();
 
 // Create a 256x256 RGBA texture
 let config = TextureConfig {
@@ -59,14 +60,14 @@ let mut write_guard = texture.dequeue().await;
 
 // Update texture data
 write_guard.replace(
-    256, // source width
+    1, // source width (single pixel)
     Texel { x: 0, y: 0 }, // destination position
     &[Unorm4 { r: 255, g: 0, b: 0, a: 255 }] // red pixel
 );
 
 // Buffer is automatically enqueued when guard is dropped
-drop(write_guard);
-# });
+write_guard.async_drop().await;
+# }, "frame_texture_creation_doctest");
 # }
 ```
 
@@ -100,7 +101,6 @@ the pixel data type and GPU texture format. Common formats include:
 */
 
 use crate::bindings::dirty_tracking::DirtyReceiver;
-use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureConfig;
 use crate::images::device::BoundDevice;
@@ -165,16 +165,17 @@ impl ErasedTextureRenderSide {
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// test_executors::sleep_on(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-/// let device = engine.bound_device();
+/// # test_executors::spawn_local(async {
+/// # let view = View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
 /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
 /// # let frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
 /// let mut bind_style = BindStyle::new();
 ///
 /// // Bind the texture to slot 0 for the fragment shader
 /// bind_style.bind_dynamic_texture(BindSlot::new(0), Stage::Fragment, &frame_texture);
-/// # });
+/// # }, "frame_texture_bind_style_doctest");
 /// # }
 /// ```
 pub(crate) struct TextureRenderSide<Format: PixelFormat> {
@@ -201,32 +202,22 @@ impl<Format: PixelFormat> Debug for TextureRenderSide<Format> {
 }
 impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
     unsafe fn acquire_gpu_texture(&self) -> GPUAccess {
-        let mut guard = unsafe { self.shared.multibuffer.access_gpu() };
-
-        // Take the dirty guard if present
-        let dirty_guard = guard.take_dirty_guard();
+        let guard = unsafe { self.shared.multibuffer.access_gpu() };
 
         // Get the render side and GPU texture
         let render_side = guard.as_imp().render_side();
-        let gpu_texture: Box<dyn imp::GPUableTextureWrapped> = Box::new(guard.as_imp().clone());
 
         // Create GPUGuard with the dirty guard stored separately
         let our_guard = GPUGuard {
             underlying: guard,
-            dirty_guard,
             render_side: render_side.clone(),
         };
 
         // Create the dirty guard wrapper if we have dirty data
-        let dirty_guard_box = if our_guard.dirty_guard.is_some() {
-            Some(Box::new(our_guard) as Box<dyn DynGuard>)
-        } else {
-            None
-        };
+        let dirty_guard_box = Box::new(our_guard) as Box<dyn DynGuard>;
 
         GPUAccess {
-            dirty_guard: dirty_guard_box,
-            gpu_texture,
+            underlying: dirty_guard_box,
             render_side,
         }
     }
@@ -262,9 +253,10 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// test_executors::sleep_on(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-/// let device = engine.bound_device();
+/// # test_executors::spawn_local(async {
+/// # let view = View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
 /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
 /// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
 /// // Dequeue a buffer for writing
@@ -273,21 +265,22 @@ impl<Format: PixelFormat> DynRenderSide for TextureRenderSide<Format> {
 /// // Write pixel data
 /// let width = guard.width();
 /// guard.replace(
-///     width, // source width
+///     1, // source width (single pixel)
 ///     Texel { x: 10, y: 20 }, // destination
 ///     &[Unorm4 { r: 255, g: 128, b: 0, a: 255 }] // orange pixel
 /// );
+/// guard.async_drop().await;
 ///
 /// // Texture is automatically enqueued when guard goes out of scope
-/// # });
+/// # }, "frame_texture_cpu_write_guard_doctest");
 /// # }
 /// ```
 #[derive(Debug)]
 pub struct CPUWriteGuard<'a, Format: PixelFormat> {
     underlying: crate::multibuffer::CPUWriteGuard<
         'a,
-        imp::MappableTexture<Format>,
-        imp::GPUableTexture<Format>,
+        imp::MappableTexture2<Format>,
+        imp::GPUableTexture2<Format>,
     >,
     width: u16,
     height: u16,
@@ -310,9 +303,7 @@ pub struct CPUReadGuard<Format: PixelFormat> {
 #[allow(dead_code)] //nop implementation does not use
 struct GPUGuard<Format: PixelFormat> {
     underlying:
-        crate::multibuffer::GPUGuard<imp::MappableTexture<Format>, imp::GPUableTexture<Format>>,
-    // Store the dirty guard separately so we can access the source texture
-    dirty_guard: Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableTexture<Format>>>,
+        crate::multibuffer::GPUGuard<imp::MappableTexture2<Format>, imp::GPUableTexture2<Format>>,
     render_side: imp::TextureRenderSide,
 }
 
@@ -325,34 +316,13 @@ impl<Format: PixelFormat> Debug for GPUGuard<Format> {
     }
 }
 
-impl<Format: PixelFormat> DynGuard for GPUGuard<Format> {
-    fn perform_copy(
-        &self,
-        destination: &dyn imp::GPUableTextureWrapped,
-        copy_info: &mut imp::CopyInfo,
-    ) -> Result<(), String> {
-        if let Some(ref dirty_guard) = self.dirty_guard {
-            // Dereference the dirty guard to get the MappableTexture
-            let source: &imp::MappableTexture<Format> = dirty_guard;
-            // Use the type-erased copy method
-            destination.copy_from_mappable(source, copy_info)
-        } else {
-            Err("perform_copy called on GPUGuard without dirty data".to_string())
-        }
-    }
-}
-
 /// Guards access to the underlying GPU texture during rendering.
 ///
 /// `GPUAccess` provides access to the GPU texture with optional dirty data
 /// that needs to be copied. This type is created internally by the rendering
 /// system and maintains the texture's availability for GPU operations.
 pub(crate) struct GPUAccess {
-    // Option<Box<DynGuard>> if we need to perform a copy, otherwise None (how we erase Format in this field)
-    dirty_guard: Option<Box<dyn DynGuard>>,
-    // Underlying GPU type, typecast to Box<dyn GPUableTextureWrapped> (how we erase Format in this field)
-    #[allow(dead_code)] //nop implementation does not use
-    pub(crate) gpu_texture: Box<dyn imp::GPUableTextureWrapped>,
+    underlying: Box<dyn DynGuard>,
     // The render side for creating views (always available)
     pub(crate) render_side: imp::TextureRenderSide,
 }
@@ -360,33 +330,62 @@ pub(crate) struct GPUAccess {
 impl Debug for GPUAccess {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GPUAccess")
-            .field("dirty_guard", &self.dirty_guard.is_some())
             .field("render_side", &self.render_side)
             .finish()
     }
 }
 
 impl GPUAccess {
-    #[allow(dead_code)] //nop implementation does not use
-    pub fn take_dirty_guard(&mut self) -> Option<Box<dyn DynGuard>> {
-        self.dirty_guard.take()
+    pub fn take_dirty_guard(&mut self) -> Option<Box<dyn DynDirtyGuard>> {
+        self.underlying.take_dirty_guard()
+    }
+    pub fn as_imp(&self) -> &dyn crate::imp::GPUableTextureWrapped {
+        self.underlying.as_imp()
     }
 }
 
 /// Trait for type-erased guard that provides access to source texture for copying
-pub(crate) trait DynGuard: Debug + Send {
-    /// Perform the copy from the stored source to the given destination
-    #[allow(dead_code)] //nop implementation does not use
-    fn perform_copy(
-        &self,
-        destination: &dyn imp::GPUableTextureWrapped,
-        copy_info: &mut imp::CopyInfo,
-    ) -> Result<(), String>;
+pub(crate) trait DynGuard: Debug + Send + Sync {
+    fn take_dirty_guard(&mut self) -> Option<Box<dyn DynDirtyGuard>>;
+    fn as_imp(&self) -> &dyn crate::imp::GPUableTextureWrapped;
+}
+
+impl<Format> DynGuard for GPUGuard<Format>
+where
+    Format: PixelFormat,
+{
+    fn take_dirty_guard(&mut self) -> Option<Box<dyn DynDirtyGuard>> {
+        // This is a nop implementation, as we don't use dirty guards in this context
+        self.underlying
+            .take_dirty_guard()
+            .map(|e| Box::new(e) as Box<dyn DynDirtyGuard>)
+    }
+    fn as_imp(&self) -> &dyn imp::GPUableTextureWrapped {
+        self.underlying.as_imp()
+    }
+}
+
+pub(crate) trait DynDirtyGuard: Debug + Send + Sync {
+    fn as_imp(&mut self) -> &mut dyn crate::imp::MappableTextureWrapped;
+}
+
+impl<Format> DynDirtyGuard
+    for crate::bindings::resource_tracking::GPUGuard<imp::MappableTexture2<Format>>
+where
+    Format: PixelFormat,
+{
+    fn as_imp(&mut self) -> &mut dyn crate::imp::MappableTextureWrapped {
+        let mappable_texture: &mut imp::MappableTexture2<Format> = &mut *self;
+        // Convert to the trait object
+        let mappable_texture_wrapped: &mut dyn crate::imp::MappableTextureWrapped =
+            mappable_texture;
+        mappable_texture_wrapped
+    }
 }
 
 ///Shared between FrameTexture and TextureRenderSide
 struct Shared<Format: PixelFormat> {
-    multibuffer: Multibuffer<imp::MappableTexture<Format>, imp::GPUableTexture<Format>>,
+    multibuffer: Multibuffer<imp::MappableTexture2<Format>, imp::GPUableTexture2<Format>>,
 }
 
 impl<Format: PixelFormat> Debug for Shared<Format> {
@@ -427,9 +426,10 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// # use images_and_words::images::projection::WorldCoord;
 /// # use images_and_words::images::view::View;
 /// # use images_and_words::Priority;
-/// test_executors::sleep_on(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-/// let device = engine.bound_device();
+/// # test_executors::spawn_local(async {
+/// # let view = View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
 ///
 /// // Create a texture for video playback
 /// let config = TextureConfig {
@@ -453,8 +453,8 @@ impl<Format: PixelFormat> Debug for Shared<Format> {
 /// // Write frame to texture
 /// let mut guard = video_texture.dequeue().await;
 /// guard.replace(1920, Texel::ZERO, &frame_data);
-/// drop(guard); // Enqueue for GPU
-/// # });
+/// guard.async_drop().await; // Enqueue for GPU
+/// # }, "frame_texture_struct_doctest");
 /// # }
 /// ```
 #[derive(Debug, Clone)]
@@ -504,9 +504,10 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// test_executors::sleep_on(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
     /// # let mut frame_texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
     /// # let mut guard = frame_texture.dequeue().await;
@@ -519,7 +520,8 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
     ///     Texel { x: 0, y: 10 },
     ///     &pixels // full row of pixels
     /// );
-    /// # });
+    /// guard.async_drop().await;
+    /// # }, "frame_texture_replace_doctest");
     /// # }
     /// ```
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel])
@@ -527,21 +529,6 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
         Format: PixelFormat,
     {
         self.underlying.replace(src_width, dst_texel, data);
-    }
-}
-
-impl<Format: PixelFormat> Mappable for CPUWriteGuard<'_, Format> {
-    async fn map_read(&mut self) {
-        self.underlying.map_read().await;
-    }
-    async fn map_write(&mut self) {
-        self.underlying.map_write().await;
-    }
-    fn unmap(&mut self) {
-        self.underlying.unmap();
-    }
-    fn byte_len(&self) -> usize {
-        (self.width as usize) * (self.height as usize) * std::mem::size_of::<Format::CPixel>()
     }
 }
 
@@ -570,9 +557,10 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// test_executors::sleep_on(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     ///
     /// // Create a texture for height map data
     /// let config = TextureConfig {
@@ -593,7 +581,7 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     ///         (texel.x as f32 + texel.y as f32) / 1024.0
     ///     },
     /// ).await;
-    /// # });
+    /// # }, "frame_texture_new_doctest");
     /// # }
     /// ```
     pub async fn new<I: Fn(Texel) -> Format::CPixel>(
@@ -601,19 +589,20 @@ impl<Format: PixelFormat> FrameTexture<Format> {
         config: TextureConfig<'_>,
         initialize_with: I,
     ) -> Self {
-        let gpu = imp::GPUableTexture::new(bound_device, config)
+        let gpu = imp::GPUableTexture2::new(bound_device, config)
             .await
             .unwrap();
-        let cpu = imp::MappableTexture::new(
+        let cpu = imp::MappableTexture2::new(
             bound_device,
             config.width,
             config.height,
             config.debug_name,
             config.priority,
             initialize_with,
-        );
+        )
+        .await;
 
-        let multibuffer = Multibuffer::new(cpu, gpu, true);
+        let multibuffer = Multibuffer::new(cpu, gpu, true, config.debug_name.to_string());
         let shared = Arc::new(Shared { multibuffer });
         Self {
             shared,
@@ -645,20 +634,22 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// # use images_and_words::images::projection::WorldCoord;
     /// # use images_and_words::images::view::View;
     /// # use images_and_words::Priority;
-    /// test_executors::sleep_on(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     /// # let config = TextureConfig { width: 256, height: 256, visible_to: TextureUsage::FragmentShaderSample, debug_name: "test", priority: Priority::UserInitiated, cpu_strategy: CPUStrategy::WontRead, mipmaps: false };
     /// # let mut texture = FrameTexture::<RGBA8UNorm>::new(&device, config, |_| Unorm4 { r: 0, g: 0, b: 0, a: 255 }).await;
     /// // Wait for an available buffer
     /// let mut guard = texture.dequeue().await;
     ///
     /// // Modify the texture through the guard...
+    /// guard.async_drop().await;
     /// // Buffer is automatically enqueued when guard is dropped
-    /// # });
+    /// # }, "frame_texture_dequeue_doctest");
     /// # }
     /// ```
-    pub async fn dequeue(&mut self) -> CPUWriteGuard<Format> {
+    pub async fn dequeue(&mut self) -> CPUWriteGuard<'_, Format> {
         let write_guard = self.shared.multibuffer.access_write().await;
         CPUWriteGuard {
             underlying: write_guard,
@@ -685,20 +676,8 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// The returned [`TextureRenderSide`] can be used with [`BindStyle`](crate::bindings::BindStyle)
     /// to bind this texture to shader slots. The render side automatically handles
     /// synchronization and always provides the most recent fully-uploaded texture to the GPU.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// # use images_and_words::bindings::BindStyle;
-    /// # use images_and_words::bindings::bind_style::{BindSlot, Stage};
-    /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
-    /// # use images_and_words::pixel_formats::RGBA8UNorm;
-    /// # let texture: FrameTexture<RGBA8UNorm> = todo!();
-    /// // This is an internal method - users should pass FrameTexture directly to bind_dynamic_texture
-    /// let render_side = texture.render_side();
-    /// ```
     pub(crate) fn render_side(&self) -> TextureRenderSide<Format> {
-        TextureRenderSide {
+        TextureRenderSide::<Format> {
             shared: self.shared.clone(),
         }
     }
@@ -716,5 +695,40 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
         self.shared.multibuffer.gpu_dirty_receiver()
+    }
+}
+
+// Boilerplate
+
+impl<Format: PixelFormat> PartialEq for FrameTexture<Format> {
+    fn eq(&self, other: &Self) -> bool {
+        // Two FrameTexture instances are equal if they refer to the same underlying texture
+        // and have the same dimensions
+        Arc::ptr_eq(&self.shared, &other.shared)
+            && self.width == other.width
+            && self.height == other.height
+    }
+}
+
+impl<Format: PixelFormat> Eq for FrameTexture<Format> {}
+
+impl<Format: PixelFormat> std::hash::Hash for FrameTexture<Format> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Hash based on the Arc pointer and dimensions
+        (Arc::as_ptr(&self.shared) as *const u8).hash(state);
+        self.width.hash(state);
+        self.height.hash(state);
+    }
+}
+
+impl<Format: PixelFormat> std::fmt::Display for FrameTexture<Format> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "FrameTexture<{}>({}x{})",
+            std::any::type_name::<Format>(),
+            self.width,
+            self.height
+        )
     }
 }

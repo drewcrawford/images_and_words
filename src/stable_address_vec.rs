@@ -43,7 +43,7 @@ impl<T> StableAddressVec<T> {
         unsafe {
             (*self.vec.get()).push(value);
             //safe because we just pushed the value
-            &(*self.vec.get())[next_len - 1]
+            &(&(*self.vec.get()))[next_len - 1]
         }
     }
 

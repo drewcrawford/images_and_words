@@ -19,14 +19,15 @@
 //! # {
 //! use images_and_words::bindings::sampler::SamplerType;
 //! use images_and_words::bindings::bind_style::{BindStyle, BindSlot, Stage, SamplerInfo};
-//! # test_executors::sleep_on(async {
+//! # test_executors::spawn_local(async {
 //! # use images_and_words::images::view::View;
 //! # use images_and_words::images::projection::WorldCoord;
 //! # use images_and_words::bindings::forward::r#static::texture::Texture;
 //! # use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
 //! # use images_and_words::bindings::visible_to::TextureUsage;
 //! # use images_and_words::Priority;
-//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! # let view = View::for_testing();
+//! # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
 //! # let device = engine.bound_device();
 //! # let config = images_and_words::bindings::visible_to::TextureConfig {
 //! #     width: 256,
@@ -56,7 +57,7 @@
 //!     &texture,
 //!     Some(sampler)
 //! );
-//! # });
+//! # }, "sampler_doctest");
 //! # }
 //! ```
 

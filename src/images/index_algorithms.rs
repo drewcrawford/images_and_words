@@ -135,7 +135,7 @@ const VERTEX_PER_CELL: usize = VERTEX_PER_TRIANGLE * TRIANGLES_PER_CELL;
 /// Each cell generates two triangles with counter-clockwise winding order:
 /// - First triangle: top-left, bottom-left, top-right
 /// - Second triangle: bottom-left, bottom-right, top-right
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IndexGenerator {
     width: usize,
     height: usize,
@@ -283,5 +283,29 @@ impl IndexGenerator {
         assert!(x < self.width, "Index out of bounds");
         assert!(y < self.height, "Index out of bounds");
         y * self.width + x
+    }
+}
+
+// ============================================================================
+// Boilerplate implementations
+// ============================================================================
+
+impl Default for IndexGenerator {
+    /// Creates a default 2x2 grid generator (minimum size for triangle generation).
+    ///
+    /// This creates the smallest possible grid that can generate triangles - a 2x2 vertex grid
+    /// which produces 2 triangles (1 cell with 2 triangles per cell).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use images_and_words::images::index_algorithms::IndexGenerator;
+    ///
+    /// let generator = IndexGenerator::default();
+    /// assert_eq!(generator.num_triangles(), 2);
+    /// assert_eq!(generator.num_indices(), 6);
+    /// ```
+    fn default() -> Self {
+        Self::new(2, 2)
     }
 }

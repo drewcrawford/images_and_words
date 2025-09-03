@@ -290,6 +290,20 @@ impl Projection {
     }
 }
 
+// Boilerplate
+
+impl PartialEq for Projection {
+    fn eq(&self, other: &Self) -> bool {
+        self.matrix == other.matrix && self.width == other.width && self.height == other.height
+    }
+}
+
+// Copy is not implemented for Projection because it contains a Matrix type that likely doesn't implement Copy,
+// and it's not a trivial bag of values. Clone is sufficient for this mathematical transformation type.
+
+// Default is not implemented because Projection requires specific parameters (camera position, dimensions)
+// with no obvious universal default values.
+
 /// Represents a 2D coordinate on the screen.
 ///
 /// Screen coordinates use the standard 2D graphics convention where:
@@ -305,7 +319,7 @@ impl Projection {
 /// let point = ScreenCoord { x: 100.5, y: 200.3 };
 /// println!("Screen position: ({}, {})", point.x, point.y);
 /// ```
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ScreenCoord {
     /// Horizontal position in pixels from the left edge
     pub x: f32,
@@ -328,7 +342,7 @@ pub struct ScreenCoord {
 /// // Create a point 10 units right, 5 units down, 20 units up
 /// let position = WorldCoord::new(10.0, 5.0, 20.0);
 /// ```
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WorldCoord(pub(crate) Vector<f32, 3>);
 
 impl WorldCoord {
@@ -342,3 +356,57 @@ impl WorldCoord {
         WorldCoord(Vector::new([x, y, z]))
     }
 }
+
+impl Default for ScreenCoord {
+    fn default() -> Self {
+        ScreenCoord { x: 0.0, y: 0.0 }
+    }
+}
+
+impl Default for WorldCoord {
+    fn default() -> Self {
+        WorldCoord::new(0.0, 0.0, 0.0)
+    }
+}
+
+impl From<(f32, f32)> for ScreenCoord {
+    fn from((x, y): (f32, f32)) -> Self {
+        ScreenCoord { x, y }
+    }
+}
+
+impl From<ScreenCoord> for (f32, f32) {
+    fn from(coord: ScreenCoord) -> Self {
+        (coord.x, coord.y)
+    }
+}
+
+impl From<(f32, f32, f32)> for WorldCoord {
+    fn from((x, y, z): (f32, f32, f32)) -> Self {
+        WorldCoord::new(x, y, z)
+    }
+}
+
+impl From<WorldCoord> for (f32, f32, f32) {
+    fn from(coord: WorldCoord) -> Self {
+        (*coord.0.x(), *coord.0.y(), *coord.0.z())
+    }
+}
+
+impl From<[f32; 3]> for WorldCoord {
+    fn from([x, y, z]: [f32; 3]) -> Self {
+        WorldCoord::new(x, y, z)
+    }
+}
+
+impl From<WorldCoord> for [f32; 3] {
+    fn from(coord: WorldCoord) -> Self {
+        [*coord.0.x(), *coord.0.y(), *coord.0.z()]
+    }
+}
+
+// Hash is not implemented for ScreenCoord and WorldCoord because they use PartialEq (not Eq) due to f32 values.
+// Floating point comparison makes Eq inappropriate, and Hash requires Eq.
+
+// Display is not implemented as these coordinate types are primarily internal mathematical representations.
+// The Debug implementation provides sufficient inspection capabilities.

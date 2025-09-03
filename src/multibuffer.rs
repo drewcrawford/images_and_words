@@ -12,56 +12,47 @@ The objects here are fully generic, and may support buffers or textures.
 
 */
 
-use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
+use crate::bindings::dirty_tracking::DirtyReceiver;
 use crate::bindings::resource_tracking;
 use crate::bindings::resource_tracking::ResourceTracker;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
-
-//We need to wrap the ResourceTracker types in a newtype so that we can implement multibuffering behaviors.
-//primarily, we want to mark things dirty.
-pub struct CPUReadGuard<'a, Element, U>
-where
-    Element: Mappable,
-    U: Clone,
-{
-    //option so we can take on drop
-    imp: Option<crate::bindings::resource_tracking::CPUReadGuard<'a, Element>>,
-    buffer: &'a Multibuffer<Element, U>,
-}
-
-impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U>
-where
-    Element: Mappable,
-    U: Clone,
-{
-    fn drop(&mut self) {
-        _ = self.imp.take().expect("Dropped CPUReadGuard already");
-        //wake up the waiting threads
-        // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
-        let wakers_to_send: Vec<r#continue::Sender<()>> = {
-            let mut locked_wake_list = self.buffer.wake_list.lock().unwrap();
-            locked_wake_list.drain(..).collect()
-        }; // MutexGuard is dropped here, so the lock is released.
-
-        // Step 2: Iterate and send notifications *after* the lock is released.
-        for waker in wakers_to_send {
-            waker.send(());
-        }
-    }
-}
-
-impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U>
-where
-    Element: Mappable,
-    U: Clone,
-{
-    type Target = Element;
-    fn deref(&self) -> &Self::Target {
-        self.imp.as_ref().unwrap()
-    }
-}
+//
+// //We need to wrap the ResourceTracker types in a newtype so that we can implement multibuffering behaviors.
+// //primarily, we want to mark things dirty.
+// pub struct CPUReadGuard<'a, Element, U>
+// where
+//     Element: Mappable,
+//     U: Clone,
+// {
+//     //option so we can take on drop
+//     imp: Option<crate::bindings::resource_tracking::CPUReadGuard<'a, Element>>,
+//     _buffer: &'a Multibuffer<Element, U>,
+// }
+//
+// impl<'a, Element, U> Deref for CPUReadGuard<'a, Element, U>
+// where
+//     Element: Mappable,
+//     U: Clone,
+// {
+//     type Target = Element;
+//     fn deref(&self) -> &Self::Target {
+//         self.imp.as_ref().unwrap()
+//     }
+// }
+//
+// impl<'a, Element, U> Drop for CPUReadGuard<'a, Element, U>
+// where
+//     Element: Mappable,
+//     U: Clone,
+// {
+//     fn drop(&mut self) {
+//         // If we haven't taken the guard, panic
+//         if self.imp.is_some() && !std::thread::panicking() {
+//             panic!("Dropped CPUReadGuard without calling async_drop");
+//         }
+//     }
+// }
 
 #[derive(Debug)]
 pub struct CPUWriteGuard<'a, Element, U>
@@ -69,34 +60,8 @@ where
     Element: Mappable,
     U: Clone,
 {
-    imp: Option<crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>>, //option for drop!
-    buffer: &'a Multibuffer<Element, U>,
-}
-
-impl<'a, Element, U> Drop for CPUWriteGuard<'a, Element, U>
-where
-    Element: Mappable,
-    U: Clone,
-{
-    fn drop(&mut self) {
-        // Just drop the CPU guard - this will transition to PENDING_WRITE_TO_GPU automatically
-        _ = self.imp.take().expect("Dropped CPUWriteGuard already");
-
-        // Mark that GPU side needs updating
-        self.buffer.gpu_side_is_dirty.mark_dirty(true);
-
-        //wake up the waiting threads
-        // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
-        let wakers_to_send: Vec<r#continue::Sender<()>> = {
-            let mut locked_wake_list = self.buffer.wake_list.lock().unwrap();
-            locked_wake_list.drain(..).collect()
-        }; // MutexGuard is dropped here, so the lock is released.
-
-        // Step 2: Iterate and send notifications *after* the lock is released.
-        for waker in wakers_to_send {
-            waker.send(());
-        }
-    }
+    imp: crate::bindings::resource_tracking::CPUWriteGuard<'a, Element>,
+    _buffer: &'a Multibuffer<Element, U>,
 }
 
 impl<'a, Element, U> DerefMut for CPUWriteGuard<'a, Element, U>
@@ -105,7 +70,7 @@ where
     U: Clone,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.imp.as_mut().expect("No imp??")
+        &mut self.imp
     }
 }
 
@@ -116,7 +81,7 @@ where
 {
     type Target = Element;
     fn deref(&self) -> &Self::Target {
-        self.imp.as_ref().expect("No imp??")
+        &self.imp
     }
 }
 
@@ -127,27 +92,24 @@ Multibuffer type.
 */
 #[derive(Debug)]
 pub(crate) struct GPUGuard<T: Mappable, U: Clone> {
-    wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
     dirty_guard: Option<resource_tracking::GPUGuard<T>>,
+    _debug_label: String,
     gpu_buffer: U,
 }
 
 //drop impl for GPUGuard
 impl<T: Mappable, U: Clone> Drop for GPUGuard<T, U> {
     fn drop(&mut self) {
+        // logwise::info_sync!(
+        //     "GPUGuard::drop() called for {f}",
+        //     f = logwise::privacy::LogIt(self.debug_label.clone())
+        // );
         // Drop the dirty guard if present
         let _ = self.dirty_guard.take();
-        //wake up the waiting threads
-        // Step 1: Acquire lock, drain wakers into a temporary Vec, then release lock.
-        let wakers_to_send: Vec<r#continue::Sender<()>> = {
-            let mut locked_wake_list = self.wake_list.lock().unwrap();
-            locked_wake_list.drain(..).collect()
-        }; // MutexGuard is dropped here, so the lock is released.
-
-        // Step 2: Iterate and send notifications *after* the lock is released.
-        for waker in wakers_to_send {
-            waker.send(());
-        }
+        // logwise::info_sync!(
+        //     "GPUGuard::drop() finished for {f}",
+        //     f = logwise::privacy::LogIt(self.debug_label.clone())
+        // );
     }
 }
 
@@ -178,9 +140,8 @@ where
 {
     //right now, not really a multibuffer!
     mappable: ResourceTracker<T>,
-    wake_list: Arc<Mutex<Vec<r#continue::Sender<()>>>>,
     gpu: U,
-    gpu_side_is_dirty: DirtySender,
+    debug_label: String,
 }
 
 impl<T, U> Multibuffer<T, U>
@@ -188,16 +149,15 @@ where
     T: Mappable,
     U: Clone,
 {
-    pub fn new(element: T, gpu: U, initial_write_to_gpu: bool) -> Self {
-        let tracker = ResourceTracker::new(element, initial_write_to_gpu);
+    pub fn new(element: T, gpu: U, initial_write_to_gpu: bool, debug_label: String) -> Self {
+        let tracker = ResourceTracker::new(element, initial_write_to_gpu, debug_label.clone());
         // Don't immediately lock for GPU - start in UNUSED state
         // The resource will transition to PENDING_WRITE_TO_GPU when first written
 
         Multibuffer {
             mappable: tracker,
             gpu,
-            wake_list: Arc::new(Mutex::new(Vec::new())),
-            gpu_side_is_dirty: DirtySender::new(false),
+            debug_label,
         }
     }
 
@@ -224,25 +184,14 @@ where
         &self.gpu
     }
 
-    pub async fn access_write(&self) -> CPUWriteGuard<T, U>
+    pub async fn access_write(&self) -> CPUWriteGuard<'_, T, U>
     where
         T: Mappable,
     {
-        loop {
-            // FIRST, insert into the list.  Think very carefully before changing this order.
-            let (s, f) = r#continue::continuation();
-            self.wake_list.lock().unwrap().push(s);
-            // THEN, try to acquire the write lock.
-            match self.mappable.cpu_write().await {
-                Ok(guard) => {
-                    //Someone else will send a nonsense value to the sender later, that's fine.
-                    return CPUWriteGuard {
-                        imp: Some(guard),
-                        buffer: self,
-                    };
-                }
-                Err(_) => f.await, //if we fail, wait for the next time
-            }
+        let underlying = self.mappable.cpu_write().await;
+        CPUWriteGuard {
+            imp: underlying,
+            _buffer: self,
         }
     }
 
@@ -259,34 +208,49 @@ where
         T: Mappable,
         U: Clone,
     {
-        // Try to acquire GPU resource if it's in PENDING_WRITE_TO_GPU state
-        match self.mappable.gpu() {
+        // // Try to acquire GPU resource if it's in PENDING_WRITE_TO_GPU state
+        match self.mappable.poll_gpu() {
             Ok(gpu_guard) => {
                 // Resource was in PENDING_WRITE_TO_GPU state, need to copy
-                self.gpu_side_is_dirty.mark_dirty(false); //clear dirty bit
+                // logwise::info_sync!(
+                //     "Multibuffer: GPU resource {f} is dirty, copying to GPU",
+                //     f = self.debug_label.clone()
+                // );
 
                 // TODO: This copy will be pushed down to the callers
                 // Previously: copy_from_buffer(0, 0, gpu_guard.byte_len(), copy_info, gpu_guard)
 
                 // Store the dirty guard - callers will handle the copy
+                // logwise::info_sync!(
+                //     "Access resource {label} for GPU access (copying)",
+                //     label = logwise::privacy::LogIt(self.debug_label.clone())
+                // );
                 GPUGuard {
-                    wake_list: self.wake_list.clone(),
                     dirty_guard: Some(gpu_guard),
                     gpu_buffer: self.gpu.clone(),
+                    _debug_label: self.debug_label.clone(),
                 }
             }
             Err(_) => {
                 // Resource is not in PENDING_WRITE_TO_GPU state, no copy needed
+                // logwise::info_sync!(
+                //     "Multibuffer: GPU resource {f} not dirty, no copy needed",
+                //     f = self.debug_label.clone()
+                // );
+                // logwise::info_sync!(
+                //     "Access resource {label} for GPU access (no copy)",
+                //     label = logwise::privacy::LogIt(self.debug_label.clone())
+                // );
                 GPUGuard {
-                    wake_list: self.wake_list.clone(),
                     dirty_guard: None,
                     gpu_buffer: self.gpu.clone(),
+                    _debug_label: self.debug_label.clone(),
                 }
             }
         }
     }
     ///Returns a [DirtyReceiver] that activates when the GPU side is dirty.
     pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
-        DirtyReceiver::new(&self.gpu_side_is_dirty)
+        DirtyReceiver::new(&self.mappable.dirty_pending_cpu_to_gpu())
     }
 }

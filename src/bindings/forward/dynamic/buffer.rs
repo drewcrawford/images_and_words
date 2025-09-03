@@ -42,9 +42,10 @@
 //! use images_and_words::bindings::visible_to::GPUBufferUsage;
 //! use images_and_words::images::projection::WorldCoord;
 //! use images_and_words::images::view::View;
-//! test_executors::sleep_on(async {
-//! # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-//! let device = engine.bound_device();
+//! # test_executors::spawn_local(async {
+//! # let view = View::for_testing();
+//! # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+//! # let device = engine.bound_device();
 //! // Define a C-compatible struct
 //! #[repr(C)]
 //! struct Vertex {
@@ -66,7 +67,7 @@
 //!         y: 0.0,
 //!         z: 0.0,
 //!     }
-//! ).expect("Failed to create buffer");
+//! ).await.expect("Failed to create buffer");
 //!
 //! // Update buffer data
 //! let mut write_guard = buffer.access_write().await;
@@ -75,7 +76,8 @@
 //!     y: 2.0,
 //!     z: 3.0,
 //! }], 0);
-//! # });
+//! write_guard.async_drop().await;
+//! # }, "dynamic_buffer_creation_doctest");
 //! # }
 //! ```
 //!
@@ -86,17 +88,19 @@
 //! - [`bindings`](crate::bindings) module documentation - For understanding the full type organization
 
 use crate::bindings::dirty_tracking::DirtyReceiver;
-use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp;
 use crate::imp::SendPhantom;
-use crate::multibuffer::CPUWriteGuard;
 use crate::multibuffer::Multibuffer;
+use crate::multibuffer::{CPUWriteGuard, GPUGuard};
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index};
 use std::sync::Arc;
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
 
 /// Indicates how frequently a dynamic buffer will be updated.
 ///
@@ -135,7 +139,7 @@ pub enum WriteFrequency {
 /// This struct contains the multibuffer that coordinates access between
 /// CPU writes and GPU reads, ensuring proper synchronization.
 struct Shared {
-    multibuffer: Multibuffer<imp::MappableBuffer, imp::GPUableBuffer>,
+    multibuffer: Multibuffer<imp::MappableBuffer2, imp::GPUableBuffer>,
 }
 impl Debug for Shared {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -171,9 +175,10 @@ impl Debug for Shared {
 /// use images_and_words::bindings::visible_to::GPUBufferUsage;
 /// use images_and_words::images::projection::WorldCoord;
 /// use images_and_words::images::view::View;
-/// test_executors::sleep_on(async {
-/// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-/// let device = engine.bound_device();
+/// # test_executors::spawn_local(async {
+/// # let view = View::for_testing();
+/// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+/// # let device = engine.bound_device();
 /// // Create a buffer for float values
 /// let float_buffer = Buffer::<f32>::new(
 ///     device.clone(),
@@ -181,8 +186,8 @@ impl Debug for Shared {
 ///     GPUBufferUsage::VertexShaderRead,
 ///     "float_data",
 ///     |i| i as f32 * 0.1  // Initialize with scaled index
-/// ).expect("Failed to create buffer");
-/// # });
+/// ).await.expect("Failed to create buffer");
+/// # }, "dynamic_buffer_float_data_doctest");
 /// # }
 /// ```
 #[derive(Debug, Clone)]
@@ -207,7 +212,7 @@ pub struct Buffer<Element> {
 /// The buffer memory is directly accessible through indexing and the `write` method.
 /// Users must ensure they don't write out of bounds.
 pub struct CPUWriteAccess<'a, Element> {
-    guard: CPUWriteGuard<'a, imp::MappableBuffer, imp::GPUableBuffer>,
+    guard: CPUWriteGuard<'a, imp::MappableBuffer2, imp::GPUableBuffer>,
     _marker: SendPhantom<Element>,
     count: usize,
 }
@@ -253,15 +258,17 @@ impl<Element> CPUWriteAccess<'_, Element> {
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
-    /// test_executors::sleep_on(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
-    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).expect("Failed to create buffer");
+    /// # test_executors::spawn_local(async {
+    /// # let view = View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
+    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).await.expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
     ///
     /// // Write 3 floats starting at index 5
     /// write_guard.write(&[1.0, 2.0, 3.0], 5);
-    /// # });
+    /// write_guard.async_drop().await;
+    /// # }, "dynamic_buffer_write_doctest");
     /// # }
     /// ```
     pub fn write(&mut self, data: &[Element], dst_offset: usize)
@@ -273,20 +280,6 @@ impl<Element> CPUWriteAccess<'_, Element> {
             std::slice::from_raw_parts(data.as_ptr() as *const u8, std::mem::size_of_val(data))
         };
         self.guard.deref_mut().write(bytes, offset);
-    }
-}
-impl<Element> Mappable for CPUWriteAccess<'_, Element> {
-    async fn map_read(&mut self) {
-        self.guard.deref_mut().map_read().await;
-    }
-    async fn map_write(&mut self) {
-        self.guard.deref_mut().map_write().await;
-    }
-    fn unmap(&mut self) {
-        self.guard.deref_mut().unmap();
-    }
-    fn byte_len(&self) -> usize {
-        self.count * std::mem::size_of::<Element>()
     }
 }
 
@@ -326,19 +319,19 @@ impl<Element> Debug for RenderSide<Element> {
 #[derive(Debug)]
 pub(crate) struct GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
-    dirty_guard: Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>>,
+    dirty_guard: Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer2>>,
     #[allow(dead_code)] //nop implementation does not use
-    pub(crate) gpu_buffer: imp::GPUableBuffer,
+    pub(crate) underlying_guard: GPUGuard<imp::MappableBuffer2, imp::GPUableBuffer>,
 }
 impl GPUAccess {
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn as_ref(&self) -> &imp::GPUableBuffer {
-        &self.gpu_buffer
+        self.underlying_guard.as_imp()
     }
     #[allow(dead_code)] //nop implementation does not use
     pub(crate) fn take_dirty_guard(
         &mut self,
-    ) -> Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer>> {
+    ) -> Option<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer2>> {
         self.dirty_guard.take()
     }
 }
@@ -394,12 +387,9 @@ impl<Element: Send + Sync + 'static> SomeRenderSide for RenderSide<Element> {
         // Take the dirty guard if present
         let dirty_guard = underlying_guard.take_dirty_guard();
 
-        // Get the GPU buffer - clone it from the guard
-        let gpu_buffer = underlying_guard.as_imp().clone();
-
         GPUAccess {
             dirty_guard,
-            gpu_buffer,
+            underlying_guard,
         }
     }
     fn dirty_receiver(&self) -> DirtyReceiver {
@@ -487,9 +477,10 @@ impl<Element> Buffer<Element> {
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
-    /// test_executors::sleep_on(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
+    /// # test_executors::spawn_local(async {
+    /// # let view = View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
     /// // Create a buffer of 256 floats initialized to their index
     /// let buffer = Buffer::new(
     ///     device.clone(),
@@ -497,11 +488,11 @@ impl<Element> Buffer<Element> {
     ///     GPUBufferUsage::FragmentShaderRead,
     ///     "index_buffer",
     ///     |i| i as f32
-    /// ).expect("Failed to create buffer");
-    /// # });
+    /// ).await.expect("Failed to create buffer");
+    /// # }, "dynamic_buffer_new_doctest");
     /// # }
     /// ```
-    pub fn new(
+    pub async fn new(
         bound_device: Arc<BoundDevice>,
         size: usize,
         usage: GPUBufferUsage,
@@ -516,7 +507,7 @@ impl<Element> Buffer<Element> {
 
         let map_type = crate::bindings::buffer_access::MapType::Write; //todo: optimize for read vs write, etc.
 
-        let mappable_buffer = imp::MappableBuffer::new(
+        let mappable_buffer = imp::MappableBuffer2::new(
             bound_device.clone(),
             byte_size,
             map_type,
@@ -528,13 +519,19 @@ impl<Element> Buffer<Element> {
                     initialize_with,
                 )
             },
-        )?;
+        )
+        .await?;
 
-        let gpu_buffer = imp::GPUableBuffer::new(bound_device, byte_size, usage, debug_name);
+        let gpu_buffer = imp::GPUableBuffer::new(bound_device, byte_size, usage, debug_name).await;
 
         Ok(Self {
             shared: Arc::new(Shared {
-                multibuffer: Multibuffer::new(mappable_buffer, gpu_buffer, true),
+                multibuffer: Multibuffer::new(
+                    mappable_buffer,
+                    gpu_buffer,
+                    true,
+                    debug_name.to_string(),
+                ),
             }),
             count: size,
             debug_name: debug_name.to_string(),
@@ -565,17 +562,19 @@ impl<Element> Buffer<Element> {
     /// use images_and_words::bindings::visible_to::GPUBufferUsage;
     /// use images_and_words::images::projection::WorldCoord;
     /// use images_and_words::images::view::View;
-    /// test_executors::sleep_on(async {
-    /// # let engine = images_and_words::images::Engine::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
-    /// let device = engine.bound_device();
-    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).expect("Failed to create buffer");
+    /// # test_executors::spawn_local(async {
+    /// # let view = View::for_testing();
+    /// # let engine = images_and_words::images::Engine::rendering_to(view, images_and_words::images::projection::WorldCoord::new(0.0, 0.0, 0.0)).await.expect("can't get engine");
+    /// # let device = engine.bound_device();
+    /// let buffer = Buffer::<f32>::new(device.clone(), 100, GPUBufferUsage::VertexShaderRead, "test", |i| i as f32).await.expect("Failed to create buffer");
     /// let mut write_guard = buffer.access_write().await;
     ///
     /// // Update buffer contents
     /// write_guard.write(&[1.0, 2.0, 3.0], 0);
+    /// write_guard.async_drop().await;
     ///
     /// // Guard automatically marks buffer as dirty when dropped
-    /// # });
+    /// # }, "dynamic_buffer_access_write_doctest");
     /// # }
     /// ```
     pub async fn access_write(&self) -> CPUWriteAccess<'_, Element> {
@@ -657,3 +656,90 @@ unsafe impl CRepr for f64 {}
 unsafe impl CRepr for i32 {}
 unsafe impl CRepr for i16 {}
 unsafe impl CRepr for i8 {}
+
+// Boilerplate trait implementations
+
+impl<Element> PartialEq for Buffer<Element> {
+    /// Compares two buffers for equality.
+    ///
+    /// Two buffers are considered equal if they reference the same underlying
+    /// shared buffer data, regardless of their generic type parameter.
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.shared, &other.shared)
+    }
+}
+
+impl<Element> Eq for Buffer<Element> {}
+
+impl<Element> std::hash::Hash for Buffer<Element> {
+    /// Hashes the buffer based on its shared data pointer.
+    ///
+    /// This allows buffers to be used as keys in hash-based collections.
+    /// The hash is based on the identity of the underlying shared buffer,
+    /// not its contents.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.shared).hash(state);
+    }
+}
+
+// Clone implementation rationale: Buffer is a reference type that holds an Arc<Shared>,
+// making it safe and cheap to clone. Cloning creates a new reference to the same
+// underlying multibuffer, which is the expected behavior for shared GPU resources.
+
+// Copy implementation rationale: Buffer cannot be Copy because it contains an Arc,
+// which requires explicit cloning to manage reference counting properly.
+
+// Send/Sync implementation rationale: Buffer is automatically Send + Sync because
+// Arc<Shared> is Send + Sync, and all other fields are Send + Sync as well.
+// This allows buffers to be safely shared between threads.
+
+impl<Element> PartialEq for RenderSide<Element> {
+    /// Compares two render-side handles for equality.
+    ///
+    /// Two render-side handles are considered equal if they reference the same underlying
+    /// shared buffer data, regardless of their generic type parameter.
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.shared, &other.shared)
+    }
+}
+
+impl<Element> Eq for RenderSide<Element> {}
+
+impl<Element> std::hash::Hash for RenderSide<Element> {
+    /// Hashes the render-side handle based on its shared data pointer.
+    ///
+    /// This allows render-side handles to be used as keys in hash-based collections.
+    /// The hash is based on the identity of the underlying shared buffer.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.shared).hash(state);
+    }
+}
+
+impl<Element> Clone for RenderSide<Element> {
+    /// Clones the render-side handle.
+    ///
+    /// Creates a new reference to the same underlying multibuffer. This is safe
+    /// and efficient since the shared data is reference-counted.
+    fn clone(&self) -> Self {
+        Self {
+            shared: self.shared.clone(),
+            count: self.count,
+            debug_name: self.debug_name.clone(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+// Clone implementation rationale for RenderSide: Similar to Buffer, RenderSide is a reference
+// type that holds an Arc<Shared>. Cloning is safe and creates a new handle to the same
+// underlying GPU resource.
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn send() {
+        fn assert_send<T: Send>() {}
+        assert_send::<super::Buffer<u8>>();
+    }
+}

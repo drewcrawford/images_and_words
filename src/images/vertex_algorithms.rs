@@ -8,7 +8,7 @@ use crate::images::index_algorithms::IndexGenerator;
 /**
 Generates a rectangular 2D grid of points.
 */
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GridGenerator {
     grid_width: usize,
     grid_height: usize,
@@ -73,3 +73,10 @@ impl GridGenerator {
         IndexGenerator::new(self.vertex_count_width(), self.vertex_count_height())
     }
 }
+
+// Boilerplate
+
+// GridGenerator: Copy is appropriate since this is a simple struct with two usize fields
+// and is unlikely to gain additional fields (a grid generator fundamentally needs just
+// width and height). PartialEq/Eq make sense for comparing grid configurations.
+// Hash is appropriate since we implement Eq.

@@ -29,11 +29,10 @@ assert_eq!(value, 96);
 
 ## Implementing VTexture for a virtual texture
 
-```ignore
+```
 # use images_and_words::bindings::software::texture::{Texel};
-# use crate::bindings::software::texture::vtexture::VTexture;
+# use images_and_words::bindings::software::texture::vtexture::VTexture;
 # use images_and_words::pixel_formats::R32Float;
-# use crate::pixel_formats::sealed::PixelFormat;
 
 /// A virtual texture that generates a checkerboard pattern
 struct CheckerboardTexture {

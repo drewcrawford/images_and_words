@@ -12,7 +12,6 @@ use crate::images::render_pass::PassDescriptor;
 use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
 use crate::pixel_formats::sealed::PixelFormat as CratePixelFormat;
 use crate::send_phantom::SendPhantom;
-use raw_window_handle::RawDisplayHandle;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -32,6 +31,11 @@ impl UnboundDevice {
     }
 }
 
+pub trait BackendSend: Send {}
+impl<T: Send> BackendSend for T {}
+pub trait BackendSync: Sync {}
+impl<T: Sync> BackendSync for T {}
+
 impl UnboundDevice {
     pub async fn pick(
         _surface: &crate::images::view::View,
@@ -41,18 +45,16 @@ impl UnboundDevice {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct View {}
 impl View {
-    pub async unsafe fn from_surface(
+    pub async fn from_surface(
         _entrypoint: &crate::entry_point::EntryPoint,
-        _raw_window_handle: raw_window_handle::RawWindowHandle,
-        _raw_display_handle: RawDisplayHandle,
+        _view: crate::images::view::ViewForImp,
     ) -> Result<Self, Error> {
         todo!()
     }
 
-    #[cfg(any(test, feature = "testing"))]
     pub fn for_testing() -> Self {
         View {}
     }
@@ -61,7 +63,7 @@ impl View {
 pub struct Port {}
 
 impl Port {
-    pub(crate) fn new(
+    pub(crate) async fn new(
         _engine: &Arc<crate::images::Engine>,
         _view: crate::images::view::View,
         _camera: Camera,
@@ -173,6 +175,19 @@ impl<Format: CratePixelFormat> Texture<Format> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RenderSide;
+
+pub type TextureRenderSide = RenderSide;
+
+#[derive(Debug)]
+pub struct BindTargetBufferImp;
+
+#[derive(Debug)]
+pub struct CopyInfo<'a> {
+    pub(crate) command_encoder: PhantomData<&'a ()>,
+}
+
 #[derive(Debug)]
 pub struct GPUableTexture<Format> {
     _format: PhantomData<Format>,
@@ -183,7 +198,7 @@ pub struct GPUableTexture<Format> {
 
 impl<Format> Clone for GPUableTexture<Format> {
     fn clone(&self) -> Self {
-        GPUableTexture {
+        Self {
             _format: PhantomData,
             width: self.width,
             height: self.height,
@@ -192,13 +207,11 @@ impl<Format> Clone for GPUableTexture<Format> {
     }
 }
 
-//we don't actually send the format!
-unsafe impl<Format> Send for GPUableTexture<Format> {}
-unsafe impl<Format> Sync for GPUableTexture<Format> {}
+pub type GPUableTexture2<Format> = GPUableTexture<Format>;
 
 impl<Format> GPUableTexture<Format> {
     pub async fn new(
-        _bound_device: &crate::images::BoundDevice,
+        _bound_device: &Arc<crate::images::BoundDevice>,
         config: TextureConfig<'_>,
     ) -> Result<Self, Error> {
         Ok(GPUableTexture {
@@ -208,53 +221,143 @@ impl<Format> GPUableTexture<Format> {
             debug_name: config.debug_name.to_string(),
         })
     }
-    pub async fn new_initialize<I>(
-        _device: &crate::images::BoundDevice,
-        config: TextureConfig<'_>,
-        _initialize_to: I,
-    ) -> Result<Self, Error> {
-        Ok(GPUableTexture {
-            _format: PhantomData,
-            width: config.width as u32,
-            height: config.height as u32,
-            debug_name: config.debug_name.to_string(),
-        })
-    }
+
     pub fn render_side(&self) -> RenderSide {
-        todo!()
+        RenderSide {}
     }
 
-    pub fn as_imp(&self) {}
-}
-
-impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {}
-
-impl<Format> crate::imp::GPUableTextureWrapped for GPUableTexture<Format> {
-    fn format_matches(&self, _other: &dyn crate::imp::MappableTextureWrapped) -> bool {
-        todo!("format_matches not implemented for nop backend")
-    }
-
-    fn copy_from_mappable(
+    pub async fn copy_from_mappable_texture2<T>(
         &self,
-        _source: &dyn crate::imp::MappableTextureWrapped,
-        _copy_info: &mut crate::imp::CopyInfo,
+        _source: &MappableTexture<Format>,
+        _command_encoder: &mut T,
     ) -> Result<(), String> {
-        // Nop backend doesn't actually perform copies
+        // No-op implementation for nop backend
         Ok(())
     }
 }
 
+unsafe impl<Format> Send for GPUableTexture<Format> {}
+unsafe impl<Format> Sync for GPUableTexture<Format> {}
+
+impl<Format> GPUableTextureWrapper for GPUableTexture<Format> {}
+
+impl<Format: Send + Sync + 'static> crate::imp::GPUableTextureWrapped for GPUableTexture<Format> {
+    fn format_matches(&self, _other: &dyn crate::imp::MappableTextureWrapped) -> bool {
+        false // Nop implementation always returns false
+    }
+
+    fn copy_from_mappable(
+        &self,
+        _source: &mut dyn crate::imp::MappableTextureWrapped,
+        _copy_info: &mut crate::imp::CopyInfo,
+    ) -> Result<(), String> {
+        Ok(()) // Nop implementation - no-op
+    }
+}
+
+#[derive(Debug)]
+pub struct GPUableTextureStatic<Format> {
+    _format: PhantomData<Format>,
+    width: u32,
+    height: u32,
+    debug_name: String,
+}
+
+impl<Format> Clone for GPUableTextureStatic<Format> {
+    fn clone(&self) -> Self {
+        Self {
+            _format: PhantomData,
+            width: self.width,
+            height: self.height,
+            debug_name: self.debug_name.clone(),
+        }
+    }
+}
+
+pub type GPUableTexture2Static<Format> = GPUableTextureStatic<Format>;
+
+impl<Format> GPUableTextureStatic<Format> {
+    pub async fn new(
+        _bound_device: &Arc<crate::images::BoundDevice>,
+        config: TextureConfig<'_>,
+    ) -> Result<Self, Error> {
+        Ok(GPUableTextureStatic {
+            _format: PhantomData,
+            width: config.width as u32,
+            height: config.height as u32,
+            debug_name: config.debug_name.to_string(),
+        })
+    }
+
+    pub fn render_side(&self) -> RenderSide {
+        RenderSide {}
+    }
+}
+
+impl<Format: CratePixelFormat> GPUableTextureStatic<Format> {
+    pub async fn new_with_data<I>(
+        _bound_device: &Arc<crate::images::BoundDevice>,
+        config: TextureConfig<'_>,
+        _initializer: I,
+    ) -> Result<Self, Error> {
+        Ok(GPUableTextureStatic {
+            _format: PhantomData,
+            width: config.width as u32,
+            height: config.height as u32,
+            debug_name: config.debug_name.to_string(),
+        })
+    }
+}
+
+unsafe impl<Format> Send for GPUableTextureStatic<Format> {}
+unsafe impl<Format> Sync for GPUableTextureStatic<Format> {}
+
+impl<Format> GPUableTextureWrapper for GPUableTextureStatic<Format> {}
+
+impl<Format: Send + Sync + 'static> crate::imp::GPUableTextureWrapped
+    for GPUableTextureStatic<Format>
+{
+    fn format_matches(&self, _other: &dyn crate::imp::MappableTextureWrapped) -> bool {
+        false // Nop implementation always returns false
+    }
+
+    fn copy_from_mappable(
+        &self,
+        _source: &mut dyn crate::imp::MappableTextureWrapped,
+        _copy_info: &mut crate::imp::CopyInfo,
+    ) -> Result<(), String> {
+        Ok(()) // Nop implementation - no-op
+    }
+}
+
+pub trait PixelFormat {}
+
+// Implement PixelFormat for all pixel format types
+impl PixelFormat for crate::pixel_formats::R8UNorm {}
+impl PixelFormat for crate::pixel_formats::RGBA16Unorm {}
+impl PixelFormat for crate::pixel_formats::RGFloat {}
+impl PixelFormat for crate::pixel_formats::R32SInt {}
+impl PixelFormat for crate::pixel_formats::R32Float {}
+impl PixelFormat for crate::pixel_formats::RGBA8UNorm {}
+impl PixelFormat for crate::pixel_formats::BGRA8UNormSRGB {}
+impl PixelFormat for crate::pixel_formats::RGBA32Float {}
+impl PixelFormat for crate::pixel_formats::RGBA8UnormSRGB {}
+impl PixelFormat for crate::pixel_formats::R16Float {}
+
 pub struct MappableTexture<Format>(SendPhantom<Format>);
+
+pub type MappableTexture2<Format> = MappableTexture<Format>;
 
 impl<Format> std::fmt::Debug for MappableTexture<Format> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("MappableTexture")
+        f.debug_tuple("MappableTexture2")
             .field(&"SendPhantom")
             .finish()
     }
 }
+
 impl<Format> MappableTexture<Format> {
-    pub fn new<I>(
+    pub async fn new<I>(
         _bound_device: &crate::images::BoundDevice,
         _width: u16,
         _height: u16,
@@ -279,7 +382,6 @@ impl<Format> MappableTexture<Format> {
     pub fn as_imp(&self) {}
 }
 
-// Implement Mappable trait for MappableTexture
 impl<Format> crate::bindings::resource_tracking::sealed::Mappable for MappableTexture<Format> {
     async fn map_read(&mut self) {
         todo!()
@@ -293,8 +395,8 @@ impl<Format> crate::bindings::resource_tracking::sealed::Mappable for MappableTe
         todo!()
     }
 
-    fn unmap(&mut self) {
-        todo!()
+    async fn unmap(&mut self) {
+        // No-op as requested
     }
 }
 
@@ -310,15 +412,17 @@ impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped for Mappa
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct RenderSide;
-
-pub type TextureRenderSide = RenderSide;
+impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
+    fn as_ref(&self) -> &MappableTexture<Format> {
+        self
+    }
+}
 
 #[derive(Debug)]
-pub struct MappableBuffer;
-impl MappableBuffer {
-    pub fn new<F>(
+pub struct MappableBuffer2;
+
+impl MappableBuffer2 {
+    pub async fn new<F>(
         _bound_device: Arc<crate::images::BoundDevice>,
         _byte_size: usize,
         _map_type: MapType,
@@ -339,8 +443,8 @@ impl MappableBuffer {
         todo!()
     }
 
-    pub fn unmap(&mut self) {
-        todo!()
+    pub async fn unmap(&mut self) {
+        // No-op as requested
     }
 
     pub fn byte_len(&self) -> usize {
@@ -356,8 +460,7 @@ impl MappableBuffer {
     }
 }
 
-// Implement Mappable trait for MappableBuffer
-impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
+impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer2 {
     async fn map_read(&mut self) {
         self.map_read().await
     }
@@ -370,21 +473,24 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer {
         self.byte_len()
     }
 
-    fn unmap(&mut self) {
-        self.unmap()
+    async fn unmap(&mut self) {
+        self.unmap().await
     }
 }
 
-impl AsRef<MappableBuffer> for MappableBuffer {
-    fn as_ref(&self) -> &MappableBuffer {
+impl AsRef<MappableBuffer2> for MappableBuffer2 {
+    fn as_ref(&self) -> &MappableBuffer2 {
         self
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GPUableBuffer;
+
+pub type GPUableBufferStatic = GPUableBuffer;
+
 impl GPUableBuffer {
-    pub fn new(
+    pub async fn new(
         _bound_device: Arc<crate::images::BoundDevice>,
         _byte_size: usize,
         _usage: GPUBufferUsage,
@@ -393,86 +499,21 @@ impl GPUableBuffer {
         todo!()
     }
 
-    pub async fn copy_from_buffer(
+    pub async fn copy_from_mappable_buffer2<T>(
         &self,
-        _source: MappableBuffer,
-        _source_offset: usize,
-        _dest_offset: usize,
-        _copy_len: usize,
+        _source: &MappableBuffer2,
+        _command_encoder: &mut T,
     ) {
+        // No-op implementation for nop backend
+    }
+
+    pub async fn new_with_data<I: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
+        _bound_device: Arc<crate::images::BoundDevice>,
+        _byte_size: usize,
+        _usage: GPUBufferUsage,
+        _debug_name: &str,
+        _initializer: I,
+    ) -> Result<Self, Error> {
         todo!()
     }
-}
-
-#[derive(Debug)]
-pub struct BindTargetBufferImp;
-
-#[derive(Debug)]
-pub struct CopyInfo<'a> {
-    pub(crate) command_encoder: PhantomData<&'a ()>,
-}
-
-#[derive(Debug)]
-pub struct CopyGuard<SourceGuard> {
-    source_guard: SourceGuard,
-    gpu_buffer: GPUableBuffer,
-}
-
-impl<SourceGuard> AsRef<GPUableBuffer> for CopyGuard<SourceGuard> {
-    fn as_ref(&self) -> &GPUableBuffer {
-        &self.gpu_buffer
-    }
-}
-
-#[derive(Debug)]
-pub struct TextureCopyGuard<Format, SourceGuard> {
-    source_guard: SourceGuard,
-    gpu_texture: GPUableTexture<Format>,
-}
-
-impl<Format, SourceGuard> AsRef<GPUableTexture<Format>> for TextureCopyGuard<Format, SourceGuard> {
-    fn as_ref(&self) -> &GPUableTexture<Format> {
-        &self.gpu_texture
-    }
-}
-
-pub trait PixelFormat {}
-
-// Implement PixelFormat for all pixel format types
-impl PixelFormat for crate::pixel_formats::R8UNorm {}
-impl PixelFormat for crate::pixel_formats::RGBA16Unorm {}
-impl PixelFormat for crate::pixel_formats::RGFloat {}
-impl PixelFormat for crate::pixel_formats::R32SInt {}
-impl PixelFormat for crate::pixel_formats::R32Float {}
-impl PixelFormat for crate::pixel_formats::RGBA8UNorm {}
-impl PixelFormat for crate::pixel_formats::BGRA8UNormSRGB {}
-impl PixelFormat for crate::pixel_formats::RGBA32Float {}
-impl PixelFormat for crate::pixel_formats::RGBA8UnormSRGB {}
-impl PixelFormat for crate::pixel_formats::R16Float {}
-
-impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
-    fn as_ref(&self) -> &MappableTexture<Format> {
-        self
-    }
-}
-
-/// Helper function to copy from a mappable buffer to a GPU buffer
-pub fn copy_mappable_to_gpuable_buffer(
-    _source: &MappableBuffer,
-    _dest: &GPUableBuffer,
-    _source_offset: usize,
-    _dest_offset: usize,
-    _copy_len: usize,
-    _copy_info: &mut CopyInfo,
-) {
-    // No-op implementation
-}
-
-/// Helper function to copy from a mappable texture to a GPU texture
-pub fn copy_mappable_to_gpuable_texture<Format: crate::pixel_formats::sealed::PixelFormat>(
-    _source: &MappableTexture<Format>,
-    _dest: &GPUableTexture<Format>,
-    _copy_info: &mut CopyInfo,
-) {
-    // No-op implementation
 }

@@ -2,6 +2,9 @@
 use crate::bindings::software::texture::scaled_32::Scaled32;
 use crate::bindings::software::texture::{Normalized, Texel};
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::*;
+
 /**
 A scaled texture coordinate based on rows and cells.
 
@@ -30,7 +33,7 @@ Options include:
 * [ScaledRowCell::x_evenly_on_first]: 'On' the left edge, not necessarily the right
 *
 */
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct ScaledRowCell {
     /* You might sort of naively imagine we have, say, two f32s in here.
     in fact, that was the original implementation.  The difficulty is that the precision is different for different base values,
@@ -210,7 +213,25 @@ impl ScaledRowCell {
     }
 }
 
+// Boilerplate
+
+impl Default for ScaledRowCell {
+    fn default() -> Self {
+        Self::new(0, 0, 1, 0, 0)
+    }
+}
+
+impl From<ScaledRowCell> for Texel {
+    fn from(cell: ScaledRowCell) -> Texel {
+        Texel {
+            x: cell.cell,
+            y: cell.row,
+        }
+    }
+}
+
 #[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn test_rescale() {
     let f = ScaledRowCell::new(32, 0, 1, 0, 0);
     let g = f.rescale_evenly(128, 128, 64, 64);
