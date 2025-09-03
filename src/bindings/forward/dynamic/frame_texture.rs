@@ -101,7 +101,6 @@ the pixel data type and GPU texture format. Common formats include:
 */
 
 use crate::bindings::dirty_tracking::DirtyReceiver;
-use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::TextureConfig;
 use crate::images::device::BoundDevice;
@@ -530,21 +529,6 @@ impl<'a, Format: PixelFormat> CPUWriteGuard<'a, Format> {
         Format: PixelFormat,
     {
         self.underlying.replace(src_width, dst_texel, data);
-    }
-}
-
-impl<Format: PixelFormat> Mappable for CPUWriteGuard<'_, Format> {
-    async fn map_read(&mut self) {
-        self.underlying.map_read().await;
-    }
-    async fn map_write(&mut self) {
-        self.underlying.map_write().await;
-    }
-    fn unmap(&mut self) {
-        self.underlying.unmap();
-    }
-    fn byte_len(&self) -> usize {
-        (self.width as usize) * (self.height as usize) * std::mem::size_of::<Format::CPixel>()
     }
 }
 

@@ -43,33 +43,33 @@ const CPU_READ: u8 = 1;
 const CPU_WRITE: u8 = 2;
 const GPU: u8 = 3;
 const PENDING_WRITE_TO_GPU: u8 = 4;
-
-/// Guard providing immutable CPU access to a tracked resource
-///
-/// This guard ensures exclusive read access to the resource while held.
-/// The resource is automatically unmapped when the guard is dropped.
-///
-/// # Safety
-///
-/// The guard maintains the invariant that the resource is in `CPU_READ` state
-/// for its entire lifetime, preventing concurrent GPU or CPU write access.
-#[derive(Debug)]
-pub struct CPUReadGuard<'a, Resource>
-where
-    Resource: sealed::Mappable,
-{
-    tracker: &'a ResourceTrackerInternal<Resource>,
-}
-
-impl<Resource> Deref for CPUReadGuard<'_, Resource>
-where
-    Resource: sealed::Mappable,
-{
-    type Target = Resource;
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.tracker.resource.get() }
-    }
-}
+//
+// /// Guard providing immutable CPU access to a tracked resource
+// ///
+// /// This guard ensures exclusive read access to the resource while held.
+// /// The resource is automatically unmapped when the guard is dropped.
+// ///
+// /// # Safety
+// ///
+// /// The guard maintains the invariant that the resource is in `CPU_READ` state
+// /// for its entire lifetime, preventing concurrent GPU or CPU write access.
+// #[derive(Debug)]
+// pub struct CPUReadGuard<'a, Resource>
+// where
+//     Resource: sealed::Mappable,
+// {
+//     tracker: &'a ResourceTrackerInternal<Resource>,
+// }
+//
+// impl<Resource> Deref for CPUReadGuard<'_, Resource>
+// where
+//     Resource: sealed::Mappable,
+// {
+//     type Target = Resource;
+//     fn deref(&self) -> &Self::Target {
+//         unsafe { &*self.tracker.resource.get() }
+//     }
+// }
 
 /// Guard providing mutable CPU access to a tracked resource
 ///
@@ -195,20 +195,20 @@ pub(crate) mod sealed {
     /// to be tracked by the resource tracking system. It provides the
     /// necessary operations for mapping/unmapping memory for CPU access.
     pub trait Mappable {
-        /// Maps the resource for read-only CPU access
-        ///
-        /// This operation is asynchronous as it may need to wait for
-        /// GPU operations to complete or for data to be transferred.
-        fn map_read(&mut self) -> impl Future<Output = ()> + BackendSend;
+        // /// Maps the resource for read-only CPU access
+        // ///
+        // /// This operation is asynchronous as it may need to wait for
+        // /// GPU operations to complete or for data to be transferred.
+        // fn map_read(&mut self) -> impl Future<Output = ()> + BackendSend;
 
         /// Maps the resource for read-write CPU access
         ///
         /// This operation is asynchronous as it may need to wait for
         /// GPU operations to complete or for data to be transferred.
         fn map_write(&mut self) -> impl Future<Output = ()> + BackendSend;
-
-        /// Returns the size of the resource in bytes
-        fn byte_len(&self) -> usize;
+        //
+        // /// Returns the size of the resource in bytes
+        // fn byte_len(&self) -> usize;
 
         /// Unmaps the resource from CPU memory
         ///

@@ -38,17 +38,17 @@ pub struct MappableTexture2<Format> {
 }
 
 impl<Format> Mappable for MappableTexture2<Format> {
-    async fn map_read(&mut self) {
-        self.imp.map_read().await;
-    }
+    // async fn map_read(&mut self) {
+    //     self.imp.map_read().await;
+    // }
 
     async fn map_write(&mut self) {
         self.imp.map_write().await;
     }
 
-    fn byte_len(&self) -> usize {
-        self.imp.byte_len()
-    }
+    // fn byte_len(&self) -> usize {
+    //     self.imp.byte_len()
+    // }
 
     fn unmap(&mut self) {
         self.imp.unmap();

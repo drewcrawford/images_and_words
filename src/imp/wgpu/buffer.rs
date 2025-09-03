@@ -102,10 +102,6 @@ impl MappableBuffer2 {
         slice.copy_from_slice(data);
     }
 
-    pub async fn map_read(&mut self) {
-        // Since we use a CPU view, this is a no-op
-    }
-
     pub async fn map_write(&mut self) {
         // Since we use a CPU view, this is a no-op
     }
@@ -113,16 +109,12 @@ impl MappableBuffer2 {
     pub fn unmap(&mut self) {
         // No-op as requested - we don't use wgpu types
     }
-
-    pub fn byte_len(&self) -> usize {
-        self.internal_buffer.len()
-    }
 }
 
 impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer2 {
-    async fn map_read(&mut self) {
-        self.map_read().await
-    }
+    // async fn map_read(&mut self) {
+    //     self.map_read().await
+    // }
 
     async fn map_write(&mut self) {
         self.map_write().await
@@ -132,9 +124,9 @@ impl crate::bindings::resource_tracking::sealed::Mappable for MappableBuffer2 {
         self.unmap();
     }
 
-    fn byte_len(&self) -> usize {
-        self.byte_len()
-    }
+    // fn byte_len(&self) -> usize {
+    //     self.byte_len()
+    // }
 }
 
 impl AsRef<MappableBuffer2> for MappableBuffer2 {
