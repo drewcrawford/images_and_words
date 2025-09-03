@@ -166,7 +166,7 @@ impl View {
 }
 
 #[derive(Debug)]
-pub struct ViewForImp {
+pub(crate) struct ViewForImp {
     windowing_impl: WindowingImpl,
 }
 
