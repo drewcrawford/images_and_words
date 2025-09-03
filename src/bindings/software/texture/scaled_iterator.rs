@@ -92,6 +92,25 @@ impl ScaledIterator {
     }
 }
 
+// Boilerplate for ScaledIterator
+impl PartialEq for ScaledIterator {
+    fn eq(&self, other: &Self) -> bool {
+        self.next == other.next
+            && self.tx_width == other.tx_width
+            && self.tx_height == other.tx_height
+    }
+}
+
+impl Eq for ScaledIterator {}
+
+impl std::hash::Hash for ScaledIterator {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.next.hash(state);
+        self.tx_width.hash(state);
+        self.tx_height.hash(state);
+    }
+}
+
 impl Iterator for ScaledIterator {
     type Item = ScaledRowCell;
 

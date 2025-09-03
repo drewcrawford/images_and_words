@@ -33,7 +33,7 @@ Options include:
 * [ScaledRowCell::x_evenly_on_first]: 'On' the left edge, not necessarily the right
 *
 */
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct ScaledRowCell {
     /* You might sort of naively imagine we have, say, two f32s in here.
     in fact, that was the original implementation.  The difficulty is that the precision is different for different base values,
