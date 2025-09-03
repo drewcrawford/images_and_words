@@ -404,7 +404,13 @@ impl From<(f32, f32)> for Normalized {
 /// let avg = i32::avg(&samples);
 /// assert_eq!(avg, 175.0);
 /// ```
-pub trait Sampleable: Sized + Clone {
+
+mod sealed {
+    /// Sealed trait to prevent external implementations of Sampleable.
+    pub trait Sealed {}
+}
+
+pub trait Sampleable: Sized + Clone + sealed::Sealed {
     /// The output type of sampling operations.
     /// Usually a floating-point type for smooth interpolation.
     type Sampled;
@@ -416,6 +422,8 @@ pub trait Sampleable: Sized + Clone {
     /// * `elements` - Slice of (weight, value) pairs where weights should sum to 1.0
     fn avg(elements: &[(f32, Self)]) -> Self::Sampled;
 }
+impl sealed::Sealed for f32 {}
+
 impl Sampleable for f32 {
     type Sampled = f32;
 
@@ -428,6 +436,8 @@ impl Sampleable for f32 {
     }
 }
 
+impl sealed::Sealed for i32 {}
+
 impl Sampleable for i32 {
     type Sampled = f32;
 
@@ -439,6 +449,8 @@ impl Sampleable for i32 {
         avg
     }
 }
+
+impl sealed::Sealed for Float4 {}
 
 impl Sampleable for Float4 {
     type Sampled = Float4;
@@ -940,3 +952,37 @@ impl<Format: PixelFormat> IndexMut<Texel> for Texture<Format> {
         &mut self.data[index.vec_offset(self.width)]
     }
 }
+
+// Boilerplate for Texture
+
+impl<Format: PixelFormat> Clone for Texture<Format>
+where
+    Format::CPixel: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            width: self.width,
+            height: self.height,
+        }
+    }
+}
+
+impl<Format: PixelFormat> PartialEq for Texture<Format>
+where
+    Format::CPixel: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        // Quick dimension check first
+        if self.width != other.width || self.height != other.height {
+            return false;
+        }
+
+        // Compare all pixel data
+        self.data == other.data
+    }
+}
+
+// Send/Sync: Texture automatically derives Send/Sync based on its fields.
+// Since it contains Vec<Format::CPixel> and u16 values, it will be Send/Sync
+// if and only if Format::CPixel is Send/Sync, which is the correct behavior.
