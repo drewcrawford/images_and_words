@@ -45,7 +45,7 @@ impl UnboundDevice {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct View {}
 impl View {
     pub async fn from_surface(

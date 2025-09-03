@@ -4,7 +4,7 @@ use raw_window_handle::HasWindowHandle;
 use std::sync::Arc;
 
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct View {
     //need surface to be dropped first here
     pub(super) surface: Option<WgpuCell<wgpu::Surface<'static>>>,

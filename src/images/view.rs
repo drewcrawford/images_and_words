@@ -83,7 +83,7 @@ impl std::fmt::Display for Error {
 ///
 /// Views implement `Send` to allow them to be moved between threads,
 /// which is necessary for the rendering architecture.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct View {
     #[allow(dead_code)] //nop implementation does not use
     //lazily created when we connect the entrypoint
@@ -280,3 +280,42 @@ impl View {
         }
     }
 }
+
+// Boilerplate
+
+// Clone: The View type is cloneable since both gpu_impl (Option<imp::View>) and
+// windowing_impl (WindowingImpl) are cloneable. Backend View implementations use Arc
+// internally, so clones share the same underlying GPU resources efficiently.
+
+impl Default for View {
+    /// Creates a default View suitable for testing.
+    ///
+    /// This provides the same functionality as [`View::for_testing()`],
+    /// creating a view with fixed dimensions of 800x600 pixels and
+    /// a scale factor of 1.0.
+    fn default() -> Self {
+        Self::for_testing()
+    }
+}
+
+#[cfg(feature = "app_window")]
+impl From<app_window::surface::Surface> for View {
+    /// Creates a View from a window surface.
+    ///
+    /// This provides a convenient way to convert an `app_window::Surface`
+    /// directly into a `View`. This is equivalent to calling [`View::from_surface`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the surface cannot be converted to a view, though this
+    /// should not happen in normal usage.
+    fn from(surface: app_window::surface::Surface) -> Self {
+        Self::from_surface(surface).expect("Failed to create view from surface")
+    }
+}
+
+// PartialEq/Eq: Not appropriate for resource management types like View
+// Hash: Not applicable since View doesn't implement Eq
+// Copy: Not appropriate for resource management types
+// Display: Not particularly valuable for this type
+// AsRef/AsMut/Deref/DerefMut: Not applicable to this wrapper type
