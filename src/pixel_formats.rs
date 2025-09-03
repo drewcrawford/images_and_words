@@ -169,7 +169,7 @@ pub(crate) fn pixel_as_bytes<T: ReprC>(t: &[T]) -> &[u8] {
 /// let pixel: u8 = 128;
 /// // This pixel value represents 128/255 ≈ 0.502 when normalized
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct R8UNorm;
 impl PixelFormat for R8UNorm {
     const BYTES_PER_PIXEL: u8 = 1;
@@ -196,7 +196,7 @@ impl CPixelTrait for u8 {
 /// - High dynamic range textures
 /// - Intermediate render targets
 /// - Normal maps requiring extra precision
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct RGBA16Unorm;
 impl PixelFormat for RGBA16Unorm {
     const BYTES_PER_PIXEL: u8 = 2 * 4;
@@ -229,7 +229,7 @@ impl CPixelTrait for RGBA16Pixel {
 /// - UV coordinates
 /// - 2D vector fields
 /// - Two-channel HDR data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct RGFloat;
 impl PixelFormat for RGFloat {
     const BYTES_PER_PIXEL: u8 = 8;
@@ -255,7 +255,7 @@ impl CPixelTrait for RGFloatPixel {
 ///
 /// Contains two 32-bit floating point values with C-compatible memory layout.
 #[repr(C)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy, PartialEq, Default)]
 pub struct RGFloatPixel {
     /// Red channel value
     pub r: f32,
@@ -269,7 +269,7 @@ unsafe impl ReprC for RGFloatPixel {}
 /// Contains four 16-bit normalized values with C-compatible memory layout.
 /// Values range from 0-65535.
 #[repr(C)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Default)]
 pub struct RGBA16Pixel {
     /// Red channel (0-65535)
     pub r: u16,
@@ -289,7 +289,7 @@ unsafe impl ReprC for RGBA16Pixel {}
 /// - Index buffers
 /// - Integer compute data
 /// - Non-visual data storage
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct R32SInt;
 impl PixelFormat for R32SInt {
     const BYTES_PER_PIXEL: u8 = 4;
@@ -315,7 +315,7 @@ impl CPixelTrait for i32 {
 /// - Depth buffers
 /// - Single-channel HDR data
 /// - Distance fields
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct R32Float;
 impl PixelFormat for R32Float {
     const BYTES_PER_PIXEL: u8 = 4;
@@ -340,7 +340,7 @@ impl CPixelTrait for f32 {
 /// - Memory-constrained applications
 /// - Mobile GPUs
 /// - Cases where full float precision isn't needed
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct R16Float;
 impl PixelFormat for R16Float {
     const BYTES_PER_PIXEL: u8 = 2;
@@ -377,7 +377,7 @@ unsafe impl ReprC for f32 {}
 /// let unorm_color = Unorm4::from_floats(float_color);
 /// ```
 #[repr(C)]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Copy, PartialEq, Eq, Hash)]
 pub struct Unorm4 {
     pub r: u8,
     pub g: u8,
@@ -448,7 +448,7 @@ impl From<Unorm4> for PixelBGRA {
 /// # }, "pixel_formats_doctest");
 /// # }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct RGBA8UNorm;
 impl PixelFormat for RGBA8UNorm {
     const BYTES_PER_PIXEL: u8 = 4;
@@ -486,7 +486,7 @@ impl CPixelTrait for Unorm4 {
 /// - Optimal memory layout for many platforms
 ///
 /// Could be optimized further on a per-platform basis.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
 pub struct BGRA8UNormSRGB;
 impl PixelFormat for BGRA8UNormSRGB {
     const BYTES_PER_PIXEL: u8 = 4;
@@ -529,7 +529,7 @@ impl CPixelTrait for BGRA8UnormPixelSRGB {
 /// let linear_color = Float4 { r: 0.5, g: 0.0, b: 0.0, a: 1.0 };
 /// let srgb_pixel: BGRA8UnormPixelSRGB = linear_color.into();
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[repr(C)]
 pub struct BGRA8UnormPixelSRGB {
     pub b: u8,
@@ -612,7 +612,7 @@ impl From<Float4> for BGRA8UnormPixelSRGB {
 /// let linear_again: Float4 = srgb_pixel.into();
 /// ```
 #[repr(C)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub struct Float4 {
     pub r: f32,
     pub g: f32,
@@ -685,7 +685,7 @@ impl From<Float4> for tgar::PixelBGRA {
 /// - Scientific visualization
 /// - Intermediate computation buffers
 /// - Post-processing effects
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct RGBA32Float;
 impl PixelFormat for RGBA32Float {
     const BYTES_PER_PIXEL: u8 = 16;
@@ -716,7 +716,7 @@ impl CPixelTrait for Float4 {
 /// provides automatic gamma correction.
 ///
 /// Note: BGRA order is often preferred for performance reasons on many platforms.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct RGBA8UnormSRGB;
 impl PixelFormat for RGBA8UnormSRGB {
     const BYTES_PER_PIXEL: u8 = 4;
@@ -748,7 +748,7 @@ unsafe impl ReprC for RGBA8UnormSRGBPixel {}
 /// Currently primarily used for PNG support as PNG files typically
 /// use RGBA channel order.
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct RGBA8UnormSRGBPixel {
     r: u8,
     g: u8,
@@ -793,3 +793,7 @@ impl From<RGBA8UnormSRGBPixel> for tgar::PixelBGRA {
         }
     }
 }
+
+// ============================================================================
+// Boilerplate implementations for pixel format types (in order of appearance)
+// ============================================================================
