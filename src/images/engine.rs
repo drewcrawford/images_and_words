@@ -9,6 +9,13 @@ use crate::imp;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
+/// Main GPU rendering engine that coordinates graphics resources and rendering operations.
+///
+/// The Engine manages the graphics pipeline by coordinating between the GPU device,
+/// rendering ports, and the underlying backend implementation. It provides thread-safe
+/// access to the main rendering port and maintains the lifetime of critical GPU resources.
+///
+/// Engines are typically created via [`Engine::rendering_to`] and shared using `Arc`.
 #[derive(Debug)]
 pub struct Engine {
     //note that drop order is significant here.
@@ -96,6 +103,20 @@ impl Engine {
         &self.device
     }
 }
+
+// Boilerplate section
+
+// Send/Sync: Engine is automatically Send + Sync because all fields are Send + Sync:
+// - Mutex<Option<Port>> is Send + Sync
+// - Arc<BoundDevice> and Arc<EntryPoint> are Send + Sync (assuming their contents are Send + Sync)
+// - imp::Engine is Send + Sync (empty struct in wgpu backend)
+// This is appropriate since Engine is designed for multi-threaded access.
+
+// Clone: Intentionally not implemented. Engine is a resource manager that coordinates
+// exclusive GPU resources. The intended sharing pattern is via Arc<Engine>, not cloning
+// the Engine itself. Cloning would be confusing and potentially unsafe given the
+// "drop order is significant" comment and resource management semantics.
+
 /**
 An opaque guard type for ports.
 */
