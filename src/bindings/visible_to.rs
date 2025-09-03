@@ -210,7 +210,7 @@ pub enum CPUStrategy {
 ///     mipmaps: false,  // Dynamic textures typically don't use mipmaps
 /// };
 /// ```
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TextureConfig<'a> {
     /// Width of the texture in pixels.
     pub width: u16,
@@ -237,3 +237,11 @@ pub struct TextureConfig<'a> {
     /// - For dynamic textures: typically `false` since content changes frequently
     pub mipmaps: bool,
 }
+
+// ============================================================
+// Boilerplate
+// ============================================================
+
+// TextureConfig - Default not implemented intentionally.
+// All parameters (width, height, debug_name, priority, etc.) should be
+// explicitly chosen by the user rather than relying on defaults.
