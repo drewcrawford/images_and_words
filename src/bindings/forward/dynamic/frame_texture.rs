@@ -676,18 +676,6 @@ impl<Format: PixelFormat> FrameTexture<Format> {
     /// The returned [`TextureRenderSide`] can be used with [`BindStyle`](crate::bindings::BindStyle)
     /// to bind this texture to shader slots. The render side automatically handles
     /// synchronization and always provides the most recent fully-uploaded texture to the GPU.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// # use images_and_words::bindings::BindStyle;
-    /// # use images_and_words::bindings::bind_style::{BindSlot, Stage};
-    /// # use images_and_words::bindings::forward::dynamic::frame_texture::FrameTexture;
-    /// # use images_and_words::pixel_formats::RGBA8UNorm;
-    /// # let texture: FrameTexture<RGBA8UNorm> = todo!();
-    /// // This is an internal method - users should pass FrameTexture directly to bind_dynamic_texture
-    /// let render_side = texture.render_side();
-    /// ```
     pub(crate) fn render_side(&self) -> TextureRenderSide<Format> {
         TextureRenderSide::<Format> {
             shared: self.shared.clone(),
