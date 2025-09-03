@@ -178,7 +178,7 @@ pub struct Texture<Format: PixelFormat> {
 /// assert_eq!(origin.x, 0);
 /// assert_eq!(origin.y, 0);
 /// ```
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Texel {
     /// X coordinate (horizontal position)
     pub x: u16,
@@ -255,6 +255,29 @@ impl Texel {
             self.y.saturating_sub(-dy as u16)
         };
         Self { x: new_x, y: new_y }
+    }
+}
+
+// Boilerplate
+
+impl Default for Texel {
+    /// Returns the origin texel at coordinates (0, 0).
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+impl From<(u16, u16)> for Texel {
+    /// Creates a texel from a tuple of coordinates.
+    fn from((x, y): (u16, u16)) -> Self {
+        Self { x, y }
+    }
+}
+
+impl std::fmt::Display for Texel {
+    /// Formats the texel as "(x, y)".
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
     }
 }
 

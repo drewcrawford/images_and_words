@@ -221,14 +221,6 @@ impl Default for ScaledRowCell {
     }
 }
 
-impl From<ScaledRowCell> for Scaled32 {
-    fn from(cell: ScaledRowCell) -> Scaled32 {
-        let cell_i = cell.cell_i as f32 / cell.scale as f32;
-        let cell_j = cell.cell_j as f32 / cell.scale as f32;
-        Scaled32::new(cell.cell, cell.row, cell_i, cell_j)
-    }
-}
-
 impl From<ScaledRowCell> for Texel {
     fn from(cell: ScaledRowCell) -> Texel {
         Texel {
