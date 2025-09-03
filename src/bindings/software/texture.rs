@@ -332,6 +332,32 @@ impl Normalized {
     }
 }
 
+// Boilerplate
+
+impl PartialEq for Normalized {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y
+    }
+}
+
+impl Default for Normalized {
+    /// Returns normalized coordinates at the origin (0.0, 0.0).
+    fn default() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+}
+
+impl From<(f32, f32)> for Normalized {
+    /// Creates normalized coordinates from a tuple.
+    ///
+    /// # Panics
+    ///
+    /// Panics if x or y are outside the range [0, 1].
+    fn from((x, y): (f32, f32)) -> Self {
+        Self::new(x, y)
+    }
+}
+
 /// Trait for pixel types that can be sampled with filtering.
 ///
 /// This trait enables bilinear and other filtering operations on pixel data.
