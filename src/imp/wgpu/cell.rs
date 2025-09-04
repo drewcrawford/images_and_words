@@ -321,9 +321,13 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_cell_construction() {
         // Just verify we can construct cells
-        let _cell = WgpuCell::new(42);
-        let _cell_from: WgpuCell<i32> = 42.into();
-        let _cell_default: WgpuCell<i32> = Default::default();
+        let cell = WgpuCell::new(42);
+        let cell_from: WgpuCell<i32> = 42.into();
+        let cell_default: WgpuCell<i32> = Default::default();
+        //note: these cells have complex drop requirements
+        std::mem::forget(cell);
+        std::mem::forget(cell_from);
+        std::mem::forget(cell_default);
     }
 
     // Test guard functionality on platforms where we can access from any thread (Relaxed strategy)
