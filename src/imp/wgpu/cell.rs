@@ -280,7 +280,7 @@ mod tests {
     use super::*;
 
     // Tests that run on platforms where we can access from any thread (Relaxed strategy)
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     mod relaxed_tests {
         use super::*;
         use std::rc::Rc;
@@ -290,21 +290,13 @@ mod tests {
         fn test_wgpu_cell_basic_operations() {
             let value = 42;
             let mut cell = WgpuCell::new(value);
-            assert_eq!(*cell.get(), 42);
+            assert_eq!(*cell.lock().value, 42);
 
-            *cell.get_mut() = 100;
-            assert_eq!(*cell.get(), 100);
+            *cell.lock().value = 100;
+            assert_eq!(*cell.lock().value, 100);
 
-            let value = cell.into_inner();
+            let value = *cell.lock().value;
             assert_eq!(value, 100);
-        }
-
-        #[test]
-        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-        fn test_wgpu_cell_copy() {
-            let cell = WgpuCell::new(42);
-            let cell2 = cell.copying();
-            assert_eq!(*cell.get(), *cell2.get());
         }
 
         #[test]
@@ -313,7 +305,7 @@ mod tests {
             // Rc is not Send
             let rc = Rc::new(42);
             let cell = WgpuCell::new(rc);
-            assert_eq!(**cell.get(), 42);
+            assert_eq!(**cell.lock().value, 42);
         }
     }
     // Test constructors that don't require thread access
@@ -331,9 +323,10 @@ mod tests {
     }
 
     // Test guard functionality on platforms where we can access from any thread (Relaxed strategy)
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     mod guard_tests {
         use super::*;
+        use std::time::{Duration, Instant};
 
         #[test]
         #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
