@@ -6,9 +6,6 @@
 #[cfg(target_arch = "wasm32")]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_test::*;
-
 use images_and_words::bindings::BindStyle;
 use images_and_words::bindings::bind_style::BindSlot;
 use images_and_words::bindings::forward::dynamic::buffer::Buffer;
