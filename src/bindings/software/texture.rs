@@ -52,6 +52,7 @@ use crate::bindings::software::texture::vtexture::VTexture;
 use crate::pixel_formats::Float4;
 use crate::pixel_formats::png_support::PngPixelFormat;
 use crate::pixel_formats::sealed::PixelFormat;
+use std::io::Cursor;
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 use vec_parallel::Hint;
@@ -659,7 +660,7 @@ impl<Format: PixelFormat> Texture<Format> {
         let data = file.read_all(priority).await.unwrap();
 
         println!("read {} bytes", data.len());
-        let decoder = png::Decoder::new(&*data);
+        let decoder = png::Decoder::new(Cursor::new(&*data));
         let mut reader = decoder.read_info().unwrap();
         println!(
             "will decode {}x{}",
@@ -670,7 +671,12 @@ impl<Format: PixelFormat> Texture<Format> {
         let vec_capacity = reader.info().width as usize * reader.info().height as usize;
         let mut buf = Vec::<Format::CPixel>::with_capacity(vec_capacity);
         let num_bytes = buf.capacity() * std::mem::size_of::<Format::CPixel>();
-        assert!(num_bytes >= reader.output_buffer_size());
+        assert!(
+            num_bytes
+                >= reader
+                    .output_buffer_size()
+                    .expect("PNG output buffer size should be available")
+        );
 
         assert!(reader.info().color_type == Format::png_color_type());
         assert!(reader.info().bit_depth == Format::png_bit_depth());
