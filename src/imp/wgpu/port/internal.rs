@@ -7,7 +7,6 @@ use crate::images::render_pass::PassDescriptor;
 use crate::imp::wgpu::cell::WgpuCell;
 use crate::imp::wgpu::context::smuggle_async;
 use crate::imp::{CopyInfo, Error};
-use logwise::context::Context;
 use send_cells::send_cell::SendCell;
 use std::sync::Arc;
 use wgpu::wgt::BufferDescriptor;
@@ -756,7 +755,6 @@ impl PortInternal {
     pub async fn render_frame(mut self) -> Self {
         //logwise::info_sync!("Rendering frame...");
         smuggle_async("render_frame".to_string(), || async move {
-            Context::begin_trace();
             let (encoder, frame_guard) = self.begin_render_frame_internal().await;
             let size_scale = self.view.size_scale().await;
             let result_self =
