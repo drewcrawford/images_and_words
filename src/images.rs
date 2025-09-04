@@ -9,13 +9,13 @@
 //!
 //! The module is organized around several key concepts:
 //!
-//! - **[`Engine`]**: The main entry point for rendering operations, managing the GPU device
+//! - **[`Engine`](crate::images::Engine)**: The main entry point for rendering operations, managing the GPU device
 //!   and rendering context
-//! - **[`render_pass`]**: Configuration for GPU draw operations including shaders and draw commands
-//! - **[`shader`]**: Vertex and fragment shader types for GPU programming
-//! - **[`view`]**: Display surface abstraction for rendering targets
-//! - **[`port`]**: Viewport and camera management for 3D rendering
-//! - **[`projection`]**: Coordinate systems and projection matrices
+//! - **[`render_pass`](crate::images::render_pass)**: Configuration for GPU draw operations including shaders and draw commands
+//! - **[`shader`](crate::images::shader)**: Vertex and fragment shader types for GPU programming
+//! - **[`view`](crate::images::view)**: Display surface abstraction for rendering targets
+//! - **[`port`](crate::images::port)**: Viewport and camera management for 3D rendering
+//! - **[`projection`](crate::images::projection)**: Coordinate systems and projection matrices
 //!
 //! # Getting Started
 //!
@@ -40,9 +40,9 @@
 //!
 //! The module provides utilities for working with vertex data:
 //!
-//! - [`vertex_layout`]: Define vertex attribute layouts for shaders
-//! - [`vertex_algorithms`]: Common vertex generation algorithms
-//! - [`index_algorithms`]: Index buffer generation for primitive assembly
+//! - [`vertex_layout`](crate::images::vertex_layout): Define vertex attribute layouts for shaders
+//! - [`vertex_algorithms`](crate::images::vertex_algorithms): Common vertex generation algorithms
+//! - [`index_algorithms`](crate::images::index_algorithms): Index buffer generation for primitive assembly
 //!
 //! These components work together to prepare geometry data for GPU consumption.
 

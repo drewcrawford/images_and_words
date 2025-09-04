@@ -19,18 +19,18 @@
 //! # Available Formats
 //!
 //! ## Single Channel
-//! - [`R8UNorm`] - 8-bit normalized unsigned integer (0-255 mapped to 0.0-1.0)
-//! - [`R16Float`] - 16-bit half-precision float
-//! - [`R32Float`] - 32-bit single-precision float
-//! - [`R32SInt`] - 32-bit signed integer
+//! - [`R8UNorm`](crate::pixel_formats::R8UNorm) - 8-bit normalized unsigned integer (0-255 mapped to 0.0-1.0)
+//! - [`R16Float`](crate::pixel_formats::R16Float) - 16-bit half-precision float
+//! - [`R32Float`](crate::pixel_formats::R32Float) - 32-bit single-precision float
+//! - [`R32SInt`](crate::pixel_formats::R32SInt) - 32-bit signed integer
 //!
 //! ## Multi-Channel
-//! - [`RGFloat`] - 2-channel 32-bit float (8 bytes total)
-//! - [`RGBA8UNorm`] - 4-channel 8-bit normalized (4 bytes total)
-//! - [`RGBA8UnormSRGB`] - 4-channel 8-bit normalized with sRGB encoding
-//! - [`BGRA8UNormSRGB`] - 4-channel 8-bit normalized with sRGB encoding (BGRA order)
-//! - [`RGBA16Unorm`] - 4-channel 16-bit normalized (8 bytes total)
-//! - [`RGBA32Float`] - 4-channel 32-bit float (16 bytes total)
+//! - [`RGFloat`](crate::pixel_formats::RGFloat) - 2-channel 32-bit float (8 bytes total)
+//! - [`RGBA8UNorm`](crate::pixel_formats::RGBA8UNorm) - 4-channel 8-bit normalized (4 bytes total)
+//! - [`RGBA8UnormSRGB`](crate::pixel_formats::RGBA8UnormSRGB) - 4-channel 8-bit normalized with sRGB encoding
+//! - [`BGRA8UNormSRGB`](crate::pixel_formats::BGRA8UNormSRGB) - 4-channel 8-bit normalized with sRGB encoding (BGRA order)
+//! - [`RGBA16Unorm`](crate::pixel_formats::RGBA16Unorm) - 4-channel 16-bit normalized (8 bytes total)
+//! - [`RGBA32Float`](crate::pixel_formats::RGBA32Float) - 4-channel 32-bit float (16 bytes total)
 //!
 //! # Examples
 //!
