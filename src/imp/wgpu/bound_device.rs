@@ -9,7 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread::{self, JoinHandle};
-use wgpu::{Limits, PollType, Trace};
+#[cfg(not(target_arch = "wasm32"))]
+use wgpu::PollType;
+use wgpu::{Limits, Trace};
 
 /// Internal resource management for BoundDevice
 /// This type owns the actual GPU resources and handles cleanup

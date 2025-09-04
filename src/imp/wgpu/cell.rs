@@ -8,8 +8,6 @@ use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_test::*;
 #[derive(Debug)]
 struct Shared<T: 'static> {
     inner: Option<UnsafeSendCell<UnsafeSyncCell<T>>>,

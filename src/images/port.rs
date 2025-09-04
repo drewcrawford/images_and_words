@@ -57,7 +57,6 @@ use std::sync::{Arc, Mutex};
 //mt2-782
 #[cfg(target_arch = "wasm32")]
 mod perf {
-    use std::marker::PhantomData;
     use std::time::Duration;
 
     fn performance() -> web_sys::Performance {
@@ -88,11 +87,11 @@ mod perf {
         }
         pub fn to_u64(&self) -> u64 {
             //bitcast
-            unsafe { std::mem::transmute(self.time) }
+            self.time.to_bits()
         }
         pub fn from_u64(u: u64) -> Self {
             //bitcast
-            let time: f64 = unsafe { std::mem::transmute(u) };
+            let time: f64 = f64::from_bits(u);
             Self { time }
         }
     }

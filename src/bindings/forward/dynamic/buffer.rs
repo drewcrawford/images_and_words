@@ -99,9 +99,6 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index};
 use std::sync::Arc;
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_test::*;
-
 /// Indicates how frequently a dynamic buffer will be updated.
 ///
 /// This enum helps the graphics backend optimize buffer placement and update strategies

@@ -2,9 +2,6 @@
 use crate::bindings::software::texture::scaled_32::Scaled32;
 use crate::bindings::software::texture::{Normalized, Texel};
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_test::*;
-
 /**
 A scaled texture coordinate based on rows and cells.
 
