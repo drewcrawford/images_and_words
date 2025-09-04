@@ -208,6 +208,7 @@ impl<T> WgpuCell<T> {
     # Panics
     For the duration of this function, the cell may not be otherwise used.
     */
+    #[allow(clippy::await_holding_lock)]
     pub async fn with_async<C, R>(&self, c: C) -> R
     where
         C: AsyncFnOnce(&T) -> R + Send + 'static,

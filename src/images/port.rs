@@ -118,7 +118,7 @@ mod perf {
         pub fn duration_since(&self, earlier: &Self) -> std::time::Duration {
             self.0.duration_since(earlier.0)
         }
-        pub fn to_u64(&self) -> u64 {
+        pub fn to_u64(self) -> u64 {
             let dur = self.0.duration_since(*EPOCH);
             dur.as_nanos() as u64
         }

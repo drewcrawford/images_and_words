@@ -263,13 +263,13 @@ impl PreparedPass {
             "surface format is {surface_format}",
             surface_format = logwise::privacy::LogIt(pass_config.surface_format)
         );
-        let color_target_format;
-        if pass_config.surface_format.is_srgb() {
-            color_target_format = pass_config.surface_format;
+
+        let color_target_format = if pass_config.surface_format.is_srgb() {
+            pass_config.surface_format
         } else {
             //in this case we accomplish this via view
-            color_target_format = TextureFormat::Bgra8UnormSrgb;
-        }
+            TextureFormat::Bgra8UnormSrgb
+        };
         let color_target_state = ColorTargetState {
             format: color_target_format,
             blend,

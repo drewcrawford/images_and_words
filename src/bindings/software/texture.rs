@@ -405,7 +405,6 @@ impl From<(f32, f32)> for Normalized {
 /// let avg = i32::avg(&samples);
 /// assert_eq!(avg, 175.0);
 /// ```
-
 mod sealed {
     /// Sealed trait to prevent external implementations of Sampleable.
     pub trait Sealed {}
