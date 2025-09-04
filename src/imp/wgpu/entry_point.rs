@@ -12,9 +12,9 @@ impl EntryPoint {
             // logwise::info_sync!("Creating wgpu::InstanceDescriptor...");
             let descriptor = wgpu::InstanceDescriptor::from_env_or_default();
             // logwise::info_sync!("Creating wgpu::Instance...");
-            let c = wgpu::Instance::new(&descriptor);
+
             // logwise::info_sync!("wgpu::Instance created successfully");
-            c
+            wgpu::Instance::new(&descriptor)
         })
         .await;
         // logwise::info_sync!("WgpuCell created successfully");

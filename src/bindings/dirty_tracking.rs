@@ -40,7 +40,7 @@ impl OneShot {
 }
 
 const CLEAN_PTR: *mut OneShot = std::ptr::null_mut();
-const DIRTY_PTR: *mut OneShot = 1 as *mut OneShot;
+const DIRTY_PTR: *mut OneShot = std::ptr::dangling_mut::<OneShot>();
 
 struct SendState {
     //semantics:
@@ -73,7 +73,7 @@ impl SendState {
                 }
             });
 
-        if load_continuations != std::ptr::null_mut() {
+        if !load_continuations.is_null() {
             //we had a continuation, so we need to send it
             let mut boxed_continuation = unsafe { Box::from_raw(load_continuations) };
             boxed_continuation.send_if_needed(); //why not
@@ -104,7 +104,7 @@ impl SendState {
                     Some(DIRTY_PTR)
                 }
             });
-        if load_continuations != std::ptr::null_mut() {
+        if !load_continuations.is_null() {
             //we had a continuation, so we need to send it
             let mut boxed_continuation = unsafe { Box::from_raw(load_continuations) };
             boxed_continuation.send_if_needed();

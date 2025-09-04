@@ -252,7 +252,7 @@ impl BindStyle {
     ) {
         self.bind(
             slot,
-            stage.clone(),
+            stage,
             BindTarget::StaticTexture(
                 texture.imp.render_side(),
                 sampler_type.as_ref().map(|x| x.sampler_type),

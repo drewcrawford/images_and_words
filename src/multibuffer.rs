@@ -251,6 +251,6 @@ where
     }
     ///Returns a [DirtyReceiver] that activates when the GPU side is dirty.
     pub(crate) fn gpu_dirty_receiver(&self) -> DirtyReceiver {
-        DirtyReceiver::new(&self.mappable.dirty_pending_cpu_to_gpu())
+        DirtyReceiver::new(self.mappable.dirty_pending_cpu_to_gpu())
     }
 }

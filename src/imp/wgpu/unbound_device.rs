@@ -50,8 +50,6 @@ impl UnboundDevice {
             }
         };
 
-        Ok(UnboundDevice {
-            adapter: adapter.into(),
-        })
+        Ok(UnboundDevice { adapter })
     }
 }

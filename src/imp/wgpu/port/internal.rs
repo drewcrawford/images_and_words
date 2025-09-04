@@ -106,7 +106,7 @@ impl PortInternal {
                 TextureFormat::Bgra8UnormSrgb
             }
             Some(surface) => {
-                let format = engine
+                engine
                     .bound_device()
                     .0
                     .adapter()
@@ -123,8 +123,7 @@ impl PortInternal {
 
                         selected_format
                     })
-                    .await;
-                format
+                    .await
             }
         };
 
@@ -757,13 +756,12 @@ impl PortInternal {
         smuggle_async("render_frame".to_string(), || async move {
             let (encoder, frame_guard) = self.begin_render_frame_internal().await;
             let size_scale = self.view.size_scale().await;
-            let result_self =
-                crate::images::request_animation_frame::request_animation_frame_async(move || {
-                    self.finish_render_frame(encoder, frame_guard, size_scale);
-                    self
-                })
-                .await;
-            result_self
+
+            crate::images::request_animation_frame::request_animation_frame_async(move || {
+                self.finish_render_frame(encoder, frame_guard, size_scale);
+                self
+            })
+            .await
         })
         .await
     }

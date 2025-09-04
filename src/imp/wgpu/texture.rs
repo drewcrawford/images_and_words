@@ -388,7 +388,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
 
             self.staging_buffer.assume(|buffer| {
                 let mut entire_map = buffer.slice(0..buffer.size()).get_mapped_range_mut();
-                entire_map.copy_from_slice(&source.as_slice());
+                entire_map.copy_from_slice(source.as_slice());
                 drop(entire_map);
                 buffer.unmap();
 

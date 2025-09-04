@@ -240,7 +240,9 @@ impl<T> WgpuCell<T> {
     {
         // logwise::info_sync!("WgpuCell::new_on_thread() started");
         // logwise::info_sync!("About to call smuggle_async...");
-        let value = smuggle_async("WgpuCell::new_on_thread".to_string(), move || async move {
+
+        // logwise::info_sync!("smuggle_async completed, returning value");
+        smuggle_async("WgpuCell::new_on_thread".to_string(), move || async move {
             // logwise::info_sync!("Inside smuggle_async closure");
             let f = c();
             // logwise::info_sync!("Calling provided closure f()...");
@@ -248,9 +250,7 @@ impl<T> WgpuCell<T> {
             // logwise::info_sync!("Closure completed, creating WgpuCell...");
             WgpuCell::new(r)
         })
-        .await;
-        // logwise::info_sync!("smuggle_async completed, returning value");
-        value
+        .await
     }
 }
 unsafe impl<T> Send for WgpuCell<T> {}

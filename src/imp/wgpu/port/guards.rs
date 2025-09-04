@@ -53,7 +53,7 @@ impl AcquiredGuards {
                     // Handle the copy if there's a dirty guard
                     if let Some(mut dirty_guard) = gpu_access.take_dirty_guard() {
                         // Get the source buffer from the dirty guard
-                        let source: &mut imp::MappableBuffer2 = &mut *dirty_guard;
+                        let source: &mut imp::MappableBuffer2 = &mut dirty_guard;
 
                         // Perform the copy operation using the new GPUableBuffer2 method
                         gpu_access
@@ -75,7 +75,7 @@ impl AcquiredGuards {
                     // Handle the copy if there's a dirty guard
                     if let Some(mut dirty_guard) = gpu_access.take_dirty_guard() {
                         // Get the source buffer from the dirty guard
-                        let source: &mut imp::MappableBuffer2 = &mut *dirty_guard;
+                        let source: &mut imp::MappableBuffer2 = &mut dirty_guard;
 
                         // Perform the copy operation using the new GPUableBuffer2 method
                         gpu_access
@@ -95,7 +95,7 @@ impl AcquiredGuards {
                     // Handle the copy if there's a dirty guard
                     if let Some(mut dirty_guard) = gpu_access.take_dirty_guard() {
                         // Get the source buffer from the dirty guard
-                        let source: &mut imp::MappableBuffer2 = &mut *dirty_guard;
+                        let source: &mut imp::MappableBuffer2 = &mut dirty_guard;
 
                         // Perform the copy operation using the new GPUableBuffer2 method
                         gpu_access
