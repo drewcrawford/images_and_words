@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         channel: [""]
-        features: [""]
+        features: ["","logwise","transit","logwise,transit"]
         target: [""]
         cwd: ["."]
         os: [ubuntu-latest]
@@ -35,14 +35,14 @@ jobs:
         env:
           FEATURES: ${{ matrix.features }}
         run: |
-          set -euo pipefail  
-          FEATURES_SANITIZED=""  
-          if [ -n "${FEATURES}" ]; then  
-            FEATURES_SANITIZED=$(echo "${FEATURES}" | tr ',' '-')  
-          else  
-            FEATURES_SANITIZED="default"  
-          fi  
-          echo "features=${FEATURES_SANITIZED}" >> "$GITHUB_OUTPUT"  
+          set -euo pipefail
+          FEATURES_SANITIZED=""
+          if [ -n "${FEATURES}" ]; then
+            FEATURES_SANITIZED=$(echo "${FEATURES}" | tr ',' '-')
+          else
+            FEATURES_SANITIZED="default"
+          fi
+          echo "features=${FEATURES_SANITIZED}" >> "$GITHUB_OUTPUT"
 
       - name: Cache target
         uses: actions/cache@v4
@@ -51,9 +51,9 @@ jobs:
           path: |
             target
           restore-keys: |
-            target-${{ github.event.repository.name }}-${{ matrix.cwd }}-${{ matrix.os }}-${{ matrix.channel || 'stable'}}-${{ matrix.target || 'host' }}-${{ steps.cache-key.outputs.features }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}        
-            target-${{ github.event.repository.name }}-${{ matrix.cwd }}-${{ matrix.os }}-${{ matrix.channel || 'stable'}}-${{ matrix.target || 'host' }}-${{ steps.cache-key.outputs.features }}        
-            target-${{ github.event.repository.name }}-${{ matrix.cwd }}-${{ matrix.os }}-${{ matrix.channel || 'stable'}}-${{ matrix.target || 'host' }}        
+            target-${{ github.event.repository.name }}-${{ matrix.cwd }}-${{ matrix.os }}-${{ matrix.channel || 'stable'}}-${{ matrix.target || 'host' }}-${{ steps.cache-key.outputs.features }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}      
+            target-${{ github.event.repository.name }}-${{ matrix.cwd }}-${{ matrix.os }}-${{ matrix.channel || 'stable'}}-${{ matrix.target || 'host' }}-${{ steps.cache-key.outputs.features }}      
+            target-${{ github.event.repository.name }}-${{ matrix.cwd }}-${{ matrix.os }}-${{ matrix.channel || 'stable'}}-${{ matrix.target || 'host' }}      
 
       # Compute reusable args once
       - name: Compute cargo args
@@ -63,22 +63,23 @@ jobs:
           FEATURE_FLAGS: ${{ matrix.features }}
           TARGET: ${{ matrix.target }}
         run: |
-          set -euo pipefail        
-          FEATURES_ARG=""        
-          TARGET_ARG=""        
-          if [ -n "${FEATURE_FLAGS}" ]; then        
-            FEATURES_ARG="--features=${FEATURE_FLAGS}"        
-          fi        
-          if [ -n "${TARGET}" ]; then        
-            TARGET_ARG="--target=${TARGET}"        
-          fi        
-          echo "features=${FEATURES_ARG}" >> "$GITHUB_OUTPUT"        
-          echo "target=${TARGET_ARG}"   >> "$GITHUB_OUTPUT"        
-          echo "features are ${FEATURES_ARG}"        
-          echo "target is ${TARGET_ARG}"        
+          set -euo pipefail      
+          FEATURES_ARG=""      
+          TARGET_ARG=""      
+          if [ -n "${FEATURE_FLAGS}" ]; then      
+            FEATURES_ARG="--features=${FEATURE_FLAGS}"      
+          fi      
+          if [ -n "${TARGET}" ]; then      
+            TARGET_ARG="--target=${TARGET}"      
+          fi      
+          echo "features=${FEATURES_ARG}" >> "$GITHUB_OUTPUT"      
+          echo "target=${TARGET_ARG}"   >> "$GITHUB_OUTPUT"      
+          echo "features are ${FEATURES_ARG}"      
+          echo "target is ${TARGET_ARG}"      
 
-        #      - name: Github update Rust
-        #        if: runner.os == 'Linux' && !(env.GITEA_ACTIONS == 'true')      #        run: |      #          # at the moment, GitHub is too far behind mainline rust (v1.89.0-v1.91.0-nightly)      #          rustup update      - name: Install wasm target
+      #      - name: Github update Rust
+      #        if: runner.os == 'Linux' && !(env.GITEA_ACTIONS == 'true')      #        run: |      #          # at the moment, GitHub is too far behind mainline rust (v1.89.0-v1.91.0-nightly)      #          rustup update
+      - name: Install wasm target
         if: matrix.target == 'wasm32-unknown-unknown' && !(env.GITEA_ACTIONS == 'true')
         run: rustup ${{ matrix.channel}} target add wasm32-unknown-unknown
 
@@ -89,8 +90,8 @@ jobs:
       - name: Install nightly components
         if: matrix.channel == '+nightly' && !(env.GITEA_ACTIONS == 'true')
         run: |
-          rustup ${{ matrix.channel }} component add rustfmt clippy        
-          rustup ${{ matrix.channel }} component add rust-src        
+          rustup ${{ matrix.channel }} component add rustfmt clippy      
+          rustup ${{ matrix.channel }} component add rust-src      
 
       - name: rustfmt
         run: cd ${{ matrix.cwd }} && cargo ${{ matrix.channel }} --config "$FATAL_WARNINGS_1"  --config "$FATAL_WARNINGS_2"  --config "$FATAL_WARNINGS_3" fmt --check
