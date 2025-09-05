@@ -190,6 +190,7 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 ///
 /// Creates a window and renders animated scene with dynamic buffers.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    console_error_panic_hook::set_once();
     logwise::info_sync!("Starting animated scene example with dynamic buffers...");
 
     app_window::application::main(|| {
