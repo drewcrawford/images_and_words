@@ -1,14 +1,24 @@
 # images_and_words
 
-images_and_words is a GPU middleware and abstraction layer for high-performance graphics applications and games.
+GPU middleware and abstraction layer for high-performance graphics applications and games.
+
+images_and_words provides a practical middle ground between low-level GPU APIs and full game engines,
+offering higher-order GPU resource types optimized for common patterns while maintaining the flexibility
+to bring your own physics, sound, and game logic.
 
 ![logo](art/logo.png)
 
 ## Demo
 
-![demo](art/demo.mp4)
+![demo](art/demo.gif)
 
-## The pitch
+## Live browser demos
+
+[Demo showcase](https://iwdemo.sealedabstract.com/)
+
+The examples are cross-compiled to WebAssembly and run in the browser.
+
+## The Pitch
 
 Suppose you want to write a game or graphics application. You may consider:
 
@@ -44,20 +54,20 @@ It should be easy to reason about the performance of IW applications, and to opt
 its primitives to meet your needs.  IW is designed to be a practical and performant target for my
 own career of applications, and I hope it can be for yours as well.
 
-## Core Concepts
+# Core Concepts
 
-### Higher-Order Memory Types
+## Higher-Order Memory Types
 
 The main innovation of images_and_words is providing a family of higher-order buffer and texture types.
 These types are layered atop traditional GPU resources but are optimized for specific use cases,
 with built-in multibuffering and synchronization to prevent pipeline stalls.
 
-### The Three-Axis Type System
+## The Three-Axis Type System
 
 images_and_words organizes GPU resources along three orthogonal axes, allowing you to select
 the precise abstraction for your use case:
 
-#### Axis 1: Resource Type (Buffer vs Texture)
+### Axis 1: Resource Type (Buffer vs Texture)
 
 **Buffers** provide:
 - Arbitrary memory layouts with full programmer control
@@ -73,7 +83,7 @@ the precise abstraction for your use case:
 - Spatial access patterns optimized for 2D/3D locality
 - Use cases: images, render targets, lookup tables
 
-#### Axis 2: Mutability (Static vs Dynamic)
+### Axis 2: Mutability (Static vs Dynamic)
 
 **Static** resources:
 - Immutable after creation
@@ -89,7 +99,7 @@ the precise abstraction for your use case:
 - Transparent synchronization
 - Examples: per-frame uniforms, streaming data
 
-#### Axis 3: Direction (Data Flow Patterns)
+### Axis 3: Direction (Data Flow Patterns)
 
 | Direction | Flow | Use Cases | Status |
 |-----------|------|-----------|---------|
@@ -98,7 +108,7 @@ the precise abstraction for your use case:
 | **Sideways** | GPU→GPU | Render-to-texture, compute chains | ⏳ Planned |
 | **Omnidirectional** | CPU↔GPU | Interactive simulations, feedback | ⏳ Planned |
 
-### Choosing the Right Type
+## Choosing the Right Type
 
 To select the appropriate binding type:
 
@@ -106,7 +116,7 @@ To select the appropriate binding type:
 2. **Determine update frequency**: Does it change every frame or remain constant?
 3. **Consider access patterns**: Do you need shader sampling or structured access?
 
-#### Quick Decision Guide
+### Quick Decision Guide
 
 | Your Use Case | Recommended Type |
 |---------------|------------------|
@@ -117,7 +127,7 @@ To select the appropriate binding type:
 | Particle positions (CPU generated) | `bindings::forward::dynamic::Buffer` |
 | Lookup tables for shaders | `bindings::forward::static::Buffer` or `Texture` |
 
-### Implementation Status
+## Implementation Status
 
 Currently implemented:
 - Forward Static Buffer ✅
@@ -134,9 +144,9 @@ Examples include:
 | Reverse  | Write GPU->CPU | Unified vs discrete memory              | Builtin        | Builtin              |
 | Sideways | Write GPU->GPU | private, GPU-native format              | Builtin        | TBD                  |
 
-## Architecture
+# Architecture
 
-### Backend System
+## Backend System
 
 images_and_words uses a backend abstraction that allows different GPU API implementations.
 Currently, two backends are available:
@@ -149,11 +159,11 @@ The wgpu backend inherits support for:
 - **Web APIs**: WebGPU, WebGL2 (via ANGLE)
 - **Platforms**: Windows, macOS, Linux, iOS, Android, WebAssembly
 
-### Key Modules
+## Key Modules
 
 The codebase is organized into several key modules:
 
-#### Core Rendering (`images`)
+### Core Rendering (`images`)
 Provides the main rendering infrastructure:
 - `Engine`: Main entry point for GPU operations
 - `render_pass`: Render pass configuration and draw commands
@@ -162,7 +172,7 @@ Provides the main rendering infrastructure:
 - `port`: Viewport and camera management
 - `projection`: Coordinate systems and transformations
 
-#### Resource Bindings (`bindings`)
+### Resource Bindings (`bindings`)
 Higher-order GPU resource types:
 - `forward`: CPU→GPU data transfer types
   - `static`: Immutable resources
@@ -170,30 +180,60 @@ Higher-order GPU resource types:
 - `software`: CPU-side texture operations
 - `sampler`: Texture sampling configuration
 
-#### Pixel Formats (`pixel_formats`)
+### Pixel Formats (`pixel_formats`)
 Type-safe pixel format definitions:
 - Strong typing for different color spaces and formats
 - Compile-time format validation
 - Automatic conversion handling
 
-### Design Philosophy
+## Backend Philosophy
 
-I have intentionally designed images_and_words to support multiple backends. While currently using wgpu,
-I've prototyped Vulkan and Metal-based approaches and intend to add more backends as needed.
+I have intentionally designed images_and_words to support multiple backends. Currently the crate
+uses wgpu for its broad platform support.  However I also have direct Vulkan and Metal backends in
+various stages of development.
 
-Longer-term I am skeptical of wgpu as a backend.  I am skeptical I can meet native performance expectations
-with a web-based API, I am skeptical of wgpu's guidance on accepting contributions to solve these issues,
-and I am skeptical of any single graphics API as I've seen them come and go while I'm supporting an
-application.
+Ultimately my goals are:
 
-The substantial motivation for creating images_and_words is to design an API that can solve real-world
-problems and become a practical, performant target for production applications. In the short term,
-it provides features and optimizations that don't happen in design-by-committee APIs. In the long term,
-it ensures application maintainability even as underlying graphics APIs evolve or become deprecated.
+* Focus and optimize for hardware/software that is relevant to in-development applications and games
+* Do something that technically works in weird environments like CI or minority platforms
+* Ship a long-term, broad-strokes API design that can be preserved beyond any one backend
+  implementation
 
-## Getting Started
+Currently this translates into these tiers:
 
-### Basic Setup
+1.  🚀 Windows 10+ (DX12, Vulkan 1.3+)
+2.  🎮 recent Linux (DX12/proton, Vulkan 1.3+)
+3.  🎮 recent macOS (Metal, MoltenVK 1.3+)
+4.  🆗 WebGPU (Chrome 141+, Safari 26.0+, Firefox 142 on Windows)
+5.  💥 WebGL2 (Firefox non-Windows, Safari 18.x, etc)
+6.  💥 Other wgpu GL (GL 3, GL ES 3, etc.)
+
+Legend:
+* 🚀 - first-class support, practically every issue you can hit even at all is a good candidate to file
+* 🎮 - good support, fairly well-tested, your issues encounter rarer bugs but still good intel
+* 🆗 - the API is designed to this baseline.  Correctness issues are definitely bugs, performance
+  issues likely require escape hatches not supported by the API per se.
+* 💥 - Below the design baseline.  It is intended that this works for a limited subset of APIs and
+  will panic if not supported, but also this is going to bitrot as time goes on.
+
+### A note on WebGL2
+
+For the time being, we need to support this in demos and the `wgpu_webgl` feature because:
+
+* iOS 18.x (13% global marketshare)
+* Firefox 141+ (<1% global marketshare)
+
+But you should expect this backend to be cut because:
+
+* It bloats the WASM size by a many multiples (5x)
+* Many planned features cannot work inside WebGL2 constraints
+* the wgpu backend is poor in this mode and I have no plans to improve it
+* most of the implementations at this point are translation layers that mostly replicate
+  what published games do
+
+# Getting Started
+
+## Basic Setup
 
 Create a rendering engine and access the main rendering port:
 
@@ -209,7 +249,7 @@ let mut port = engine.main_port_mut();
 // Port is now ready for rendering operations
 ```
 
-### Working with Buffers
+## Working with Buffers
 
 ```rust
 use images_and_words::{
@@ -244,7 +284,7 @@ let vertex_buffer = Buffer::new(
 ).await.expect("Failed to create buffer");
 ```
 
-### Working with Dynamic Resources
+## Working with Dynamic Resources
 
 Dynamic buffers support automatic multibuffering to prevent GPU pipeline stalls when updating data:
 
@@ -271,9 +311,9 @@ let uniform_data = UniformData {
 //                         "uniforms", |_| uniform_data).await?;
 ```
 
-## Examples
+# Examples
 
-### Complete Rendering Pipeline
+## Complete Rendering Pipeline
 
 ```rust
 use images_and_words::{
@@ -315,9 +355,9 @@ let mut port = engine.main_port_mut();
 // Ready to issue draw commands
 ```
 
-## Performance Considerations
+# Performance Considerations
 
-### Multibuffering
+## Multibuffering
 
 Dynamic resources automatically use multibuffering to prevent GPU pipeline stalls:
 
@@ -325,12 +365,12 @@ Dynamic resources automatically use multibuffering to prevent GPU pipeline stall
 - **Frame 2**: CPU writes to buffer B, GPU reads buffer A  
 - **CPU never blocks** waiting for GPU to finish
 
-### Memory Placement
+## Memory Placement
 
 Static resources are automatically placed in optimal GPU memory when possible,
 while dynamic resources use accessible memory for frequent updates.
 
-## Thread Safety and Async
+# Thread Safety and Async
 
 This project uses custom async executors (not tokio):
 - `test_executors` for test code
@@ -338,23 +378,73 @@ This project uses custom async executors (not tokio):
 
 Graphics operations typically require main thread execution, especially on platforms like macOS.
 
-## Development Commands
+# Development Commands
 
+## macOS-specific requirements
+On macOS, set the deployment target: `export MACOSX_DEPLOYMENT_TARGET=15`
+
+## Building
 **Build:** `cargo build --features=backend_wgpu`
-
-**Run tests:** `cargo test --features=backend_wgpu`
-
-**Run single test:** `cargo test --features=backend_wgpu test_name`
 
 **Build with app window support:** `cargo build --features=backend_wgpu,app_window`
 
-**Check documentation:** `cargo doc --features=backend_wgpu --no-deps --open`
+**Build for WASM:** `./build/wasm_example.sh simple_scene`
 
-## Feature Flags
+## Testing
+**Run all tests:** `cargo test --features=backend_wgpu,testing`
+
+**Run single test:** `cargo test --features=backend_wgpu,testing test_name`
+
+**Run specific test file:**
+* `cargo test --features=backend_wgpu,testing --test buffer_performance`
+* `cargo test --features=backend_wgpu,testing --test sendable_futures`
+* `cargo test --features=backend_wgpu,testing --test texture_alignment`
+* `cargo test --features=backend_wgpu,testing --test wgpu_cell_threading_error`
+
+## Linting and Validation
+**Run clippy:** `cargo clippy --features=backend_wgpu`
+
+**Format check:** `cargo fmt --check`
+
+**Quick check script (runs all validations):** `./quickcheck.sh`
+
+## Documentation
+**Build and open docs:** `cargo doc --features=backend_wgpu --no-deps --open`
+
+## Examples
+**Run simple scene:** `cargo run --example simple_scene --features=backend_wgpu,app_window`
+
+**Run animated scene:** `cargo run --example animated_scene --features=backend_wgpu,app_window`
+
+# Feature Flags
 
 * `backend_wgpu` - Enables the wgpu GPU backend (required for most development)
 * `app_window` - Enables window surface creation for applications
+* `testing` - Enables testing utilities
+* `wgpu_webgl` - Enables WebGL backend for wgpu (for web targets)
+* `logwise_internal` - Internal logging features
 
-## Contributions
+# WASM/WebAssembly Support
 
-If you are motivated enough to consider writing your own solution, I would love to have your help here instead.
+The project supports WebAssembly targets with special configuration:
+* Uses `wasm32-unknown-unknown` target
+* Requires nightly Rust for atomics support
+* Build with: `./build/wasm_example.sh [example_name]`
+* Cargo config enables atomics: `-C target-feature=+atomics`
+
+# Logging
+
+Uses `logwise` for logging. Example syntax:
+```rust
+logwise::info_sync!("Here is foo: {foo}", foo=3);
+```
+
+Complex types require coercion through `logwise::privacy`:
+```rust
+logwise::warn_sync!("Here is foo: {foo}", foo=logwise::privacy::LogIt(example));
+```
+
+# Contributions
+
+If you are motivated enough to consider writing your own solution, I would love to have your help
+here instead.
