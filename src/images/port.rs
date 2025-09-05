@@ -83,7 +83,8 @@ mod perf {
         pub fn duration_since(&self, earlier: &Self) -> Duration {
             let self_nanos = (self.time * 1_000_000.0) as u64;
             let earlier_nanos = (earlier.time * 1_000_000.0) as u64;
-            Duration::from_nanos(self_nanos - earlier_nanos)
+            //this can underflow in webGL
+            Duration::from_nanos(self_nanos.saturating_sub(earlier_nanos))
         }
         pub fn to_u64(&self) -> u64 {
             //bitcast
