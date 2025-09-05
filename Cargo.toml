@@ -56,6 +56,8 @@ default = ["backend_wgpu"]
 backend_wgpu = ["dep:wgpu"]
 app_window = ["dep:app_window"]
 logwise_internal = []
+# for WebGL fallback
+webgl = ["wgpu/webgl"]
 
 [[test]]
 name = "buffer_performance"

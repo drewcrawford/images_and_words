@@ -258,6 +258,7 @@ async fn run_app_window_example() {
 async fn run_rendering_with_engine_arc(
     engine: Arc<Engine>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    console_error_panic_hook::set_once();
     logwise::info_sync!("run_rendering_with_engine_arc() started");
 
     // Get the bound GPU device (could be used for creating buffers/textures)
