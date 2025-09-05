@@ -34,12 +34,18 @@ impl View {
                 });
             }
         }
+        logwise::debuginternal_sync!("b.1");
         use crate::imp::wgpu::context::smuggle_surface;
         let wgpu_surface = smuggle_surface("wgpu_create_surface".to_string(), move || {
+            logwise::debuginternal_sync!("Will create surface");
             let result = entrypoint
                 .0
                 .0
                 .assume(|entrypoint| entrypoint.create_surface(view_clone));
+            logwise::debuginternal_sync!(
+                "result {result}",
+                result = logwise::privacy::LogIt(&result)
+            );
             result.map(WgpuCell::new)
         })
         .await?;

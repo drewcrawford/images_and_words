@@ -352,6 +352,7 @@ impl PortInternal {
         frame_guard: std::sync::Arc<crate::images::port::FrameGuard>,
         debug_capture: DebugCaptureData,
     ) {
+        logwise::trace_sync!("submit_and_present_frame");
         let device = self.engine.bound_device().as_ref();
         let encoded = encoder.finish();
 
@@ -370,9 +371,12 @@ impl PortInternal {
             });
             queue.submit(std::iter::once(encoded));
         });
+        logwise::trace_sync!("submitted");
         if let Some(f) = frame {
             f.present();
         }
+        logwise::trace_sync!("presented");
+
         self.frame += 1;
 
         if let Some(tx) = debug_capture.dump_buf {
@@ -455,6 +459,7 @@ impl PortInternal {
             device.0.set_needs_poll()
         }
         frame_guard_for_callback.mark_cpu_complete();
+        logwise::trace_sync!("submit_and_present_frame done");
     }
 
     pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
@@ -522,7 +527,7 @@ impl PortInternal {
         let surface = self.view.gpu_impl.as_ref().unwrap().surface.as_ref();
         match surface {
             None => {
-                println!("Port surface not initialized");
+                logwise::debuginternal_sync!("Port surface not initialized");
             }
             Some(surface) => {
                 let extra_usage = if self.dump_framebuffer {
@@ -531,6 +536,7 @@ impl PortInternal {
                     wgpu::TextureUsages::empty()
                 };
                 if self.scaled_size.is_dirty() {
+                    logwise::trace_sync!("Configuring surface for new size");
                     let device = self.engine.bound_device().as_ref();
                     let scaled_size = self.scaled_size.requested.unwrap();
 
@@ -544,7 +550,18 @@ impl PortInternal {
                             if !self.pass_config.requested.surface_format.is_srgb() {
                                 view_formats.push(TextureFormat::Bgra8UnormSrgb)
                             }
-
+                            logwise::trace_sync!(
+                                "Size is {width} x {height}",
+                                width = scaled_size.0,
+                                height = scaled_size.1
+                            );
+                            logwise::trace_sync!(
+                                "Format is {format}",
+                                format = logwise::privacy::LogIt(
+                                    &self.pass_config.requested.surface_format
+                                )
+                            );
+                            logwise::trace_sync!("surface.configure");
                             surface.configure(
                                 device,
                                 &wgpu::SurfaceConfiguration {
@@ -557,7 +574,8 @@ impl PortInternal {
                                     alpha_mode: CompositeAlphaMode::Opaque,
                                     view_formats,
                                 },
-                            )
+                            );
+                            logwise::trace_sync!("surface.configure complete");
                         });
                     });
                     self.scaled_size.mark_submitted();
@@ -752,7 +770,7 @@ impl PortInternal {
     }
 
     pub async fn render_frame(mut self) -> Self {
-        //logwise::info_sync!("Rendering frame...");
+        logwise::debuginternal_sync!("Rendering frame...");
         smuggle_async("render_frame".to_string(), || async move {
             let (encoder, frame_guard) = self.begin_render_frame_internal().await;
             let size_scale = self.view.size_scale().await;

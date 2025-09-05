@@ -33,6 +33,7 @@ use crate::imp::wgpu::cell::WgpuCell;
 use crate::imp::wgpu::context::{smuggle, smuggle_async};
 use std::sync::Arc;
 use wgpu::MapMode;
+use wgpu::wgt::PollType;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder};
 
 /**
@@ -286,11 +287,14 @@ impl GPUableBuffer {
         smuggle_async(
             "copy_from_mappable_buffer2".to_string(),
             move || async move {
+                logwise::trace_sync!("Copying from mappable buffer");
                 // Map the staging buffer
                 let specified_length = copy_len as u64;
                 let (s, r) = r#continue::continuation();
                 staging_buffer_for_mapping.assume(|buffer| {
+                    logwise::trace_sync!("Will map staging buffer");
                     buffer.map_async(MapMode::Write, 0..specified_length, |c| {
+                        logwise::trace_sync!("Did map staging buffer");
                         c.unwrap();
                         s.send(());
                     });

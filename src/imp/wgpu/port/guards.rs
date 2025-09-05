@@ -37,6 +37,7 @@ impl AcquiredGuards {
         copy_info: &mut imp::CopyInfo<'_>,
         camera_buffer: &Buffer<CameraProjection>,
     ) -> Self {
+        logwise::trace_sync!("AcquiredGuards::new");
         let mut buffer_guards = HashMap::new();
         let mut copy_guards = Vec::new();
         let mut texture_guards = HashMap::new();
@@ -45,6 +46,11 @@ impl AcquiredGuards {
         // Handle dynamic buffers, dynamic vertex buffers, and dynamic textures in a single pass
         let mut camera_guard = None;
         for (bind_index, info) in &bind_style.binds {
+            logwise::trace_sync!(
+                "Acquiring target {bind_index} {info}",
+                bind_index = *bind_index,
+                info = logwise::privacy::LogIt(info)
+            );
             match &info.target {
                 BindTarget::DynamicBuffer(buf) => {
                     // Safety: Keep the guard alive

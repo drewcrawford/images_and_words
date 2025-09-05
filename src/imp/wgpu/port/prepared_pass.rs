@@ -298,6 +298,7 @@ impl PreparedPass {
             .0
             .device()
             .assume(|device| device.create_render_pipeline(&render_descriptor));
+        logwise::trace_sync!("Created render pipeline");
 
         // Create the BindGroupGuard using the constructed bind_group_layout
         let (bind_group_guard, acquired_guards) = BindGroupGuard::new(
@@ -310,6 +311,7 @@ impl PreparedPass {
             copy_info,
         )
         .await;
+        logwise::trace_sync!("Created bindgroup guard");
         PreparedPass {
             pipeline: WgpuCell::new(pipeline),
             vertex_count,
