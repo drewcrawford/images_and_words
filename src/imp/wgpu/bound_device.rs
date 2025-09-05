@@ -33,12 +33,13 @@ struct BoundDeviceResources {
 #[derive(Debug, Clone)]
 pub struct BoundDevice {
     resources: Arc<BoundDeviceResources>,
+    entry_point: Arc<crate::entry_point::EntryPoint>,
 }
 
 impl BoundDevice {
     pub(crate) async fn bind(
         unbound_device: crate::images::device::UnboundDevice,
-        _entry_point: Arc<crate::entry_point::EntryPoint>,
+        entry_point: Arc<crate::entry_point::EntryPoint>,
     ) -> Result<Self, Error> {
         let move_adapter = unbound_device.0.adapter.clone();
         let (device, queue) = smuggle_async("create device".to_string(), || async move {
@@ -106,6 +107,7 @@ impl BoundDevice {
             };
             Ok(BoundDevice {
                 resources: Arc::new(resources),
+                entry_point,
             })
         }
         #[cfg(target_arch = "wasm32")]
@@ -118,6 +120,7 @@ impl BoundDevice {
             };
             Ok(BoundDevice {
                 resources: Arc::new(resources),
+                entry_point,
             })
         }
     }
