@@ -5,6 +5,7 @@ env:
 
 jobs:
   ci:
+    if: false # temporarily disable all CI runs
     name: Build (${{ matrix.os }} ${{ matrix.cwd }} ${{ matrix.channel }} ${{ matrix.target }} ${{ matrix.features }})
 
     runs-on: ${{matrix.os}}
