@@ -1,0 +1,44 @@
+name: Deploy to Vercel
+
+#on:
+#  push:
+#    tags:
+#      - 'v*.*.*'
+
+# for right now we deploy on every push to main
+on: [push]
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    if: env.GITEA_ACTIONS == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute cache key for deployment
+        id: cache-key
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "deployment=deploy-$(echo ${{ github.ref_name }} | tr '.' '-')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache target (deployment)
+        uses: actions/cache@v4
+        with:
+          key: deploy-target-${{ github.event.repository.name }}-ubuntu-latest-stable-host-${{ steps.cache-key.outputs.deployment }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          path: |
+            target
+          restore-keys: |
+            deploy-target-${{ github.event.repository.name }}-ubuntu-latest-stable-host-${{ steps.cache-key.outputs.deployment }}-
+            deploy-target-${{ github.event.repository.name }}-ubuntu-latest-stable-host-
+
+      - name: Build all examples
+        run: build/build_all_examples.sh
+
+      - name: Vercel build
+        run: vercel build -y --token ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Vercel deploy
+        run: vercel --prebuilt --token ${{ secrets.VERCEL_TOKEN }}
