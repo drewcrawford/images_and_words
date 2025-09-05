@@ -1,4 +1,4 @@
-# matrix v7
+# matrix v7 + mesa
 on: [push,pull_request]
 
 jobs:
@@ -90,6 +90,10 @@ jobs:
         run: |
           rustup ${{ matrix.channel }} component add rustfmt clippy      
           rustup ${{ matrix.channel }} component add rust-src      
+
+      - name: Install mesa-utils
+        if: env.GITEA_ACTIONS != 'true'
+        run: sudo apt-get install -y mesa-utils
 
       - name: rustfmt
         run: cd ${{ matrix.cwd }} && RUSTFLAGS="$ADDITIONAL_RUSTFLAGS -Dwarnings" cargo ${{ matrix.channel }} fmt --check

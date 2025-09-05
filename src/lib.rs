@@ -12,6 +12,10 @@ to bring your own physics, sound, and game logic.
 
 ![demo](../../../art/demo.mp4)
 
+## Live, in browser demos
+
+[Check them out here](https://iwdemo.sealedabstract.com/)
+
 # The Pitch
 
 Suppose you want to write a game or graphics application. You may consider:
