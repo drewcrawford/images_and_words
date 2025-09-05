@@ -322,10 +322,12 @@ impl<Resource> ResourceTrackerInternal<Resource> {
                 let mut wakelist_lock = self.pending_cpu_write.lock().unwrap();
                 match self.cpu_write_or() {
                     Ok(guard) => Ok(guard),
-                    Err(NotAvailable { read_state }) => {
+                    Err(NotAvailable {
+                        read_state: _read_state,
+                    }) => {
                         logwise::trace_sync!(
                             "Failing to acquire CPU write access to resource in state {read_state}",
-                            read_state = read_state
+                            read_state = _read_state
                         );
                         let (s, r) = r#continue::continuation();
                         wakelist_lock.push(s);

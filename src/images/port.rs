@@ -86,7 +86,7 @@ mod perf {
             //this can underflow in webGL
             Duration::from_nanos(self_nanos.saturating_sub(earlier_nanos))
         }
-        pub fn to_u64(&self) -> u64 {
+        pub fn to_u64(self) -> u64 {
             //bitcast
             self.time.to_bits()
         }

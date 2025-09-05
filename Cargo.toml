@@ -89,7 +89,7 @@ required-features = ["app_window", "backend_wgpu"]
 
 [profile.release]
 
-[profile.wasm-release]
+[profile.wasm_release]
 # these settings improve wasm builds
 inherits = "release"
 strip = true
