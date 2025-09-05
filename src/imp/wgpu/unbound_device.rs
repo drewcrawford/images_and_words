@@ -22,7 +22,7 @@ impl UnboundDevice {
                 };
                 entry_point
                     .0
-                    .0
+                    .instance
                     .assume_async(|instance: &wgpu::Instance| {
                         let fut = instance.request_adapter(&options);
                         async move { WgpuCell::new(fut.await.unwrap()) }
@@ -39,7 +39,7 @@ impl UnboundDevice {
                         };
                         entry_point
                             .0
-                            .0
+                            .instance
                             .assume_async(|instance: &wgpu::Instance| {
                                 let fut = instance.request_adapter(&options);
                                 async move { WgpuCell::new(fut.await.unwrap()) }

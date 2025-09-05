@@ -40,7 +40,7 @@ impl View {
             logwise::debuginternal_sync!("Will create surface");
             let result = entrypoint
                 .0
-                .0
+                .instance
                 .assume(|entrypoint| entrypoint.create_surface(view_clone));
             logwise::debuginternal_sync!(
                 "result {result}",
