@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::images::view::ViewForImp;
 use crate::imp::wgpu::cell::WgpuCell;
 use raw_window_handle::HasWindowHandle;

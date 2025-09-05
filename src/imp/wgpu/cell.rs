@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //SPDX-License-Identifier: MPL-2.0
 
 use super::context::{WGPU_STRATEGY, WGPUStrategy, begin, smuggle, smuggle_async};
