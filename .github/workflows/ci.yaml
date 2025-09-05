@@ -92,8 +92,10 @@ jobs:
           rustup ${{ matrix.channel }} component add rust-src      
 
       - name: Install mesa-utils
-        if: env.GITEA_ACTIONS != 'true'
-        run: sudo apt-get install -y mesa-utils
+        if: env.GITEA_ACTIONS != 'true' && matrix.target == '' && matrix.os == 'ubuntu-latest'
+        run: |
+              sudo apt-get update
+              sudo apt-get install -y mesa-utils
 
       - name: rustfmt
         run: cd ${{ matrix.cwd }} && RUSTFLAGS="$ADDITIONAL_RUSTFLAGS -Dwarnings" cargo ${{ matrix.channel }} fmt --check
