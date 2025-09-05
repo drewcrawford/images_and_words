@@ -1,12 +1,12 @@
 name: Deploy to Vercel
 
-#on:
-#  push:
-#    tags:
-#      - 'v*.*.*'
+on:
+  push:
+    tags:
+      - 'v*.*.*'
 
-# for right now we deploy on every push to main
-on: [push]
+## for right now we deploy on every push to main
+#on: [push]
 
 jobs:
   deploy:
