@@ -1,8 +1,8 @@
 # The Parity Public License 7.0.0
 
-Contributor: $name
+Contributor: Drew Crawford
 
-Source Code: $address
+Source Code: https://sealedabstract.com/code/images_and_words
 
 ## Purpose
 
