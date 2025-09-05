@@ -104,4 +104,4 @@ codegen-units = 1
 #continue = {path = "../continue"}
 #logwise = {path = "../logwise"}
 #test_executors = {path = "../test_executors"}
-some_executor = {path = "../some_executor"}
+#some_executor = {path = "../some_executor"}
