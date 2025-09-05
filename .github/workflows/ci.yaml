@@ -1,4 +1,6 @@
 # matrix v7 + mesa + chrome
+# chrome - firefox does not support WebGPU on Linux yet, see https://mozillagfx.wordpress.com where this will presumably be announced
+# firefox does not support webGL in headless either, see https://bugzilla.mozilla.org/show_bug.cgi?id=1375585#c27
 on: [push,pull_request]
 
 jobs:

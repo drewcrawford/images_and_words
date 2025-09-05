@@ -4,7 +4,7 @@
 EXAMPLE_NAME="${1:-simple_scene}"
 TARGET="wasm32-unknown-unknown"
 PROFILE="wasm_release"
-FEATURES="backend_wgpu,app_window,webgl"
+FEATURES="backend_wgpu,app_window,wgpu_webgl"
 RUSTFLAGS="-Dwarnings -C target-feature=+atomics"
 
 # Build command

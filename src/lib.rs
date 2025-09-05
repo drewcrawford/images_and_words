@@ -12,9 +12,11 @@ to bring your own physics, sound, and game logic.
 
 ![demo](../../../art/demo.mp4)
 
-## Live, in browser demos
+## Live browser demos
 
-[Check them out here](https://iwdemo.sealedabstract.com/)
+[Demo showcase](https://iwdemo.sealedabstract.com/)
+
+The examples are cross-compiled to WebAssembly and run in the browser.
 
 # The Pitch
 
@@ -238,20 +240,50 @@ Type-safe pixel format definitions:
 - Compile-time format validation
 - Automatic conversion handling
 
-## Design Philosophy
+## Backend Philosophy
 
-I have intentionally designed images_and_words to support multiple backends. While currently using wgpu,
-I've prototyped Vulkan and Metal-based approaches and intend to add more backends as needed.
+I have intentionally designed images_and_words to support multiple backends. Currently the crate
+uses wgpu for its broad platform support.  However I also have direct Vulkan and Metal backends in
+various stages of development.
 
-Longer-term I am skeptical of wgpu as a backend.  I am skeptical I can meet native performance expectations
-with a web-based API, I am skeptical of wgpu's guidance on accepting contributions to solve these issues,
-and I am skeptical of any single graphics API as I've seen them come and go while I'm supporting an
-application.
+Ultimately my goals are:
 
-The substantial motivation for creating images_and_words is to design an API that can solve real-world
-problems and become a practical, performant target for production applications. In the short term,
-it provides features and optimizations that don't happen in design-by-committee APIs. In the long term,
-it ensures application maintainability even as underlying graphics APIs evolve or become deprecated.
+* Focus and optimize for hardware/software that is relevant to in-development applications and games
+* Do something that technically works in weird environments like CI or minority platforms
+* Ship a long-term, broad-strokes API design that can be preserved beyond any one backend
+  implementation
+
+Currently this translates into these tiers:
+
+1.  🚀 Windows 10+ (DX12, Vulkan 1.3+)
+2.  🎮 recent Linux (DX12/proton, Vulkan 1.3+)
+3.  🎮 recent macOS (Metal, MoltenVK 1.3+)
+4.  🆗 WebGPU (Chrome 141+, Safari 26.0+, Firefox 142 on Windows)
+5.  💥 WebGL2 (Firefox non-Windows, Safari 18.x, etc)
+6.  💥 Other wgpu GL (GL 3, GL ES 3, etc.)
+
+Legend:
+* 🚀 - first-class support, practically every issue you can hit even at all is a good candidate to file
+* 🎮 - good support, fairly well-tested, your issues encounter rarer bugs but still good intel
+* 🆗 - the API is designed to this baseline.  Correctness issues are definitely bugs, performance
+       issues likely require escape hatches not supported by the API per se.
+* 💥 - Below the design baseline.  It is intended that this works for a limited subset of APIs and
+       will panic if not supported, but also this is going to bitrot as time goes on.
+
+### A note on WebGL2
+
+For the time being, we need to support this in demos and the `wgpu_webgl` feature because:
+
+* iOS 18.x (13% global marketshare)
+* Firefox 141+ (<1% global marketshare)
+
+But you should expect this backend to be cut because:
+
+* It bloats the WASM size by a many multiples (5x)
+* Many planned features cannot work inside WebGL2 constraints
+* the wgpu backend is poor in this mode and I have no plans to improve it
+* most of the implementations at this point are translation layers that mostly replicate
+  what published games do
 
 
 # Getting Started
