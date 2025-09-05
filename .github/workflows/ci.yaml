@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         channel: [""]
-        features: ["","logwise","transit","logwise,transit"]
+        features: [""]
         target: [""]
         cwd: ["."]
         os: [ubuntu-latest]
