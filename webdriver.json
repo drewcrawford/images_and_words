@@ -4,10 +4,10 @@
       "browserName": "chrome",
       "goog:chromeOptions": {
         "args": [
+          "--headless=new",
           "--enable-unsafe-webgpu",
           "--enable-features=Vulkan",
-          "--headless=new",
-          "--gpu-launcher=/usr/bin/env VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json"
+          "--use-vulkan=swiftshader"
         ]
       }
     }
