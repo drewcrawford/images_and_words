@@ -43,6 +43,13 @@ impl BoundDevice {
         let move_adapter = unbound_device.0.adapter.clone();
         let (device, queue) = smuggle_async("create device".to_string(), || async move {
             let label = wgpu::Label::from("Bound Device");
+            let mut limits = Limits::downlevel_webgl2_defaults();
+            //webGL is quite serious about enforcing these, which
+            //by default are rather small
+            //https://web3dsurvey.com/webgl/parameters/MAX_TEXTURE_SIZE
+            limits.max_texture_dimension_1d = 4096;
+            limits.max_texture_dimension_2d = 4096;
+
             let descriptor = wgpu::DeviceDescriptor {
                 label,
                 required_features: Default::default(),
