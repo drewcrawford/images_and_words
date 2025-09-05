@@ -12,6 +12,8 @@ categories = ["game-development","graphics","rendering::engine","rust-patterns"]
 exclude = [".*"]
 rust-version = "1.88.0"
 
+
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -85,6 +87,16 @@ name = "animated_scene"
 path = "examples/animated_scene.rs"
 required-features = ["app_window", "backend_wgpu"]
 
+[profile.release]
+
+[profile.wasm-release]
+# these settings improve wasm builds
+inherits = "release"
+strip = true
+opt-level = "s"
+lto = true
+codegen-units = 1
+
 [patch.crates-io]
 #vec_parallel = {path = "../vec_parallel"}
 #portable_async_sleep = {path = "../portable_async_sleep"}
@@ -92,3 +104,4 @@ required-features = ["app_window", "backend_wgpu"]
 #continue = {path = "../continue"}
 #logwise = {path = "../logwise"}
 #test_executors = {path = "../test_executors"}
+some_executor = {path = "../some_executor"}
