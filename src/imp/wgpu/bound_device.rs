@@ -54,7 +54,7 @@ impl BoundDevice {
                 label,
                 required_features: Default::default(),
                 //todo: choose better limits?
-                required_limits: Limits::downlevel_webgl2_defaults(),
+                required_limits: limits,
                 memory_hints: Default::default(),
                 trace: Trace::Off,
             };
