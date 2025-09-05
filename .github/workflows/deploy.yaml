@@ -38,7 +38,7 @@ jobs:
         run: build/build_all_examples.sh
 
       - name: Vercel build
-        run: vercel build -y --token ${{ secrets.VERCEL_TOKEN }}
-
-      - name: Vercel deploy
-        run: vercel --prebuilt --token ${{ secrets.VERCEL_TOKEN }}
+        run: |
+            cd demo_site
+            vercel build -y --token ${{ secrets.VERCEL_TOKEN }}
+            vercel --prebuilt --token ${{ secrets.VERCEL_TOKEN }}
