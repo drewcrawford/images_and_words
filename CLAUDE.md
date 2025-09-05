@@ -31,20 +31,69 @@ The main innovation is providing higher-order buffer/texture types optimized for
 
 ## Development Commands
 
+### macOS-specific requirements
+On macOS, set the deployment target: `export MACOSX_DEPLOYMENT_TARGET=15`
+
+### Building
 **Build:** `cargo build --features=backend_wgpu`
-
-**Run tests:** `cargo test --features=backend_wgpu`
-
-**Run single test:** `cargo test --features=backend_wgpu test_name`
 
 **Build with app window support:** `cargo build --features=backend_wgpu,app_window`
 
-**Check documentation:** `cargo doc --features=backend_wgpu --no-deps --open`
+**Build for WASM:** `./build/wasm_example.sh simple_scene`
+
+### Testing
+**Run all tests:** `cargo test --features=backend_wgpu,testing`
+
+**Run single test:** `cargo test --features=backend_wgpu,testing test_name`
+
+**Run specific test file:**
+* `cargo test --features=backend_wgpu,testing --test buffer_performance`
+* `cargo test --features=backend_wgpu,testing --test sendable_futures`
+* `cargo test --features=backend_wgpu,testing --test texture_alignment`
+* `cargo test --features=backend_wgpu,testing --test wgpu_cell_threading_error`
+
+### Linting and Validation
+**Run clippy:** `cargo clippy --features=backend_wgpu`
+
+**Format check:** `cargo fmt --check`
+
+**Quick check script (runs all validations):** `./quickcheck.sh`
+
+### Documentation
+**Build and open docs:** `cargo doc --features=backend_wgpu --no-deps --open`
+
+### Examples
+**Run simple scene:** `cargo run --example simple_scene --features=backend_wgpu,app_window`
+
+**Run animated scene:** `cargo run --example animated_scene --features=backend_wgpu,app_window`
 
 ## Feature Flags
 
 * `backend_wgpu` - Enables the wgpu GPU backend (required for most development)
 * `app_window` - Enables window surface creation for applications
+* `testing` - Enables testing utilities
+* `wgpu_webgl` - Enables WebGL backend for wgpu (for web targets)
+* `logwise_internal` - Internal logging features
+
+## WASM/WebAssembly Support
+
+The project supports WebAssembly targets with special configuration:
+* Uses `wasm32-unknown-unknown` target
+* Requires nightly Rust for atomics support
+* Build with: `./build/wasm_example.sh [example_name]`
+* Cargo config enables atomics: `-C target-feature=+atomics`
+
+## Logging
+
+Uses `logwise` for logging. Example syntax:
+```rust
+logwise::info_sync!("Here is foo: {foo}", foo=3);
+```
+
+Complex types require coercion through `logwise::privacy`:
+```rust
+logwise::warn_sync!("Here is foo: {foo}", foo=logwise::privacy::LogIt(example));
+```
 
 
 # Preserve this generic section unedited.
@@ -64,3 +113,8 @@ The executors themselves are abstracted behind other crates.  But they are proba
 ## Crates
 
 If you want to know about the behavior of dependent crates, look in the `target/doc/{crate_name}` directory.  Note this directory can be built with `cargo doc` if it is out of date, but that requires the crate to compile first.
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
