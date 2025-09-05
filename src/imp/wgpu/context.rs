@@ -79,6 +79,7 @@ fn begin_strategy<F>(strategy: &WGPUStrategy, f: F)
 where
     F: FnOnce() + Send + 'static,
 {
+    #[cfg(feature = "app_window")]
     let prior_context = Context::current();
     match strategy {
         #[cfg(feature = "app_window")]

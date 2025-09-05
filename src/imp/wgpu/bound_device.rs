@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread::{self, JoinHandle};
-#[cfg(not(target_arch = "wasm32"))]
+#[allow(unused_imports)]
 use wgpu::PollType;
 use wgpu::{Limits, Trace};
 
@@ -33,6 +33,7 @@ struct BoundDeviceResources {
 #[derive(Debug, Clone)]
 pub struct BoundDevice {
     resources: Arc<BoundDeviceResources>,
+    #[allow(dead_code)]
     entry_point: Arc<crate::entry_point::EntryPoint>,
 }
 
@@ -144,7 +145,7 @@ impl BoundDevice {
                     {
                         let device = self.resources.device.clone();
                         async move {
-                            device.with(|d| d.poll(wgpu::PollType::Poll)).await;
+                            let _ = device.with(|d| d.poll(wgpu::PollType::Poll)).await;
                         }
                     },
                 );

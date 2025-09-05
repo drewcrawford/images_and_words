@@ -4,6 +4,7 @@ use crate::imp::wgpu::cell::WgpuCell;
 #[derive(Debug, Clone)]
 pub struct EntryPoint {
     pub(super) instance: WgpuCell<wgpu::Instance>,
+    #[allow(dead_code)]
     is_webgpu: bool,
 }
 impl EntryPoint {
@@ -43,6 +44,7 @@ impl EntryPoint {
             is_webgpu: status,
         })
     }
+    #[allow(dead_code)]
     pub fn is_webgpu(&self) -> bool {
         self.is_webgpu
     }

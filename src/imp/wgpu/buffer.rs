@@ -33,7 +33,6 @@ use crate::imp::wgpu::cell::WgpuCell;
 use crate::imp::wgpu::context::{smuggle, smuggle_async};
 use std::sync::Arc;
 use wgpu::MapMode;
-use wgpu::wgt::PollType;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder};
 
 /**
