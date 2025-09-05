@@ -126,16 +126,31 @@ impl BoundDevice {
     }
 
     /// Signal the polling thread that GPU work may be ready
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn set_needs_poll(&self) {
         // Send a signal to the polling thread (ignore if channel is full/closed)
-        let _ = self.resources.poll_trigger.send(());
-    }
-
-    /// No-op on wasm32 where polling is not needed
-    #[cfg(target_arch = "wasm32")]
-    pub fn set_needs_poll(&self) {
-        // On wasm32, polling is handled automatically
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = self.resources.poll_trigger.send(());
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            //on webGL we can poll on the next runloop
+            //for some reason, the current runloop doesn't seem to work reliably
+            if !self.entry_point.0.is_webgpu() {
+                //so, webGL
+                let poll_task = some_executor::task::Task::without_notifications(
+                    "wgpu poll".to_string(),
+                    some_executor::task::Configuration::default(),
+                    {
+                        let device = self.resources.device.clone();
+                        async move {
+                            device.with(|d| d.poll(wgpu::PollType::Poll)).await;
+                        }
+                    },
+                );
+                poll_task.spawn_static_current();
+            }
+        }
     }
 
     /// Access to the wgpu device
