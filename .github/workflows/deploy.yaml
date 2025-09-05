@@ -12,6 +12,8 @@ jobs:
   deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
+    # run on gitea only
+    if: ${{ github.server_url != 'https://github.com' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -34,11 +36,9 @@ jobs:
             deploy-target-${{ github.event.repository.name }}-ubuntu-latest-stable-host-
 
       - name: Build all examples
-        if: env.GITEA_ACTIONS == 'true'
         run: build/build_all_examples.sh
 
       - name: Vercel build
-        if: env.GITEA_ACTIONS == 'true'
         run: |
             cd demo_site
             vercel build -y --token ${{ secrets.VERCEL_TOKEN }}
