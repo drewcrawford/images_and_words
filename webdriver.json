@@ -6,8 +6,10 @@
         "args": [
           "--headless=new",
           "--enable-unsafe-webgpu",
-          "--enable-features=Vulkan",
-          "--use-vulkan=swiftshader"
+          "--use-vulkan=swiftshader",
+          "--use-vulkan",
+          "--use-angle=vulkan",
+          "--ignore-gpu-blocklist"
         ]
       }
     }
