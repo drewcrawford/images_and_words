@@ -290,7 +290,7 @@ mod tests {
         #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
         fn test_wgpu_cell_basic_operations() {
             let value = 42;
-            let mut cell = WgpuCell::new(value);
+            let cell = WgpuCell::new(value);
             assert_eq!(*cell.lock().value, 42);
 
             *cell.lock().value = 100;

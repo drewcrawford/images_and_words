@@ -160,7 +160,10 @@ fn main() {
             }
 
             let avg_time = total_time / iterations as u32;
-            logwise::info_sync!("Average buffer write time: {:?}", avg_time);
+            logwise::info_sync!(
+                "Average buffer write time: {avg_time}",
+                avg_time = logwise::privacy::LogIt(avg_time)
+            );
 
             // The bug manifested as buffer writes taking SECONDS instead of milliseconds
             // If any single operation takes more than 1 second, that indicates the bug
