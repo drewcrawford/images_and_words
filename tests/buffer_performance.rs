@@ -125,7 +125,7 @@ fn main() {
             );
             engine.main_port_mut().add_fixed_pass(descriptor).await;
 
-            println!("=== Testing buffer write performance ===");
+            logwise::info_sync!("=== Testing buffer write performance ===");
 
             // Test multiple buffer write operations and measure timing
             let mut total_time = Duration::ZERO;
@@ -148,7 +148,11 @@ fn main() {
                 drop(write_guard);
 
                 let elapsed = start.elapsed();
-                println!("  Buffer write iteration {} took: {:?}", i + 1, elapsed);
+                logwise::info_sync!(
+                    "  Buffer write iteration {iteration} took: {elapsed}",
+                    iteration = i + 1,
+                    elapsed = logwise::privacy::LogIt(elapsed)
+                );
                 total_time += elapsed;
 
                 // Small delay between operations like in the reproducer
@@ -156,7 +160,7 @@ fn main() {
             }
 
             let avg_time = total_time / iterations as u32;
-            println!("Average buffer write time: {:?}", avg_time);
+            logwise::info_sync!("Average buffer write time: {:?}", avg_time);
 
             // The bug manifested as buffer writes taking SECONDS instead of milliseconds
             // If any single operation takes more than 1 second, that indicates the bug
