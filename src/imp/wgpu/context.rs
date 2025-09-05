@@ -79,6 +79,7 @@ fn begin_strategy<F>(strategy: &WGPUStrategy, f: F)
 where
     F: FnOnce() + Send + 'static,
 {
+    let prior_context = Context::current();
     match strategy {
         #[cfg(feature = "app_window")]
         WGPUStrategy::MainThread => {
@@ -94,6 +95,7 @@ where
                     // drop(hop_on_main_thread);
                     // let main_thread_closure =
                     //     logwise::perfwarn_begin!("wgpu_begin_context main_thread_closure");
+                    prior_context.set_current();
                     f();
                     // drop(main_thread_closure);
                 });
@@ -107,6 +109,7 @@ where
                 std::thread::Builder::new()
                     .name("wgpu_begin_context".to_string())
                     .spawn(|| {
+                        prior_context.set_current();
                         f();
                     })
                     .expect("Failed to spawn wgpu_begin_context thread");
@@ -180,8 +183,10 @@ where
 {
     let (s, r) = continuation();
     begin(move || {
+        let prior_context = Context::current();
         let f = c();
         Task::without_notifications(label.clone(), Configuration::default(), async move {
+            prior_context.set_current();
             let r = f.await;
             s.send(r);
         })

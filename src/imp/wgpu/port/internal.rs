@@ -545,7 +545,6 @@ impl PortInternal {
                         surface.assume(|surface| {
                             //On WebGPU we're sometimes forbidden to use srgb formats
                             //so we need to use with a view
-
                             let mut view_formats = Vec::new();
                             if !self.pass_config.requested.surface_format.is_srgb() {
                                 view_formats.push(TextureFormat::Bgra8UnormSrgb)
