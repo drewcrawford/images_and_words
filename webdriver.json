@@ -1,0 +1,14 @@
+{
+  "capabilities": {
+    "alwaysMatch": {
+      "browserName": "chrome",
+      "goog:chromeOptions": {
+        "args": [
+          "--enable-unsafe-webgpu",
+          "--enable-features=Vulkan",
+          "--headless=new"
+        ]
+      }
+    }
+  }
+}
