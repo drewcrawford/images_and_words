@@ -1,7 +1,5 @@
 # matrix v7
 on: [push,pull_request]
-env:
-
 
 jobs:
   ci:
