@@ -266,9 +266,9 @@ Legend:
 * 🚀 - first-class support, practically every issue you can hit even at all is a good candidate to file
 * 🎮 - good support, fairly well-tested, your issues encounter rarer bugs but still good intel
 * 🆗 - the API is designed to this baseline.  Correctness issues are definitely bugs, performance
-       issues likely require escape hatches not supported by the API per se.
+  issues likely require escape hatches not supported by the API per se.
 * 💥 - Below the design baseline.  It is intended that this works for a limited subset of APIs and
-       will panic if not supported, but also this is going to bitrot as time goes on.
+  will panic if not supported, but also this is going to bitrot as time goes on.
 
 ### A note on WebGL2
 
