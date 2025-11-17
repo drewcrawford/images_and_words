@@ -19,7 +19,6 @@ rust-version = "1.88.0"
 [dependencies]
 thiserror = "~2.0.16"
 png = "0.18.0"
-tgar = "1.0.0"
 some_executor = "0.6.1"
 vectormatrix = "0.1.2"
 vec_parallel = {version = "0.1.3", features = ["some_executor"]}

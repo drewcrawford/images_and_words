@@ -85,7 +85,6 @@ pub(crate) mod png_support;
 
 use crate::pixel_formats::sealed::{CPixelTrait, PixelFormat, ReprC};
 use std::fmt::Debug;
-use tgar::PixelBGRA;
 
 pub use half::f16;
 
@@ -398,16 +397,6 @@ impl Unorm4 {
         }
     }
 }
-impl From<Unorm4> for PixelBGRA {
-    fn from(val: Unorm4) -> Self {
-        PixelBGRA {
-            r: val.r,
-            b: val.b,
-            g: val.g,
-            a: val.a,
-        }
-    }
-}
 /// 8-bit normalized unsigned integer format with RGBA channels.
 ///
 /// The most common texture format for color images. Each channel uses 8 bits
@@ -665,16 +654,6 @@ impl Default for Float4 {
         }
     }
 }
-impl From<Float4> for tgar::PixelBGRA {
-    fn from(val: Float4) -> Self {
-        PixelBGRA {
-            b: (val.b * 255.0) as u8,
-            g: (val.g * 255.0) as u8,
-            r: (val.r * 255.0) as u8,
-            a: (val.a * 255.0) as u8,
-        }
-    }
-}
 /// 32-bit floating point format with RGBA channels.
 ///
 /// Each channel is a full 32-bit IEEE 754 float. Total size is 16 bytes per pixel.
@@ -763,33 +742,6 @@ impl From<RGBA8UnormSRGBPixel> for BGRA8UnormPixelSRGB {
             g: f.g,
             b: f.b,
             a: f.a,
-        }
-    }
-}
-
-impl From<BGRA8UnormPixelSRGB> for tgar::PixelBGRA {
-    fn from(val: BGRA8UnormPixelSRGB) -> Self {
-        /*
-            It seems to be unspecified whether or not TGA files
-        are stored in any particular colorspace.
-             See https://github.com/microsoft/DirectXTex/issues/136 for some discussion
-             */
-        PixelBGRA {
-            b: val.b,
-            g: val.g,
-            r: val.r,
-            a: val.a,
-        }
-    }
-}
-
-impl From<RGBA8UnormSRGBPixel> for tgar::PixelBGRA {
-    fn from(val: RGBA8UnormSRGBPixel) -> Self {
-        PixelBGRA {
-            b: val.b,
-            r: val.r,
-            g: val.g,
-            a: val.a,
         }
     }
 }

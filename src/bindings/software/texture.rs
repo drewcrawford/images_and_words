@@ -895,44 +895,6 @@ where
     Format::CPixel::avg(&[(w11, v11), (w12, v12), (w21, v21), (w22, v22)])
 }
 
-impl<Format: PixelFormat> Texture<Format>
-where
-    Format::CPixel: Into<tgar::PixelBGRA> + Clone,
-{
-    /// Converts the texture to TGA format for saving.
-    ///
-    /// This is useful for debugging and exporting textures to a common
-    /// image format that can be viewed in standard image viewers.
-    ///
-    /// # Returns
-    ///
-    /// A TGA image in BGRA format
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use images_and_words::bindings::software::texture::{Texture, Texel};
-    /// # use images_and_words::pixel_formats::{BGRA8UNormSRGB, BGRA8UnormPixelSRGB};
-    /// // Create a small texture with gray pixels
-    /// let pixel = BGRA8UnormPixelSRGB { b: 128, g: 128, r: 128, a: 255 };
-    /// let texture = Texture::<BGRA8UNormSRGB>::new(2, 2, pixel);
-    ///
-    /// let tga = texture.dump_tga();
-    /// // The TGA struct contains the image data ready to be saved
-    /// ```
-    pub fn dump_tga(&self) -> tgar::BGRA {
-        let mut vec = Vec::with_capacity(self.width as usize * self.height as usize);
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let read_px = self[Texel { x, y }].clone();
-                let converted_px = read_px.into();
-                vec.push(converted_px);
-            }
-        }
-        tgar::BGRA::new(self.width, self.height, &vec)
-    }
-}
-
 impl<Format: PixelFormat> Index<Texel> for Texture<Format> {
     type Output = Format::CPixel;
 
