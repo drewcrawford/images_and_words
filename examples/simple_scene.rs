@@ -146,6 +146,10 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 /// This layered approach ensures graphics operations happen on the correct thread
 /// while maintaining the async execution model needed for the middleware.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize exfiltrate debugging if enabled
+    #[cfg(feature = "exfiltrate")]
+    exfiltrate::begin();
+
     logwise::info_sync!("Running simple_scene example...");
     logwise::info_sync!("About to call app_window::application::main()");
     // Create actual window with proper threading

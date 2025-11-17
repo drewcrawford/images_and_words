@@ -190,6 +190,10 @@ fn fs_main(@location(0) color: vec4<f32>) -> @location(0) vec4<f32> {
 ///
 /// Creates a window and renders animated scene with dynamic buffers.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize exfiltrate debugging if enabled
+    #[cfg(feature = "exfiltrate")]
+    exfiltrate::begin();
+
     console_error_panic_hook::set_once();
     logwise::info_sync!("Starting animated scene example with dynamic buffers...");
 
