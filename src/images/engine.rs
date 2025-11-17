@@ -37,6 +37,16 @@ impl Engine {
         mut view: View,
         initial_camera_position: WorldCoord,
     ) -> Result<Arc<Self>, CreateError> {
+        // Register exfiltrate commands on first engine creation
+        #[cfg(feature = "exfiltrate")]
+        {
+            use std::sync::Once;
+            static REGISTER_COMMANDS: Once = Once::new();
+            REGISTER_COMMANDS.call_once(|| {
+                crate::exfiltrate_commands::register_commands();
+            });
+        }
+
         logwise::info_sync!("Engine::rendering_to() started");
 
         logwise::info_sync!("Creating EntryPoint...");

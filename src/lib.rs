@@ -530,4 +530,7 @@ pub type Strategy = vec_parallel::Strategy;
 #[cfg(feature = "app_window")]
 pub use app_window;
 
+#[cfg(feature = "exfiltrate")]
+mod exfiltrate_commands;
+
 logwise::declare_logging_domain!();

@@ -42,3 +42,11 @@ mod wgpu;
 
 #[cfg(feature = "backend_wgpu")]
 pub(crate) use wgpu::*;
+
+#[cfg(feature = "exfiltrate")]
+use wasm_safe_mutex::Mutex;
+
+#[cfg(feature = "exfiltrate")]
+pub(crate) static DUMP_NEXT_FRAME: Mutex<
+    Option<std::sync::mpsc::Sender<exfiltrate::command::ImageInfo>>,
+> = Mutex::new(None);

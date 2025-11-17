@@ -6,7 +6,7 @@ use crate::images::port::{FrameGuard, PortReporterSend};
 use crate::images::render_pass::PassDescriptor;
 use crate::imp::wgpu::cell::WgpuCell;
 use crate::imp::wgpu::context::smuggle_async;
-use crate::imp::{CopyInfo, Error};
+use crate::imp::{CopyInfo, DUMP_NEXT_FRAME, Error};
 use send_cells::send_cell::SendCell;
 use std::sync::Arc;
 use wgpu::wgt::BufferDescriptor;
@@ -19,15 +19,71 @@ use super::guards::{AcquiredGuards, BindGroupGuard};
 use super::prepared_pass::PreparedPass;
 use super::types::{CameraProjection, DebugCaptureData, PassConfig, RenderInput};
 
-pub const DUMP_NEXT_FRAME: Option<std::sync::mpsc::Sender<u8>> = None;
+/// Helper function to check if DUMP_NEXT_FRAME is Some (used in non-exfiltrate builds)
+#[cfg(not(feature = "exfiltrate"))]
+fn is_dump_next_frame_some() -> bool {
+    false
+}
 
 /// Dumps a framebuffer image for debugging purposes.
 ///
-/// # Panics
-///
-/// This function is not yet implemented and will panic.
-fn dump_image() {
-    todo!("Need to dump image")
+/// This function is called when the GPU has finished mapping the framebuffer data.
+#[cfg(feature = "exfiltrate")]
+fn dump_image(buffer: wgpu::Buffer, bytes_per_row: u32, width: u32, height: u32) {
+    logwise::trace_sync!("dump_image called");
+
+    // Take the sender from DUMP_NEXT_FRAME
+    let sender = DUMP_NEXT_FRAME.lock_sync().take();
+
+    if let Some(sender) = sender {
+        // Get the mapped data
+        let buffer_slice = buffer.slice(..);
+        let data = buffer_slice.get_mapped_range();
+
+        // Convert the data from the padded format to RGBA8
+        let mut rgba_data = Vec::with_capacity((width * height) as usize);
+
+        for y in 0..height {
+            let row_offset = (y * bytes_per_row) as usize;
+            for x in 0..width {
+                let pixel_offset = row_offset + (x * 4) as usize;
+
+                // BGRA8 format - convert to RGBA8
+                let b = data[pixel_offset];
+                let g = data[pixel_offset + 1];
+                let r = data[pixel_offset + 2];
+                let a = data[pixel_offset + 3];
+
+                rgba_data.push(exfiltrate::rgb::RGBA8 { r, g, b, a });
+            }
+        }
+
+        drop(data);
+        buffer.unmap();
+
+        // Create ImageInfo and send it
+        let image_info = exfiltrate::command::ImageInfo::new(
+            rgba_data,
+            width,
+            Some(format!("Frame capture {}x{}", width, height)),
+        );
+
+        if let Err(e) = sender.send(image_info) {
+            logwise::error_sync!(
+                "Failed to send frame capture: {error}",
+                error = logwise::privacy::LogIt(e)
+            );
+        }
+    } else {
+        buffer.unmap();
+        logwise::warn_sync!("dump_image called but no sender available");
+    }
+}
+
+/// Stub for dump_image when exfiltrate feature is not enabled
+#[cfg(not(feature = "exfiltrate"))]
+fn dump_image(_buffer: wgpu::Buffer, _bytes_per_row: u32, _width: u32, _height: u32) {
+    // No-op when exfiltrate is not enabled
 }
 
 /// Dumps a depth buffer image for debugging purposes.
@@ -51,6 +107,7 @@ pub struct PortInternal {
     pub camera_buffer: Buffer<CameraProjection>,
     pub camera: Camera,
     pub mipmapped_sampler: WgpuCell<wgpu::Sampler>,
+    pub next_frame_dump: RenderInput<()>,
 }
 
 impl PortInternal {
@@ -157,11 +214,12 @@ impl PortInternal {
             frame: 0,
             scaled_size: RenderInput::new(None),
             mipmapped_sampler,
+            next_frame_dump: RenderInput::new(()),
         })
     }
 
     fn setup_depth_buffer(&self) -> (wgpu::Texture, wgpu::TextureView) {
-        let depth_extra_usage = if DUMP_NEXT_FRAME.is_some() {
+        let depth_extra_usage = if self.next_frame_dump.submitted.is_some() {
             wgpu::TextureUsages::COPY_SRC
         } else {
             wgpu::TextureUsages::empty()
@@ -263,7 +321,7 @@ impl PortInternal {
         frame_texture: &wgpu::Texture,
         depth_texture: &wgpu::Texture,
     ) -> Option<DebugCaptureData> {
-        if !DUMP_NEXT_FRAME.is_some() {
+        if self.next_frame_dump.submitted.is_none() {
             return None;
         }
 
@@ -392,12 +450,13 @@ impl PortInternal {
 
         if let Some(debug_capture) = debug_capture.as_ref() {
             let move_tx = debug_capture.dump_buf.clone();
-            let _bytes_per_row = debug_capture.dump_buff_bytes_per_row;
-            let _move_frame = self.frame;
-            let _scaled_size = self.scaled_size.requested.unwrap();
+            let bytes_per_row = debug_capture.dump_buff_bytes_per_row;
+            let scaled_size = self.scaled_size.requested.unwrap();
             move_tx
                 .clone()
-                .map_async(wgpu::MapMode::Read, .., move |_result| dump_image());
+                .map_async(wgpu::MapMode::Read, .., move |_result| {
+                    dump_image(move_tx, bytes_per_row, scaled_size.0, scaled_size.1)
+                });
             //for map_async to work, we need to combine with needs_poll, maybe others?
             device.0.set_needs_poll()
         }
@@ -485,7 +544,7 @@ impl PortInternal {
                 logwise::debuginternal_sync!("Port surface not initialized");
             }
             Some(surface) => {
-                let extra_usage = if DUMP_NEXT_FRAME.is_some() {
+                let extra_usage = if self.next_frame_dump.submitted.is_some() {
                     wgpu::TextureUsages::COPY_SRC
                 } else {
                     wgpu::TextureUsages::empty()
@@ -629,7 +688,7 @@ impl PortInternal {
         // Setup depth buffer
         let (depth_texture, depth_view) = self.setup_depth_buffer();
         // Execute render passes
-        let depth_store = if DUMP_NEXT_FRAME.is_some() {
+        let depth_store = if self.next_frame_dump.submitted.is_some() {
             StoreOp::Store
         } else {
             StoreOp::Discard
