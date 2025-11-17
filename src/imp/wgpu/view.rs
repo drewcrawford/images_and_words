@@ -15,6 +15,8 @@ pub struct View {
 impl View {
     /**
     Creates a new view for the given entry point.
+
+    Internally, this calls entrypoint.create_surface on an appropriate thread.
     */
     pub async fn from_surface(
         entrypoint: &crate::entry_point::EntryPoint,

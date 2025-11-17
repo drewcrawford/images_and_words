@@ -13,10 +13,10 @@ unsafe impl CRepr for CameraProjection {}
 
 #[derive(Debug)]
 pub struct DebugCaptureData {
-    pub dump_buf: Option<wgpu::Buffer>,
-    pub dump_buff_bytes_per_row: Option<u32>,
-    pub depth_dump_buf: Option<wgpu::Buffer>,
-    pub depth_dump_buff_bytes_per_row: Option<u32>,
+    pub dump_buf: wgpu::Buffer,
+    pub dump_buff_bytes_per_row: u32,
+    pub depth_dump_buf: wgpu::Buffer,
+    pub depth_dump_buff_bytes_per_row: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]

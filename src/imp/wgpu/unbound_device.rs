@@ -25,7 +25,7 @@ impl UnboundDevice {
                     .instance
                     .assume_async(|instance: &wgpu::Instance| {
                         let fut = instance.request_adapter(&options);
-                        async move { WgpuCell::new(fut.await.unwrap()) }
+                        async move { WgpuCell::new(fut.await.expect("Can't request adapter")) }
                     })
                     .await
             }
