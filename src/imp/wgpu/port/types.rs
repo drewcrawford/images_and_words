@@ -44,10 +44,18 @@ impl PassConfig {
 }
 
 /**
-A render input is a pair of requested and submitted values.
+Provides state tracking.
+
+This is the recommended pattern for many renderloop usecases.
+
+There are two values:
+* requested - written simply via `update`
+* submitted - copied from `requested` via `mark_submitted`.
 
 The *requested* value contains the latest value that the external system (e.g. a game loop) has requested to be rendered.
 The *submitted* value contains the value that has been submitted to the GPU for rendering.
+
+The [`Self::is_dirty`] func compares the *requested* value against the *submitted* value.
 */
 #[derive(Debug)]
 pub struct RenderInput<T> {
