@@ -40,6 +40,7 @@ pub struct PortInternal {
     pub camera: Camera,
     pub mipmapped_sampler: WgpuCell<wgpu::Sampler>,
     pub next_frame_dump_oneshot: Option<std::sync::mpsc::Sender<ImageInfo>>,
+    pub surface_texture_usage: RenderInput<wgpu::TextureUsages>,
 }
 
 impl PortInternal {
@@ -147,6 +148,7 @@ impl PortInternal {
             scaled_size: RenderInput::new(None),
             mipmapped_sampler,
             next_frame_dump_oneshot: None,
+            surface_texture_usage: RenderInput::new(wgpu::TextureUsages::empty()),
         })
     }
 
@@ -482,7 +484,8 @@ impl PortInternal {
                 } else {
                     wgpu::TextureUsages::empty()
                 };
-                if self.scaled_size.is_dirty() {
+                self.surface_texture_usage.update(extra_usage);
+                if self.scaled_size.is_dirty() || self.surface_texture_usage.is_dirty() {
                     logwise::trace_sync!("Configuring surface for new size");
                     let device = self.engine.bound_device().as_ref();
                     let scaled_size = self.scaled_size.requested.unwrap();
@@ -525,6 +528,7 @@ impl PortInternal {
                         });
                     });
                     self.scaled_size.mark_submitted();
+                    self.surface_texture_usage.mark_submitted();
                 }
             }
         }
