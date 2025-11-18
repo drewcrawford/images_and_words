@@ -53,15 +53,33 @@ impl Command for IwDumpMainportScreenshot {
         }
 
         // Wait for the frame data with a 10 second timeout
-        match rx.recv_timeout(Duration::from_secs(10)) {
-            Ok(dumped) => Ok(Response::Images(vec![dumped])),
-            Err(mpsc::RecvTimeoutError::Timeout) => Err(Response::from(
-                "Timeout waiting for frame. Ensure the render loop is active and rendering frames.",
-            )),
-            Err(mpsc::RecvTimeoutError::Disconnected) => Err(Response::from(
-                "Channel disconnected. This is an internal error.",
-            )),
-        }
+        let first_img = match rx.recv_timeout(Duration::from_secs(9)) {
+            Ok(img) => img,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                return Err(Response::from(
+                    "Timeout waiting for frame. Ensure the render loop is active and rendering frames.",
+                ));
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(Response::from(
+                    "Channel disconnected. This is an internal error.",
+                ));
+            }
+        };
+        let second_img = match rx.recv_timeout(Duration::from_secs(1)) {
+            Ok(img) => img,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                return Err(Response::from(
+                    "Timeout waiting for frame. Ensure the render loop is active and rendering frames.",
+                ));
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(Response::from(
+                    "Channel disconnected. This is an internal error.",
+                ));
+            }
+        };
+        Ok(Response::Images(vec![first_img, second_img]))
     }
 }
 
