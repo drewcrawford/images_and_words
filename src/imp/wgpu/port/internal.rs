@@ -4,10 +4,15 @@ use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::camera::Camera;
 use crate::images::port::{FrameGuard, PortReporterSend};
 use crate::images::render_pass::PassDescriptor;
+#[cfg(feature = "exfiltrate")]
+use crate::imp::DUMP_NEXT_FRAME;
 use crate::imp::wgpu::cell::WgpuCell;
 use crate::imp::wgpu::context::smuggle_async;
-use crate::imp::{CopyInfo, DUMP_NEXT_FRAME, Error};
+use crate::imp::{CopyInfo, Error};
+#[cfg(feature = "exfiltrate")]
 use exfiltrate::command::ImageInfo;
+#[cfg(feature = "exfiltrate")]
+use exfiltrate::rgb::RGBA8;
 use send_cells::send_cell::SendCell;
 use std::sync::Arc;
 use wgpu::wgt::BufferDescriptor;
@@ -20,11 +25,146 @@ use super::guards::{AcquiredGuards, BindGroupGuard};
 use super::prepared_pass::PreparedPass;
 use super::types::{CameraProjection, DebugCaptureData, PassConfig, RenderInput};
 
-fn dump_image(/* args */) {
-    todo!("Implement dump");
-    //let image_info = ImageInfo::new(...)
-    //For remark, pass "Color buffer" or "depth buffer"
-    //sender.send(image_info).unwrap();
+#[derive(Clone, Copy)]
+enum DumpImageFormat {
+    Color(TextureFormat),
+    Depth16Unorm,
+}
+
+#[cfg(feature = "exfiltrate")]
+fn dump_image(
+    map_result: Result<(), wgpu::BufferAsyncError>,
+    buffer: wgpu::Buffer,
+    bytes_per_row: u32,
+    scaled_size: (u32, u32),
+    sender: Option<std::sync::mpsc::Sender<ImageInfo>>,
+    remark: &'static str,
+    format: DumpImageFormat,
+) {
+    if let Err(err) = map_result {
+        logwise::error_sync!(
+            "Failed to map buffer for debug capture: {err}",
+            err = logwise::privacy::LogIt(&err)
+        );
+        return;
+    }
+
+    if scaled_size.0 == 0 || scaled_size.1 == 0 {
+        logwise::warn_sync!("Skipping debug capture for zero-sized surface");
+        buffer.unmap();
+        return;
+    }
+
+    let pixels = {
+        let mapped = buffer.slice(..).get_mapped_range();
+        let mapped_slice: &[u8] = &mapped;
+        let result = match format {
+            DumpImageFormat::Color(surface_format) => {
+                read_color_pixels(mapped_slice, bytes_per_row, scaled_size, surface_format)
+            }
+            DumpImageFormat::Depth16Unorm => {
+                read_depth_pixels(mapped_slice, bytes_per_row, scaled_size)
+            }
+        };
+        drop(mapped);
+        result
+    };
+    buffer.unmap();
+
+    let Some(pixels) = pixels else {
+        return;
+    };
+
+    if let Some(sender) = sender {
+        let image_info = ImageInfo::new(pixels, scaled_size.0, Some(remark.to_string()));
+        if let Err(err) = sender.send(image_info) {
+            logwise::error_sync!(
+                "Failed to send dumped image to exfiltrate: {err}",
+                err = logwise::privacy::LogIt(&err)
+            );
+        }
+    }
+}
+
+#[cfg(feature = "exfiltrate")]
+fn read_color_pixels(
+    mapped: &[u8],
+    bytes_per_row: u32,
+    scaled_size: (u32, u32),
+    surface_format: TextureFormat,
+) -> Option<Vec<RGBA8>> {
+    let width = scaled_size.0 as usize;
+    let height = scaled_size.1 as usize;
+    let stride = bytes_per_row as usize;
+    let row_bytes = width * 4;
+    if stride < row_bytes {
+        logwise::error_sync!(
+            "Row stride smaller than expected pixel data for framebuffer dump",
+            stride = stride,
+            expected = row_bytes
+        );
+        return None;
+    }
+
+    let mut pixels = Vec::with_capacity(width * height);
+    for row in 0..height {
+        let offset = row * stride;
+        let row_slice = &mapped[offset..offset + row_bytes];
+        match surface_format {
+            TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => {
+                for chunk in row_slice.chunks_exact(4) {
+                    pixels.push(RGBA8::new(chunk[2], chunk[1], chunk[0], chunk[3]));
+                }
+            }
+            TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb => {
+                for chunk in row_slice.chunks_exact(4) {
+                    pixels.push(RGBA8::new(chunk[0], chunk[1], chunk[2], chunk[3]));
+                }
+            }
+            _ => {
+                logwise::error_sync!(
+                    "Unsupported texture format for framebuffer dump",
+                    format = logwise::privacy::LogIt(&surface_format)
+                );
+                return None;
+            }
+        }
+    }
+
+    Some(pixels)
+}
+
+#[cfg(feature = "exfiltrate")]
+fn read_depth_pixels(
+    mapped: &[u8],
+    bytes_per_row: u32,
+    scaled_size: (u32, u32),
+) -> Option<Vec<RGBA8>> {
+    let width = scaled_size.0 as usize;
+    let height = scaled_size.1 as usize;
+    let stride = bytes_per_row as usize;
+    let row_bytes = width * 2;
+    if stride < row_bytes {
+        logwise::error_sync!(
+            "Row stride smaller than expected depth data",
+            stride = stride,
+            expected = row_bytes
+        );
+        return None;
+    }
+
+    let mut pixels = Vec::with_capacity(width * height);
+    for row in 0..height {
+        let offset = row * stride;
+        let row_slice = &mapped[offset..offset + row_bytes];
+        for chunk in row_slice.chunks_exact(2) {
+            let depth = u16::from_le_bytes([chunk[0], chunk[1]]);
+            let normalized = (depth >> 8) as u8;
+            pixels.push(RGBA8::new(normalized, normalized, normalized, 255));
+        }
+    }
+
+    Some(pixels)
 }
 
 #[derive(Debug)]
@@ -39,6 +179,7 @@ pub struct PortInternal {
     pub camera_buffer: Buffer<CameraProjection>,
     pub camera: Camera,
     pub mipmapped_sampler: WgpuCell<wgpu::Sampler>,
+    #[cfg(feature = "exfiltrate")]
     pub next_frame_dump_oneshot: Option<std::sync::mpsc::Sender<ImageInfo>>,
     pub surface_texture_usage: RenderInput<wgpu::TextureUsages>,
 }
@@ -147,13 +288,14 @@ impl PortInternal {
             frame: 0,
             scaled_size: RenderInput::new(None),
             mipmapped_sampler,
+            #[cfg(feature = "exfiltrate")]
             next_frame_dump_oneshot: None,
             surface_texture_usage: RenderInput::new(wgpu::TextureUsages::empty()),
         })
     }
 
     fn setup_depth_buffer(&self) -> (wgpu::Texture, wgpu::TextureView) {
-        let depth_extra_usage = if self.next_frame_dump_oneshot.is_some() {
+        let depth_extra_usage = if self.needs_framedump() {
             wgpu::TextureUsages::COPY_SRC
         } else {
             wgpu::TextureUsages::empty()
@@ -249,13 +391,24 @@ impl PortInternal {
         }
     }
 
+    fn needs_framedump(&self) -> bool {
+        #[cfg(feature = "exfiltrate")]
+        {
+            self.next_frame_dump_oneshot.is_some()
+        }
+        #[cfg(not(feature = "exfiltrate"))]
+        {
+            false
+        }
+    }
+
     fn setup_debug_framebuffer_capture(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         frame_texture: &wgpu::Texture,
         depth_texture: &wgpu::Texture,
     ) -> Option<DebugCaptureData> {
-        if self.next_frame_dump_oneshot.is_none() {
+        if !self.needs_framedump() {
             return None;
         }
 
@@ -382,28 +535,50 @@ impl PortInternal {
 
         self.frame += 1;
 
+        #[cfg(feature = "exfiltrate")]
         if let Some(debug_capture) = debug_capture.as_ref() {
-            let move_tx = debug_capture.dump_buf.clone();
+            let color_buffer = debug_capture.dump_buf.clone();
             let bytes_per_row = debug_capture.dump_buff_bytes_per_row;
             let scaled_size = self.scaled_size.requested.unwrap();
-            move_tx
+            let sender = self.next_frame_dump_oneshot.clone();
+            let surface_format = self.pass_config.requested.surface_format;
+            color_buffer
                 .clone()
-                .map_async(wgpu::MapMode::Read, .., move |_result| dump_image());
+                .map_async(wgpu::MapMode::Read, .., move |result| {
+                    dump_image(
+                        result,
+                        color_buffer,
+                        bytes_per_row,
+                        scaled_size,
+                        sender,
+                        "Color buffer",
+                        DumpImageFormat::Color(surface_format),
+                    )
+                });
+            //for map_async to work, we need to combine with needs_poll, maybe others?
+            device.0.set_needs_poll();
+
+            let bytes_per_row = debug_capture.depth_dump_buff_bytes_per_row;
+            let depth_buffer = debug_capture.depth_dump_buf.clone();
+            let scaled_size = self.scaled_size.requested.unwrap();
+            let sender = self.next_frame_dump_oneshot.clone();
+            depth_buffer
+                .clone()
+                .map_async(wgpu::MapMode::Read, .., move |result| {
+                    dump_image(
+                        result,
+                        depth_buffer,
+                        bytes_per_row,
+                        scaled_size,
+                        sender,
+                        "depth buffer",
+                        DumpImageFormat::Depth16Unorm,
+                    )
+                });
             //for map_async to work, we need to combine with needs_poll, maybe others?
             device.0.set_needs_poll()
         }
 
-        if let Some(debug) = debug_capture.as_ref() {
-            let _bytes_per_row = debug.depth_dump_buff_bytes_per_row;
-            let move_depth_tx = debug.depth_dump_buf.clone();
-            let _move_frame = self.frame;
-            let _scaled_size = self.scaled_size.requested.unwrap();
-            move_depth_tx
-                .clone()
-                .map_async(wgpu::MapMode::Read, .., move |_result| dump_image());
-            //for map_async to work, we need to combine with needs_poll, maybe others?
-            device.0.set_needs_poll()
-        }
         frame_guard_for_callback.mark_cpu_complete();
         logwise::trace_sync!("submit_and_present_frame done");
     }
@@ -471,6 +646,7 @@ impl PortInternal {
         );
         self.scaled_size.update(Some(current_scaled_size));
         //move dump_frame from global object to struct
+        #[cfg(feature = "exfiltrate")]
         DUMP_NEXT_FRAME.with_mut_sync(|e| self.next_frame_dump_oneshot = e.take());
 
         let surface = self.view.gpu_impl.as_ref().unwrap().surface.as_ref();
@@ -479,7 +655,7 @@ impl PortInternal {
                 logwise::debuginternal_sync!("Port surface not initialized");
             }
             Some(surface) => {
-                let extra_usage = if self.next_frame_dump_oneshot.is_some() {
+                let extra_usage = if self.needs_framedump() {
                     wgpu::TextureUsages::COPY_SRC
                 } else {
                     wgpu::TextureUsages::empty()
@@ -625,7 +801,7 @@ impl PortInternal {
         // Setup depth buffer
         let (depth_texture, depth_view) = self.setup_depth_buffer();
         // Execute render passes
-        let depth_store = if self.next_frame_dump_oneshot.is_some() {
+        let depth_store = if self.needs_framedump() {
             StoreOp::Store
         } else {
             StoreOp::Discard

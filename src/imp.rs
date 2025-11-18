@@ -2,6 +2,7 @@
 //at the moment we only support wgpu
 
 pub(crate) use crate::send_phantom::SendPhantom;
+#[cfg(feature = "exfiltrate")]
 use exfiltrate::command::ImageInfo;
 use std::pin::Pin;
 
