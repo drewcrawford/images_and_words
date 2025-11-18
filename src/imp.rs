@@ -2,6 +2,7 @@
 //at the moment we only support wgpu
 
 pub(crate) use crate::send_phantom::SendPhantom;
+use exfiltrate::command::ImageInfo;
 use std::pin::Pin;
 
 pub trait GPUableTextureWrapper: Send + Sync {}
@@ -47,6 +48,5 @@ pub(crate) use wgpu::*;
 use wasm_safe_mutex::Mutex;
 
 #[cfg(feature = "exfiltrate")]
-pub(crate) static DUMP_NEXT_FRAME: Mutex<
-    Option<std::sync::mpsc::Sender<exfiltrate::command::ImageInfo>>,
-> = Mutex::new(None);
+pub(crate) static DUMP_NEXT_FRAME: Mutex<Option<std::sync::mpsc::Sender<ImageInfo>>> =
+    Mutex::new(None);

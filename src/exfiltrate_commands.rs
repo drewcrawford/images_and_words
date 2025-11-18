@@ -4,7 +4,7 @@
 //!
 //! This module provides custom commands for the exfiltrate debugging tool.
 
-use exfiltrate::command::{Command, Response};
+use exfiltrate::command::{Command, ImageInfo, Response};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -44,26 +44,17 @@ impl Command for IwDumpMainportScreenshot {
 
         // Set the global DUMP_NEXT_FRAME to our sender
         {
-            #[cfg(feature = "backend_wgpu")]
-            {
-                use crate::imp::DUMP_NEXT_FRAME;
-                let mut dump_frame = DUMP_NEXT_FRAME.lock_sync();
-                if dump_frame.is_some() {
-                    return Err(Response::from("A frame dump is already pending"));
-                }
-                *dump_frame = Some(tx);
+            use crate::imp::DUMP_NEXT_FRAME;
+            let mut dump_frame = DUMP_NEXT_FRAME.lock_sync();
+            if dump_frame.is_some() {
+                return Err(Response::from("A frame dump is already pending"));
             }
-            #[cfg(not(feature = "backend_wgpu"))]
-            {
-                return Err(Response::from(
-                    "Frame capture requires backend_wgpu feature",
-                ));
-            }
+            *dump_frame = Some(tx);
         }
 
         // Wait for the frame data with a 10 second timeout
         match rx.recv_timeout(Duration::from_secs(10)) {
-            Ok(image_info) => Ok(Response::Image(image_info)),
+            Ok(dumped) => Ok(Response::Images(vec![dumped])),
             Err(mpsc::RecvTimeoutError::Timeout) => Err(Response::from(
                 "Timeout waiting for frame. Ensure the render loop is active and rendering frames.",
             )),
