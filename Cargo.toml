@@ -109,4 +109,8 @@ codegen-units = 1
 #logwise = {path = "../logwise"}
 #test_executors = {path = "../test_executors"}
 #some_executor = {path = "../some_executor"}
+# rwlock, etc.
 wasm_safe_mutex = {path = "../wasm_safe_mutex"}
+# primarily for quieter logging
+app_window = {path = "../app_window"}
+logwise = {path = "../logwise"}
