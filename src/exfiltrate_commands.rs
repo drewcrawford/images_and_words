@@ -59,33 +59,55 @@ impl Command for IwDumpMainportScreenshot {
         }
 
         // Wait for the frame data with a 10 second timeout
-        let first_img = match rx.recv_sync_timeout(Instant::now() + Duration::from_secs(9)) {
-            Ok(img) => img,
-            Err(mpsc::RecvTimeoutError::Timeout) => {
+        let mut images = Vec::new();
+        let mut expected_count = 2; // Default to 2 (color + depth) if no Expect message received (backward compat/robustness)
+
+        let start = Instant::now();
+        let timeout = Duration::from_secs(10);
+
+        loop {
+            if images.len() >= expected_count {
+                break;
+            }
+
+            let remaining = timeout
+                .checked_sub(start.elapsed())
+                .unwrap_or(Duration::ZERO);
+            if remaining.is_zero() {
                 return Err(Response::from(
                     "Timeout waiting for frame. Ensure the render loop is active and rendering frames.",
                 ));
             }
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(Response::from(
-                    "Channel disconnected. This is an internal error.",
-                ));
+
+            match rx.recv_sync_timeout(Instant::now() + remaining) {
+                Ok(msg) => {
+                    use crate::imp::DumpMessage;
+                    match msg {
+                        DumpMessage::Expect(count) => {
+                            expected_count = count;
+                        }
+                        DumpMessage::Image(img) => {
+                            images.push(img);
+                        }
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    return Err(Response::from(
+                        "Timeout waiting for frame. Ensure the render loop is active and rendering frames.",
+                    ));
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    // If we have at least one image, return what we have?
+                    // Or is it an error if we expected more?
+                    // For now, let's error if we didn't get what we expected.
+                    return Err(Response::from(
+                        "Channel disconnected before receiving all expected images.",
+                    ));
+                }
             }
-        };
-        let second_img = match rx.recv_sync_timeout(Instant::now() + Duration::from_secs(1)) {
-            Ok(img) => img,
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                return Err(Response::from(
-                    "Timeout waiting for frame. Ensure the render loop is active and rendering frames.",
-                ));
-            }
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(Response::from(
-                    "Channel disconnected. This is an internal error.",
-                ));
-            }
-        };
-        Ok(Response::Images(vec![first_img, second_img]))
+        }
+
+        Ok(Response::Images(images))
     }
 }
 

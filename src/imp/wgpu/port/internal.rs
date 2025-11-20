@@ -37,7 +37,7 @@ fn dump_image(
     buffer: wgpu::Buffer,
     bytes_per_row: u32,
     scaled_size: (u32, u32),
-    sender: Option<wasm_safe_mutex::mpsc::Sender<ImageInfo>>,
+    sender: Option<wasm_safe_mutex::mpsc::Sender<crate::imp::DumpMessage>>,
     remark: &'static str,
     format: DumpImageFormat,
 ) {
@@ -77,7 +77,7 @@ fn dump_image(
 
     if let Some(sender) = sender {
         let image_info = ImageInfo::new(pixels, scaled_size.0, Some(remark.to_string()));
-        if let Err(err) = sender.send_sync(image_info) {
+        if let Err(err) = sender.send_sync(crate::imp::DumpMessage::Image(image_info)) {
             logwise::error_sync!(
                 "Failed to send dumped image to exfiltrate.  The receiver was likely dropped.  Error: {err}",
                 err = logwise::privacy::LogIt(&err)
@@ -180,7 +180,7 @@ pub struct PortInternal {
     pub camera: Camera,
     pub mipmapped_sampler: WgpuCell<wgpu::Sampler>,
     #[cfg(feature = "exfiltrate")]
-    pub next_frame_dump_oneshot: Option<wasm_safe_mutex::mpsc::Sender<ImageInfo>>,
+    pub next_frame_dump_oneshot: Option<wasm_safe_mutex::mpsc::Sender<crate::imp::DumpMessage>>,
     pub surface_texture_usage: RenderInput<wgpu::TextureUsages>,
 }
 
@@ -537,6 +537,13 @@ impl PortInternal {
 
         #[cfg(feature = "exfiltrate")]
         if let Some(debug_capture) = debug_capture.as_ref() {
+            let has_depth = self.pass_config.requested.enable_depth;
+            let expected_count = if has_depth { 2 } else { 1 };
+
+            if let Some(sender) = &self.next_frame_dump_oneshot {
+                let _ = sender.send_sync(crate::imp::DumpMessage::Expect(expected_count));
+            }
+
             let color_buffer = debug_capture.dump_buf.clone();
             let bytes_per_row = debug_capture.dump_buff_bytes_per_row;
             let scaled_size = self.scaled_size.requested.unwrap();
@@ -558,25 +565,27 @@ impl PortInternal {
             //for map_async to work, we need to combine with needs_poll, maybe others?
             device.0.set_needs_poll();
 
-            let bytes_per_row = debug_capture.depth_dump_buff_bytes_per_row;
-            let depth_buffer = debug_capture.depth_dump_buf.clone();
-            let scaled_size = self.scaled_size.requested.unwrap();
-            let sender = self.next_frame_dump_oneshot.clone();
-            depth_buffer
-                .clone()
-                .map_async(wgpu::MapMode::Read, .., move |result| {
-                    dump_image(
-                        result,
-                        depth_buffer,
-                        bytes_per_row,
-                        scaled_size,
-                        sender,
-                        "depth buffer",
-                        DumpImageFormat::Depth16Unorm,
-                    )
-                });
-            //for map_async to work, we need to combine with needs_poll, maybe others?
-            device.0.set_needs_poll()
+            if has_depth {
+                let bytes_per_row = debug_capture.depth_dump_buff_bytes_per_row;
+                let depth_buffer = debug_capture.depth_dump_buf.clone();
+                let scaled_size = self.scaled_size.requested.unwrap();
+                let sender = self.next_frame_dump_oneshot.clone();
+                depth_buffer
+                    .clone()
+                    .map_async(wgpu::MapMode::Read, .., move |result| {
+                        dump_image(
+                            result,
+                            depth_buffer,
+                            bytes_per_row,
+                            scaled_size,
+                            sender,
+                            "depth buffer",
+                            DumpImageFormat::Depth16Unorm,
+                        )
+                    });
+                //for map_async to work, we need to combine with needs_poll, maybe others?
+                device.0.set_needs_poll()
+            }
         }
 
         frame_guard_for_callback.mark_cpu_complete();

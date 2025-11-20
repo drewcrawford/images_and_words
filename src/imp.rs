@@ -49,5 +49,11 @@ pub(crate) use wgpu::*;
 use wasm_safe_mutex::Mutex;
 
 #[cfg(feature = "exfiltrate")]
-pub(crate) static DUMP_NEXT_FRAME: Mutex<Option<wasm_safe_mutex::mpsc::Sender<ImageInfo>>> =
+pub(crate) enum DumpMessage {
+    Image(ImageInfo),
+    Expect(usize),
+}
+
+#[cfg(feature = "exfiltrate")]
+pub(crate) static DUMP_NEXT_FRAME: Mutex<Option<wasm_safe_mutex::mpsc::Sender<DumpMessage>>> =
     Mutex::new(None);
