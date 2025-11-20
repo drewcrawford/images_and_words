@@ -4,9 +4,15 @@
 //!
 //! This module provides custom commands for the exfiltrate debugging tool.
 
-use exfiltrate::command::{Command, ImageInfo, Response};
-use std::sync::mpsc;
+use exfiltrate::command::{Command, Response};
 use std::time::Duration;
+use wasm_safe_mutex::mpsc;
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
 
 /// Custom command to capture a screenshot of the main port.
 ///
@@ -53,7 +59,7 @@ impl Command for IwDumpMainportScreenshot {
         }
 
         // Wait for the frame data with a 10 second timeout
-        let first_img = match rx.recv_timeout(Duration::from_secs(9)) {
+        let first_img = match rx.recv_sync_timeout(Instant::now() + Duration::from_secs(9)) {
             Ok(img) => img,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 return Err(Response::from(
@@ -66,7 +72,7 @@ impl Command for IwDumpMainportScreenshot {
                 ));
             }
         };
-        let second_img = match rx.recv_timeout(Duration::from_secs(1)) {
+        let second_img = match rx.recv_sync_timeout(Instant::now() + Duration::from_secs(1)) {
             Ok(img) => img,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 return Err(Response::from(

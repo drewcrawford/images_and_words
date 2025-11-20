@@ -37,7 +37,7 @@ fn dump_image(
     buffer: wgpu::Buffer,
     bytes_per_row: u32,
     scaled_size: (u32, u32),
-    sender: Option<std::sync::mpsc::Sender<ImageInfo>>,
+    sender: Option<wasm_safe_mutex::mpsc::Sender<ImageInfo>>,
     remark: &'static str,
     format: DumpImageFormat,
 ) {
@@ -77,9 +77,9 @@ fn dump_image(
 
     if let Some(sender) = sender {
         let image_info = ImageInfo::new(pixels, scaled_size.0, Some(remark.to_string()));
-        if let Err(err) = sender.send(image_info) {
+        if let Err(err) = sender.send_sync(image_info) {
             logwise::error_sync!(
-                "Failed to send dumped image to exfiltrate: {err}",
+                "Failed to send dumped image to exfiltrate.  The receiver was likely dropped.  Error: {err}",
                 err = logwise::privacy::LogIt(&err)
             );
         }
@@ -180,7 +180,7 @@ pub struct PortInternal {
     pub camera: Camera,
     pub mipmapped_sampler: WgpuCell<wgpu::Sampler>,
     #[cfg(feature = "exfiltrate")]
-    pub next_frame_dump_oneshot: Option<std::sync::mpsc::Sender<ImageInfo>>,
+    pub next_frame_dump_oneshot: Option<wasm_safe_mutex::mpsc::Sender<ImageInfo>>,
     pub surface_texture_usage: RenderInput<wgpu::TextureUsages>,
 }
 

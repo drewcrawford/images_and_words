@@ -49,5 +49,5 @@ pub(crate) use wgpu::*;
 use wasm_safe_mutex::Mutex;
 
 #[cfg(feature = "exfiltrate")]
-pub(crate) static DUMP_NEXT_FRAME: Mutex<Option<std::sync::mpsc::Sender<ImageInfo>>> =
+pub(crate) static DUMP_NEXT_FRAME: Mutex<Option<wasm_safe_mutex::mpsc::Sender<ImageInfo>>> =
     Mutex::new(None);
