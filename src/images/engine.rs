@@ -7,7 +7,8 @@ use crate::images::projection::WorldCoord;
 use crate::images::view::View;
 use crate::imp;
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use wasm_safe_mutex::Mutex;
 
 /// Main GPU rendering engine that coordinates graphics resources and rendering operations.
 ///
@@ -100,13 +101,13 @@ impl Engine {
         logwise::info_sync!("Final port created successfully");
 
         logwise::info_sync!("Setting main port...");
-        r.main_port.lock().unwrap().replace(final_port);
+        r.main_port.lock_sync().replace(final_port);
         logwise::info_sync!("Engine::rendering_to() completed successfully");
         Ok(r)
     }
     pub fn main_port_mut(&self) -> PortGuard<'_> {
         PortGuard {
-            guard: self.main_port.lock().unwrap(),
+            guard: self.main_port.lock_sync(),
         }
     }
     pub fn bound_device(&self) -> &Arc<BoundDevice> {
@@ -131,18 +132,18 @@ impl Engine {
 An opaque guard type for ports.
 */
 pub struct PortGuard<'a> {
-    guard: std::sync::MutexGuard<'a, Option<Port>>,
+    guard: wasm_safe_mutex::Guard<'a, Option<Port>>,
 }
 impl Deref for PortGuard<'_> {
     type Target = Port;
 
     fn deref(&self) -> &Self::Target {
-        self.guard.as_ref().unwrap()
+        (*self.guard).as_ref().unwrap()
     }
 }
 impl DerefMut for PortGuard<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.guard.as_mut().unwrap()
+        (*self.guard).as_mut().unwrap()
     }
 }
 
