@@ -596,10 +596,6 @@ impl PortInternal {
         let mut new_config = self.pass_config.requested.clone();
         new_config.add_pass(descriptor);
         self.pass_config.update(new_config);
-        println!(
-            "now up to {} passes",
-            self.pass_config.requested.pass_descriptors.len()
-        );
     }
     pub async fn begin_render_frame_internal(&mut self) -> (CommandEncoder, FrameGuard) {
         let frame_guard = self.port_reporter_send.create_frame_guard(self.frame);

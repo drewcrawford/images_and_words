@@ -49,8 +49,9 @@ use crate::images::view::View;
 use crate::imp;
 use await_values::{Observer, Value};
 use std::fmt::Formatter;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use wasm_safe_mutex::Mutex;
 
 //for some reason we don't understand, using web_time here triggers
 //safari to reload the page eventually
@@ -384,7 +385,7 @@ impl PortReporterImpl {
     pub(crate) fn add_frame_info(&self, frame_info: FrameInfo) {
         const MAX_HISTORY: usize = 60; // Keep last 60 frames
 
-        let mut history = self.frame_history.lock().unwrap();
+        let mut history = self.frame_history.lock_sync();
         history.push(frame_info);
 
         // Keep only the most recent frames
