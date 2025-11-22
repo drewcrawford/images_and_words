@@ -13,7 +13,6 @@ use crate::imp::{CopyInfo, Error};
 use exfiltrate::command::ImageInfo;
 #[cfg(feature = "exfiltrate")]
 use exfiltrate::rgb::RGBA8;
-use send_cells::send_cell::SendCell;
 use std::sync::Arc;
 use wgpu::wgt::BufferDescriptor;
 use wgpu::{
@@ -515,7 +514,7 @@ impl PortInternal {
         let frame_guard_for_callback = frame_guard.clone();
         let callback_guard = frame_guard_for_callback.clone();
         //this closure requires Send but I don't think we actually do on wgpu
-        let frame_acquired_guards = SendCell::new(frame_acquired_guards);
+        let frame_acquired_guards = WgpuCell::new(frame_acquired_guards);
 
         device.0.queue().assume(|queue| {
             queue.on_submitted_work_done(move || {
