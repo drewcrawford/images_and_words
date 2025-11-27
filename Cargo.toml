@@ -8,7 +8,7 @@ repository = "https://github.com/drewcrawford/images_and_words"
 homepage = "https://sealedabstract.com/code/images_and_words"
 license = "Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0"
 keywords = ["gpu", "middleware", "graphics", "rendering","wgpu"]
-categories = ["game-development","graphics","rendering::engine","rust-patterns"]
+categories = ["game-development","graphics","rendering::engine","rendering::graphics-api"]
 exclude = [".*"]
 rust-version = "1.88.0"
 
