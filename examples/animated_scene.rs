@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Animated scene rendering example using dynamic buffers for images_and_words.
 //!
 //! This example demonstrates advanced GPU rendering techniques with dynamic buffers

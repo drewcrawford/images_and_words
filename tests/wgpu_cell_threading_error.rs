@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Test to reproduce the WgpuCell threading error with CPUWriteAccess
 //!
 //! This test creates a buffer, obtains write access, and then tries to call

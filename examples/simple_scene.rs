@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //! Simple scene rendering example for images_and_words graphics middleware.
 //!
 //! This example demonstrates the complete graphics pipeline using images_and_words,

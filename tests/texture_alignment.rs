@@ -1,5 +1,6 @@
 #![cfg(feature = "backend_wgpu")]
 
+// SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //for the time being, wasm_thread only works in browser
 //see https://github.com/rustwasm/wasm-bindgen/issues/4534,
 //though we also need wasm_thread support.
