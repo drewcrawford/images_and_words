@@ -440,8 +440,8 @@ while dynamic resources use accessible memory for frequent updates.
 # Thread Safety and Async
 
 This project uses custom async executors (not tokio):
-- test_executors for test code
-- some_executor for production code
+- `test_executors` for test code
+- `some_executor` for production code
 
 Graphics operations typically require main thread execution, especially on platforms like macOS.
 
