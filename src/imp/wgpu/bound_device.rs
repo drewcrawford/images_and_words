@@ -59,6 +59,7 @@ impl BoundDevice {
                 required_limits: limits,
                 memory_hints: Default::default(),
                 trace: Trace::Off,
+                experimental_features: Default::default(),
             };
             let (device, queue) = move_adapter
                 .assume_async(|a: &wgpu::Adapter| {
@@ -91,7 +92,10 @@ impl BoundDevice {
                         match poll_receiver.recv() {
                             Ok(_) => {
                                 // Poll until the queue is empty
-                                let _ = jailbreak_device.poll(PollType::Wait);
+                                let _ = jailbreak_device.poll(PollType::Wait {
+                                    submission_index: None,
+                                    timeout: Some(std::time::Duration::from_secs(1)),
+                                });
                             }
                             Err(_) => break, // Channel closed, exit thread
                         }
