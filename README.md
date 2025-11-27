@@ -8,9 +8,9 @@ to bring your own physics, sound, and game logic.
 
 ![logo](art/logo.png)
 
-## Demo
+# Demo
 
-![demo](art/demo.gif)
+![demo](art/demo.mp4)
 
 ## Live browser demos
 
@@ -18,7 +18,7 @@ to bring your own physics, sound, and game logic.
 
 The examples are cross-compiled to WebAssembly and run in the browser.
 
-## The Pitch
+# The Pitch
 
 Suppose you want to write a game or graphics application. You may consider:
 
@@ -76,12 +76,52 @@ the precise abstraction for your use case:
 - Flexible size constraints
 - Use cases: vertex data, uniform blocks, compute storage
 
+```rust
+use images_and_words::{
+    images::Engine,
+    bindings::{forward::r#static::buffer::Buffer, visible_to::GPUBufferUsage},
+};
+
+// Any C-compatible struct can be stored in a buffer
+#[repr(C)]
+struct MyData {
+    value: f32,
+    flags: u32,
+}
+unsafe impl images_and_words::bindings::forward::dynamic::buffer::CRepr for MyData {}
+
+let engine = Engine::for_testing().await.unwrap();
+let device = engine.bound_device();
+
+let buffer = Buffer::new(
+    device.clone(),
+    1,
+    GPUBufferUsage::FragmentShaderRead,
+    "my_data",
+    |_| MyData { value: 1.0, flags: 0 }
+).await.unwrap();
+```
+
 **Textures** provide:
 - GPU-optimized storage for image data
 - Hardware-accelerated sampling and filtering
-- Fixed pixel formats (RGBA8UnormSRGB, etc.)
+- Fixed pixel formats (`RGBA8UnormSRGB`, etc.)
 - Spatial access patterns optimized for 2D/3D locality
 - Use cases: images, render targets, lookup tables
+
+```rust
+use images_and_words::{
+    bindings::software::texture,
+    pixel_formats::{RGBA8UnormSRGB, RGBA8UnormSRGBPixel},
+};
+
+// Create a software texture (no GPU required for this example)
+let sw_texture = texture::Texture::<RGBA8UnormSRGB>::new(4, 4, RGBA8UnormSRGBPixel::default());
+
+// Software texture is ready to use or upload to GPU
+assert_eq!(sw_texture.width(), 4);
+assert_eq!(sw_texture.height(), 4);
+```
 
 ### Axis 2: Mutability (Static vs Dynamic)
 
@@ -153,6 +193,13 @@ Currently, two backends are available:
 
 - **`nop` backend**: A no-operation stub implementation useful for testing and as a template for new backends
 - **`wgpu` backend**: The main production backend built on [wgpu](https://wgpu.rs), providing broad platform support
+
+```rust
+// The backend is selected at compile time via features
+// Enable wgpu backend in Cargo.toml:
+// [dependencies]
+// images_and_words = { version = "*", features = ["backend_wgpu"] }
+```
 
 The wgpu backend inherits support for:
 - **Native APIs**: Direct3D 12, Vulkan, Metal
@@ -286,8 +333,6 @@ let vertex_buffer = Buffer::new(
 
 ## Working with Dynamic Resources
 
-Dynamic buffers support automatic multibuffering to prevent GPU pipeline stalls when updating data:
-
 ```rust
 use images_and_words::{
     bindings::{forward::dynamic::buffer, visible_to::GPUBufferUsage},
@@ -301,13 +346,15 @@ struct UniformData {
 }
 unsafe impl buffer::CRepr for UniformData {}
 
-let uniform_data = UniformData { 
-    time: 1.0, 
-    _padding: [0.0; 3] 
+// Dynamic buffers support automatic multibuffering
+// to prevent GPU pipeline stalls when updating data
+let uniform_data = UniformData {
+    time: 1.0,
+    _padding: [0.0; 3]
 };
 
-// This creates a buffer with automatic multibuffering:
-// let buffer = Buffer::new(device, 1, GPUBufferUsage::FragmentShaderRead, 
+// This would create a buffer when GPU is available:
+// let buffer = Buffer::new(device, 1, GPUBufferUsage::FragmentShaderRead,
 //                         "uniforms", |_| uniform_data).await?;
 ```
 
@@ -361,9 +408,29 @@ let mut port = engine.main_port_mut();
 
 Dynamic resources automatically use multibuffering to prevent GPU pipeline stalls:
 
-- **Frame 1**: CPU writes to buffer A, GPU reads buffer B
-- **Frame 2**: CPU writes to buffer B, GPU reads buffer A  
-- **CPU never blocks** waiting for GPU to finish
+```rust
+use images_and_words::bindings::forward::dynamic::buffer;
+
+// Dynamic buffers automatically manage multiple backing buffers
+// to prevent CPU-GPU synchronization stalls
+
+#[repr(C)]
+struct FrameData {
+    time: f32,
+    _pad: [f32; 3]
+}
+unsafe impl buffer::CRepr for FrameData {}
+
+// Multibuffering concept:
+// - Frame 1: CPU writes to buffer A, GPU reads buffer B
+// - Frame 2: CPU writes to buffer B, GPU reads buffer A
+// - CPU never blocks waiting for GPU to finish
+
+let frame_data = FrameData { time: 1.0, _pad: [0.0; 3] };
+
+// Buffer would be created with:
+// Buffer::new(device, count, usage, name, |_| frame_data).await
+```
 
 ## Memory Placement
 
@@ -373,10 +440,15 @@ while dynamic resources use accessible memory for frequent updates.
 # Thread Safety and Async
 
 This project uses custom async executors (not tokio):
-- `test_executors` for test code
-- `some_executor` for production code
+- test_executors for test code
+- some_executor for production code
 
 Graphics operations typically require main thread execution, especially on platforms like macOS.
+
+# Contributions
+
+If you are motivated enough to consider writing your own solution, I would love to have your help
+here instead.
 
 # Development Commands
 
@@ -443,8 +515,3 @@ Complex types require coercion through `logwise::privacy`:
 ```rust
 logwise::warn_sync!("Here is foo: {foo}", foo=logwise::privacy::LogIt(example));
 ```
-
-# Contributions
-
-If you are motivated enough to consider writing your own solution, I would love to have your help
-here instead.
