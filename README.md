@@ -10,7 +10,7 @@ to bring your own physics, sound, and game logic.
 
 # Demo
 
-![demo](art/demo.mp4)
+![demo](art/demo.gif)
 
 ## Live browser demos
 
