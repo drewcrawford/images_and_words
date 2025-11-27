@@ -14,6 +14,7 @@ use exfiltrate::command::ImageInfo;
 #[cfg(feature = "exfiltrate")]
 use exfiltrate::rgb::RGBA8;
 use std::sync::Arc;
+#[cfg(feature = "exfiltrate")]
 use wgpu::wgt::BufferDescriptor;
 use wgpu::{
     Color, CommandEncoder, CompositeAlphaMode, LoadOp, Operations,
@@ -22,8 +23,11 @@ use wgpu::{
 
 use super::guards::{AcquiredGuards, BindGroupGuard};
 use super::prepared_pass::PreparedPass;
-use super::types::{CameraProjection, DebugCaptureData, PassConfig, RenderInput};
+#[cfg(feature = "exfiltrate")]
+use super::types::DebugCaptureData;
+use super::types::{CameraProjection, PassConfig, RenderInput};
 
+#[cfg(feature = "exfiltrate")]
 #[derive(Clone, Copy)]
 enum DumpImageFormat {
     Color(TextureFormat),
@@ -401,6 +405,7 @@ impl PortInternal {
         }
     }
 
+    #[cfg(feature = "exfiltrate")]
     fn setup_debug_framebuffer_capture(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -498,6 +503,7 @@ impl PortInternal {
         })
     }
 
+    #[cfg(feature = "exfiltrate")]
     fn submit_and_present_frame(
         &mut self,
         encoder: wgpu::CommandEncoder,
@@ -586,6 +592,47 @@ impl PortInternal {
                 device.0.set_needs_poll()
             }
         }
+
+        frame_guard_for_callback.mark_cpu_complete();
+        logwise::trace_sync!("submit_and_present_frame done");
+    }
+
+    #[cfg(not(feature = "exfiltrate"))]
+    fn submit_and_present_frame(
+        &mut self,
+        encoder: wgpu::CommandEncoder,
+        frame: Option<wgpu::SurfaceTexture>,
+        frame_bind_groups: Vec<BindGroupGuard>,
+        frame_acquired_guards: Vec<AcquiredGuards>,
+        frame_guard: std::sync::Arc<crate::images::port::FrameGuard>,
+    ) {
+        logwise::trace_sync!("submit_and_present_frame");
+        let device = self.engine.bound_device().as_ref();
+        let encoded = encoder.finish();
+
+        let frame_guard_for_callback = frame_guard.clone();
+        let callback_guard = frame_guard_for_callback.clone();
+        //this closure requires Send but I don't think we actually do on wgpu
+        let frame_acquired_guards = WgpuCell::new(frame_acquired_guards);
+
+        device.0.queue().assume(|queue| {
+            queue.on_submitted_work_done(move || {
+                //at runtime, on non-wasm32 platforms, this is polled
+                //from a different thread
+                std::mem::drop(frame_bind_groups);
+                std::mem::drop(frame_acquired_guards);
+                callback_guard.mark_gpu_complete();
+            });
+            queue.submit(std::iter::once(encoded));
+        });
+        logwise::trace_sync!("submitted");
+
+        if let Some(f) = frame {
+            f.present();
+        }
+        logwise::trace_sync!("presented");
+
+        self.frame += 1;
 
         frame_guard_for_callback.mark_cpu_complete();
         logwise::trace_sync!("submit_and_present_frame done");
@@ -718,6 +765,7 @@ impl PortInternal {
         let wgpu_view;
         let frame;
         let color_attachment;
+        #[cfg(feature = "exfiltrate")]
         let frame_texture;
         match surface {
             None => {
@@ -751,7 +799,10 @@ impl PortInternal {
                     array_layer_count: None,
                 });
                 frame = None;
-                frame_texture = texture;
+                #[cfg(feature = "exfiltrate")]
+                {
+                    frame_texture = texture;
+                }
                 color_attachment = wgpu::RenderPassColorAttachment {
                     view: &wgpu_view,
                     resolve_target: None,
@@ -764,7 +815,10 @@ impl PortInternal {
                 let surface_texture = surface
                     .assume(|surface| surface.get_current_texture())
                     .expect("Acquire swapchain texture");
-                frame_texture = surface_texture.texture.clone();
+                #[cfg(feature = "exfiltrate")]
+                {
+                    frame_texture = surface_texture.texture.clone();
+                }
                 logwise::trace_sync!("wgpu::port::A1");
 
                 frame = Some(surface_texture);
@@ -803,7 +857,10 @@ impl PortInternal {
         };
         logwise::trace_sync!("port::A.5");
         // Setup depth buffer
+        #[cfg(feature = "exfiltrate")]
         let (depth_texture, depth_view) = self.setup_depth_buffer();
+        #[cfg(not(feature = "exfiltrate"))]
+        let (_depth_texture, depth_view) = self.setup_depth_buffer();
         // Execute render passes
         let depth_store = if self.needs_framedump() {
             StoreOp::Store
@@ -880,22 +937,36 @@ impl PortInternal {
         std::mem::drop(render_pass);
         logwise::trace_sync!("wgpu::port::D");
 
-        // Setup debug framebuffer capture
-        let debug_capture =
-            self.setup_debug_framebuffer_capture(&mut encoder, &frame_texture, &depth_texture);
-
         // Submit and present frame
         let frame_guard_arc = std::sync::Arc::new(frame_guard);
         logwise::trace_sync!("wgpu::port::E");
 
-        self.submit_and_present_frame(
-            encoder,
-            frame,
-            frame_bind_groups,
-            frame_acquired_guards,
-            frame_guard_arc,
-            debug_capture,
-        );
+        #[cfg(feature = "exfiltrate")]
+        {
+            // Setup debug framebuffer capture
+            let debug_capture =
+                self.setup_debug_framebuffer_capture(&mut encoder, &frame_texture, &depth_texture);
+
+            self.submit_and_present_frame(
+                encoder,
+                frame,
+                frame_bind_groups,
+                frame_acquired_guards,
+                frame_guard_arc,
+                debug_capture,
+            );
+        }
+
+        #[cfg(not(feature = "exfiltrate"))]
+        {
+            self.submit_and_present_frame(
+                encoder,
+                frame,
+                frame_bind_groups,
+                frame_acquired_guards,
+                frame_guard_arc,
+            );
+        }
         logwise::trace_sync!("finish_render_frame end");
     }
 

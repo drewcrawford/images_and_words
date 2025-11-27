@@ -11,6 +11,7 @@ pub struct CameraProjection {
 
 unsafe impl CRepr for CameraProjection {}
 
+#[cfg(feature = "exfiltrate")]
 #[derive(Debug)]
 pub struct DebugCaptureData {
     pub dump_buf: wgpu::Buffer,
