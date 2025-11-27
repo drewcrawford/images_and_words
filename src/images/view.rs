@@ -21,13 +21,29 @@
 //!
 //! ## Creating a view from a window surface
 //!
-//! ```no_run
+//! ```
+//! # #[cfg(not(feature = "app_window"))] fn main() {}
 //! # #[cfg(feature = "app_window")]
-//! # {
-//! use images_and_words::images::view::View;
-//! # let surface: app_window::surface::Surface = todo!();
+//! # fn main() {
+//! # #[cfg(target_arch = "wasm32")] {
+//! #     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+//! # }
+//! use app_window::test_support::doctest_main;
+//! use some_executor::task::{Configuration, Task};
 //!
-//! let view = View::from_surface(surface).expect("Failed to create view");
+//! doctest_main(|| {
+//!     Task::without_notifications(
+//!         "view_doctest".to_string(),
+//!         Configuration::default(),
+//!         async {
+//!             use images_and_words::images::view::View;
+//!
+//!             let mut window = app_window::window::Window::default().await;
+//!             let surface = window.surface().await;
+//!             let view = View::from_surface(surface).expect("Failed to create view");
+//!         },
+//!     ).spawn_static_current();
+//! });
 //! # }
 //! ```
 //!
@@ -216,15 +232,30 @@ impl View {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # if cfg!(not(feature="backend_wgpu")) { return; }
+    /// ```
+    /// # #[cfg(not(feature = "app_window"))] fn main() {}
     /// # #[cfg(feature = "app_window")]
-    /// # {
-    /// use images_and_words::images::view::View;
-    /// # let surface: app_window::surface::Surface = todo!();
+    /// # fn main() {
+    /// # #[cfg(target_arch = "wasm32")] {
+    /// #     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+    /// # }
+    /// use app_window::test_support::doctest_main;
+    /// use some_executor::task::{Configuration, Task};
     ///
-    /// let view = View::from_surface(surface)
-    ///     .expect("Failed to create view from surface");
+    /// doctest_main(|| {
+    ///     Task::without_notifications(
+    ///         "from_surface_doctest".to_string(),
+    ///         Configuration::default(),
+    ///         async {
+    ///             use images_and_words::images::view::View;
+    ///
+    ///             let mut window = app_window::window::Window::default().await;
+    ///             let surface = window.surface().await;
+    ///             let view = View::from_surface(surface)
+    ///                 .expect("Failed to create view from surface");
+    ///         },
+    ///     ).spawn_static_current();
+    /// });
     /// # }
     /// ```
     ///

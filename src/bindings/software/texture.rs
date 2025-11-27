@@ -633,22 +633,18 @@ impl<Format: PixelFormat> Texture<Format> {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// # //this is no_run due to file IO
-    /// # #[cfg(feature = "testing")]
-    /// # {
+    /// ```
+    /// # if cfg!(not(feature="backend_wgpu")) { return; }
     /// use images_and_words::bindings::software::texture::Texture;
     /// use images_and_words::pixel_formats::RGBA8UnormSRGB;
     /// use std::path::Path;
     /// # test_executors::spawn_local(async {
-    /// # let priority: async_file::Priority = todo!();
     ///
     /// let texture = Texture::<RGBA8UnormSRGB>::new_from_path(
-    ///     Path::new("assets/texture.png"),
-    ///     priority
+    ///     Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/art/logo.png")),
+    ///     async_file::Priority::unit_test()
     /// ).await;
     /// # }, "software_texture_doctest");
-    /// # }
     /// ```
     pub async fn new_from_path(path: &Path, priority: async_file::Priority) -> Self
     where
