@@ -100,17 +100,3 @@ strip = true
 opt-level = "s"
 lto = true
 codegen-units = 1
-
-[patch.crates-io]
-#vec_parallel = {path = "../vec_parallel"}
-#portable_async_sleep = {path = "../portable_async_sleep"}
-#vectormatrix = {path = "../vectormatrix"}
-#continue = {path = "../continue"}
-#logwise = {path = "../logwise"}
-#test_executors = {path = "../test_executors"}
-#some_executor = {path = "../some_executor"}
-# rwlock, etc.
-wasm_safe_mutex = {path = "../wasm_safe_mutex"}
-# primarily for quieter logging
-app_window = {path = "../app_window"}
-logwise = {path = "../logwise"}
