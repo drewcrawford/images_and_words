@@ -35,7 +35,7 @@ app_window = {version = "0.3.1", optional=true}
 send_cells = {version = "0.2.0"}
 # used for wgpu backend
 wgpu = {version = "26.0.1", optional = true}
-logwise = "0.3.0"
+logwise = "0.4.0"
 exfiltrate = {version = "0.2.0", optional = true}
 wasm_safe_mutex = "0.1.0"
 
