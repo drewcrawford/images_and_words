@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
+#[cfg(feature = "exfiltrate")]
+mod debug_capture;
 pub mod guards;
 pub mod internal;
 pub mod prepared_pass;
