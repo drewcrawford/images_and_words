@@ -1,6 +1,6 @@
 [package]
 name = "images_and_words"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors = ["Drew Crawford <drew@sealedabstract.com>"]
 description = "GPU middleware and abstraction layer for high-performance graphics applications and games"
