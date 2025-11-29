@@ -108,7 +108,7 @@ let buffer = Buffer::new(
 
 **Textures** provide:
 - GPU-optimized storage for image data
-- Hardware-accelerated sampling and filtering
+- Hardware-accelerated sampling and filtering via the [`Sampleable`](bindings::software::texture::Sampleable) trait
 - Fixed pixel formats ([`RGBA8UnormSRGB`](pixel_formats::RGBA8UnormSRGB), etc.)
 - Spatial access patterns optimized for 2D/3D locality
 - Use cases: images, render targets, lookup tables
@@ -231,7 +231,8 @@ Higher-order GPU resource types:
 - [`forward`](bindings::forward): CPU→GPU data transfer types
   - `static`: Immutable resources (access via `bindings::forward::static`)
   - [`dynamic`](bindings::forward::dynamic): Mutable resources with multibuffering
-- [`software`](bindings::software): CPU-side texture operations
+- [`software`](bindings::software): CPU-side texture operations and the [`Sampleable`](bindings::software::texture::Sampleable) trait
+  - Scaled coordinate utilities: [`scaled_32`](bindings::software::texture::scaled_32), [`scaled_iterator`](bindings::software::texture::scaled_iterator), [`scaled_row_cell`](bindings::software::texture::scaled_row_cell)
 - [`sampler`](bindings::sampler): Texture sampling configuration
 
 ### Pixel Formats ([`pixel_formats`])
@@ -296,6 +297,7 @@ But you should expect this backend to be cut because:
 use images_and_words::images::Engine;
 
 // Create a rendering engine for testing
+// Returns Result<Engine, CreateError>
 let engine = Engine::for_testing().await
     .expect("Failed to create engine");
 
@@ -384,6 +386,7 @@ use images_and_words::{
 };
 
 // Create engine with camera position
+// Engine::rendering_to returns Result<Engine, CreateError>
 let engine = Engine::rendering_to(
     View::for_testing(),
     WorldCoord::new(0.0, 0.0, 5.0)
