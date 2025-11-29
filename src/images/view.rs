@@ -270,6 +270,13 @@ impl View {
         })
     }
 
+    /// Creates a view suitable for testing.
+    ///
+    /// This method creates a `View` that doesn't require an actual window surface,
+    /// making it ideal for unit tests and integration tests. The test view provides
+    /// a fixed size of 800x600 pixels with a scale factor of 1.0.
+    ///
+    /// This is an alias for `for_testing()`.
     pub fn testing() -> Self {
         View {
             gpu_impl: None,

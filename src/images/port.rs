@@ -361,7 +361,9 @@ impl PortReporter {
         &self.min_elapsed_ms
     }
 
-    //awaits the completion of the next frame.
+    /// Awaits the completion of the next frame.
+    ///
+    /// This method blocks until the next frame has been rendered and presented.
     pub async fn await_frame(&self) {
         todo!()
     }
@@ -702,6 +704,10 @@ impl Port {
         }
     }
 
+    /// Checks if the port needs to render a new frame.
+    ///
+    /// Returns true if any dirty state indicates that rendering is required.
+    /// This is primarily used in testing to verify the port's render state.
     pub fn needs_render(&self) -> bool {
         //this is a test-only function that returns true if the port needs to render.
         //it is used in tests to check if the port is rendering correctly.

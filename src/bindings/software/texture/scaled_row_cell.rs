@@ -51,6 +51,17 @@ pub struct ScaledRowCell {
 }
 
 impl ScaledRowCell {
+    /// Creates a new scaled row-cell coordinate.
+    ///
+    /// # Arguments
+    /// * `cell` - The cell column index
+    /// * `row` - The row index
+    /// * `scale` - The scaling factor
+    /// * `cell_i` - Position within cell in i dimension, must be < scale
+    /// * `cell_j` - Position within cell in j dimension, must be < scale
+    ///
+    /// # Panics
+    /// Panics if `cell_i >= scale` or `cell_j >= scale`.
     #[inline]
     pub const fn new(cell: u16, row: u16, scale: u8, cell_i: u8, cell_j: u8) -> Self {
         assert!(cell_i < scale);
@@ -64,10 +75,12 @@ impl ScaledRowCell {
         }
     }
 
+    /// Returns the cell column index.
     #[inline]
     pub const fn cell(&self) -> u16 {
         self.cell
     }
+    /// Returns the row index.
     #[inline]
     pub const fn row(&self) -> u16 {
         self.row
@@ -152,6 +165,7 @@ impl ScaledRowCell {
         Normalized::new(norm_x, norm_y)
     }
 
+    /// Returns the base texel coordinate (without sub-cell offset).
     #[inline]
     pub fn reference_texel(&self) -> Texel {
         Texel {

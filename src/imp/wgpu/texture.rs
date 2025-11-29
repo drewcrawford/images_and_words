@@ -18,6 +18,7 @@ use wgpu::util::{DeviceExt, TextureDataOrder};
 use wgpu::{Extent3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo};
 
 impl TextureUsage {
+    /// Converts this texture usage to the corresponding wgpu texture usage flags.
     pub const fn wgpu_usage(&self) -> wgpu::TextureUsages {
         match self {
             TextureUsage::FragmentShaderRead => wgpu::TextureUsages::TEXTURE_BINDING,

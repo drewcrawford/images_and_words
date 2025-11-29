@@ -4,7 +4,7 @@ Utilities for working with texture coordinates that use floating point
 sub-texel precision.
 
 This module defines [`Scaled32`], a texture coordinate containing integer cell
-positions with fractional offsets, and [`S32`], a lightweight type holding just
+positions with fractional offsets, and [`S32`](crate::bindings::software::texture::scaled_32::S32), a lightweight type holding just
 the fractional components.
 */
 
@@ -315,7 +315,9 @@ impl Scaled32 {
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct S32 {
+    /// Fractional position within a cell in the i (horizontal) dimension, range [0.0, 1.0).
     pub cell_i: f32,
+    /// Fractional position within a cell in the j (vertical) dimension, range [0.0, 1.0).
     pub cell_j: f32,
 }
 

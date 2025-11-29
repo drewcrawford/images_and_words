@@ -378,9 +378,13 @@ unsafe impl ReprC for f32 {}
 #[repr(C)]
 #[derive(Clone, Debug, Default, Copy, PartialEq, Eq, Hash)]
 pub struct Unorm4 {
+    /// Red component (0-255).
     pub r: u8,
+    /// Green component (0-255).
     pub g: u8,
+    /// Blue component (0-255).
     pub b: u8,
+    /// Alpha component (0-255).
     pub a: u8,
 }
 unsafe impl ReprC for Unorm4 {}
@@ -521,9 +525,13 @@ impl CPixelTrait for BGRA8UnormPixelSRGB {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[repr(C)]
 pub struct BGRA8UnormPixelSRGB {
+    /// Blue component in sRGB space (0-255).
     pub b: u8,
+    /// Green component in sRGB space (0-255).
     pub g: u8,
+    /// Red component in sRGB space (0-255).
     pub r: u8,
+    /// Alpha component (0-255).
     pub a: u8,
 }
 unsafe impl ReprC for BGRA8UnormPixelSRGB {}
@@ -603,9 +611,13 @@ impl From<Float4> for BGRA8UnormPixelSRGB {
 #[repr(C)]
 #[derive(Clone, Debug, Copy, PartialEq)]
 pub struct Float4 {
+    /// Red component in linear color space.
     pub r: f32,
+    /// Green component in linear color space.
     pub g: f32,
+    /// Blue component in linear color space.
     pub b: f32,
+    /// Alpha component.
     pub a: f32,
 }
 

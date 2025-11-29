@@ -57,8 +57,11 @@ use std::ops::{Index, IndexMut};
 use std::path::Path;
 use vec_parallel::Hint;
 
+/// Scaled texture coordinates represented as 32-bit values.
 pub mod scaled_32;
+/// Iterator for scaled texture sampling.
 pub mod scaled_iterator;
+/// Scaled row and cell coordinate representation.
 pub mod scaled_row_cell;
 pub mod vtexture;
 
@@ -410,6 +413,11 @@ mod sealed {
     pub trait Sealed {}
 }
 
+/// Trait for types that support weighted averaging for texture sampling.
+///
+/// This trait enables smooth interpolation between texel values during
+/// scaled texture sampling operations. Types implementing this trait can
+/// be used as texel values in textures that support filtering and sampling.
 pub trait Sampleable: Sized + Clone + sealed::Sealed {
     /// The output type of sampling operations.
     /// Usually a floating-point type for smooth interpolation.

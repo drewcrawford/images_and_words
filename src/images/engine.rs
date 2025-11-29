@@ -31,9 +31,21 @@ pub struct Engine {
 }
 
 impl Engine {
+    /// Creates a test engine instance for unit testing.
+    ///
+    /// This creates an engine with a test view suitable for automated testing
+    /// without requiring an actual window or display surface.
     pub async fn for_testing() -> Result<Arc<Self>, CreateError> {
         Self::rendering_to(View::for_testing(), WorldCoord::new(0.0, 0.0, 0.0)).await
     }
+    /// Creates a new rendering engine targeting the specified view.
+    ///
+    /// # Arguments
+    /// * `view` - The rendering target (window surface or test view)
+    /// * `initial_camera_position` - Starting camera position in world coordinates
+    ///
+    /// # Returns
+    /// An Arc-wrapped engine instance, or an error if initialization fails.
     pub async fn rendering_to(
         mut view: View,
         initial_camera_position: WorldCoord,
@@ -105,11 +117,15 @@ impl Engine {
         logwise::info_sync!("Engine::rendering_to() completed successfully");
         Ok(r)
     }
+    /// Returns a mutable guard to the main rendering port.
+    ///
+    /// This provides thread-safe access to the port for submitting render commands.
     pub fn main_port_mut(&self) -> PortGuard<'_> {
         PortGuard {
             guard: self.main_port.lock_sync(),
         }
     }
+    /// Returns the GPU device bound to this engine.
     pub fn bound_device(&self) -> &Arc<BoundDevice> {
         &self.device
     }
@@ -147,19 +163,26 @@ impl DerefMut for PortGuard<'_> {
     }
 }
 
+/// Errors that can occur during engine creation.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum CreateError {
+    /// Failed to create the GPU entry point.
     #[error("Can't create engine {0}")]
     EntryPoint(#[from] EntryPointError),
+    /// Failed to select a suitable GPU device.
     #[error("Can't find a GPU {0}")]
     Gpu(#[from] PickError),
+    /// Failed to bind to the selected GPU device.
     #[error("Can't bind GPU {0}")]
     Bind(#[from] BindError),
+    /// Failed to create the rendering port.
     #[error("Can't create port {0}")]
     Port(#[from] super::port::Error),
+    /// Backend implementation error.
     #[error("Implementation error {0}")]
     Imp(#[from] imp::Error),
+    /// View initialization error.
     #[error("View error {0}")]
     View(#[from] crate::images::view::Error),
 }
