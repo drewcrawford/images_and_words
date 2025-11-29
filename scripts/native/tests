@@ -5,6 +5,14 @@ if [[ " $* " =~ " --relaxed " ]]; then
     WARN_FLAGS=""
 fi
 
+# Install mesa-utils if on Linux with apt-get available and not already installed
+if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v apt-get &> /dev/null; then
+    if ! command -v glxinfo &> /dev/null; then
+        sudo apt-get update
+        sudo apt-get install -y mesa-utils
+    fi
+fi
+
 # Check if we're on Linux and Weston is available
 if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v weston &> /dev/null; then
     # Run tests under headless Weston
