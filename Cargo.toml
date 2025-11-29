@@ -23,7 +23,7 @@ some_executor = "0.6.1"
 vectormatrix = "0.1.2"
 vec_parallel = {version = "0.1.3", features = ["some_executor"]}
 async_file = "0.1.1"
-test_executors = "0.3.5"
+test_executors = "0.4.0"
 raw-window-handle = "0.6.2"
 continue = {version = "0.1.1"}
 half = "2.6.0"
