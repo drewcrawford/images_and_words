@@ -65,6 +65,8 @@ mod perf {
         let global = web_sys::js_sys::global();
         if let Some(window) = global.dyn_ref::<web_sys::Window>() {
             window.performance().unwrap()
+        } else if let Some(worker) = global.dyn_ref::<web_sys::WorkerGlobalScope>() {
+            worker.performance().unwrap()
         } else {
             panic!("No performance API available in this context");
         }
