@@ -50,6 +50,10 @@ web-sys = {version = "0.3.77", features=[
 futures = "0.3.31"
 console_error_panic_hook = "0.1.7"
 
+[target.'cfg(not(target_arch="wasm32"))'.dev-dependencies]
+criterion = { version = "0.8.0", features=["async"] }
+
+
 [target.'cfg(target_arch="wasm32")'.dev-dependencies]
 wasm_thread = "0.3.3"
 web-time = "1.1.0"
@@ -95,6 +99,7 @@ required-features = ["app_window", "backend_wgpu"]
 name = "frame_texture_dequeue"
 path = "benches/frame_texture_dequeue.rs"
 required-features = ["backend_wgpu"]
+harness = false # criterion requires its own harness
 
 [profile.release]
 

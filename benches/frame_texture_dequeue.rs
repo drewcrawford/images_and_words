@@ -3,11 +3,12 @@
 // Benchmarks for frame texture dequeue operations using wasm-bindgen-test's
 // new benchmark feature. These benchmarks only run on wasm32 targets.
 
-#![cfg(all(feature = "backend_wgpu", target_arch = "wasm32"))]
+#![cfg(feature = "backend_wgpu")]
+
+#[cfg(target_arch = "wasm32")]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-// The wasm-bindgen-test-runner provides the actual entry point.
-// We need to provide a main function as a placeholder for cargo to compile.
+#[cfg(target_arch = "wasm32")]
 fn main() {}
 
 use images_and_words::Priority;
@@ -24,7 +25,11 @@ use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::{Criterion, wasm_bindgen_bench};
+
+#[cfg(not(target_arch = "wasm32"))]
+use criterion::Criterion;
 
 /// Creates an engine and frame texture for benchmarking.
 async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
@@ -111,15 +116,27 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
     (engine, frame_texture)
 }
 
+async fn actual_fn(engine: &Engine, frame_texture: Rc<RefCell<FrameTexture<RGBA8UNorm>>>) {
+    // Force render to release resources
+    engine.main_port_mut().force_render().await;
+
+    // This is the operation we're benchmarking
+    let mut ft = frame_texture.borrow_mut();
+    let out = ft.dequeue().await;
+
+    // Drop the guard to release back to pending GPU state
+    drop(out);
+}
+
 /// Benchmark frame texture dequeue with force_render before each iteration.
 ///
 /// This approach calls force_render() before each dequeue to ensure the GPU
 /// has released the resource back to UNUSED state.
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen_bench]
 async fn bench_dequeue_with_force_render(c: &mut Criterion) {
     let (engine, frame_texture) = setup_benchmark().await;
     let frame_texture = Rc::new(RefCell::new(frame_texture));
-
     c.bench_async_function("dequeue with force_render", |b| {
         let engine = engine.clone();
         let frame_texture = frame_texture.clone();
@@ -127,17 +144,46 @@ async fn bench_dequeue_with_force_render(c: &mut Criterion) {
             let engine = engine.clone();
             let frame_texture = frame_texture.clone();
             async move {
-                // Force render to release resources
-                engine.main_port_mut().force_render().await;
-
-                // This is the operation we're benchmarking
-                let mut ft = frame_texture.borrow_mut();
-                let out = ft.dequeue().await;
-
-                // Drop the guard to release back to pending GPU state
-                drop(out);
+                actual_fn(&engine, frame_texture).await;
             }
         }))
     })
     .await;
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn bench_native(c: &mut Criterion) {
+    let (engine, frame_texture) = test_executors::sleep_on(async move { setup_benchmark().await });
+
+    let frame_texture = Rc::new(RefCell::new(frame_texture));
+    c.bench_function("bench_dequeue_with_force_render", |b| {
+        // Insert a call to `to_async` to convert the bencher to async mode.
+        // The timing loops are the same as with the normal bencher.
+        b.to_async(Wrap)
+            .iter(|| actual_fn(&engine, frame_texture.clone()));
+    });
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+criterion::criterion_group!(benches, bench_native);
+#[cfg(not(target_arch = "wasm32"))]
+criterion::criterion_main!(benches);
+
+//criterion support for test_executors
+//consider implementing this properly if we need it again
+#[cfg(not(target_arch = "wasm32"))]
+struct Wrap;
+
+#[cfg(not(target_arch = "wasm32"))]
+impl criterion::async_executor::AsyncExecutor for Wrap {
+    fn block_on<T>(&self, future: impl Future<Output = T>) -> T {
+        //need to preserve output I guess
+        //this is fine on native
+        let (s, r) = std::sync::mpsc::sync_channel(1);
+        test_executors::sleep_on(async {
+            let t = future.await;
+            s.send(t).unwrap();
+        });
+        r.recv().unwrap()
+    }
 }
