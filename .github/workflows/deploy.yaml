@@ -18,22 +18,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compute cache key for deployment
-        id: cache-key
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "deployment=deploy-$(echo ${{ github.ref_name }} | tr '.' '-')" >> "$GITHUB_OUTPUT"
-
       - name: Cache target (deployment)
         uses: actions/cache@v4
         with:
-          key: deploy-target-${{ github.event.repository.name }}-ubuntu-latest-stable-host-${{ steps.cache-key.outputs.deployment }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          key: wasm-deploy-${{ github.event.repository.name }}-ubuntu-latest-stable-host-${{ steps.cache-key.outputs.deployment }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
           path: |
             target
           restore-keys: |
-            deploy-target-${{ github.event.repository.name }}-ubuntu-latest-stable-host-${{ steps.cache-key.outputs.deployment }}-
-            deploy-target-${{ github.event.repository.name }}-ubuntu-latest-stable-host-
+            wasm-deploy-${{ github.event.repository.name }}-ubuntu-latest-stable-host-${{ steps.cache-key.outputs.deployment }}-
+            wasm-deploy-${{ github.event.repository.name }}-ubuntu-latest-stable-host-
 
       - name: Build all examples
         run: build/build_all_examples.sh
