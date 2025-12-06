@@ -31,15 +31,22 @@ use wasm_bindgen_test::{Criterion, wasm_bindgen_bench};
 #[cfg(not(target_arch = "wasm32"))]
 use criterion::Criterion;
 
+use some_executor::task::Configuration;
+#[cfg(not(target_arch = "wasm32"))]
+use std::future::Future;
+
 /// Creates an engine and frame texture for benchmarking.
+/// Also spawns a background thread that runs the render loop with dirty tracking.
 async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
+    #[cfg(target_arch = "wasm32")]
+    console_error_panic_hook::set_once();
+
     let view = View::for_testing();
     let initial_camera_position = WorldCoord::new(0.0, 0.0, 10.0);
     let engine = Engine::rendering_to(view, initial_camera_position)
         .await
         .expect("Failed to create engine for testing");
     let device = engine.bound_device();
-    let mut port = engine.main_port_mut();
 
     // Create a FrameTexture
     let config = TextureConfig {
@@ -95,56 +102,67 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
     let mut bind_style = BindStyle::new();
     bind_style.bind_dynamic_texture(BindSlot::new(0), Stage::Fragment, &frame_texture);
 
-    // Add a render pass
-    port.add_fixed_pass(PassDescriptor::new(
-        "benchmark_test".to_string(),
-        vertex_shader,
-        fragment_shader,
-        bind_style,
-        DrawCommand::TriangleList(3),
-        false,
-        false,
-    ))
-    .await;
+    // Add a render pass (need to hold port temporarily)
+    {
+        let mut port = engine.main_port_mut();
+        port.add_fixed_pass(PassDescriptor::new(
+            "benchmark_test".to_string(),
+            vertex_shader,
+            fragment_shader,
+            bind_style,
+            DrawCommand::TriangleList(3),
+            false,
+            false,
+        ))
+        .await;
 
-    // Initial render to put resources in known state
-    port.force_render().await;
+        // Initial render to put resources in known state
+        port.force_render().await;
+    }
 
-    // Drop port before returning to release the borrow on engine
-    drop(port);
+    // Spawn render loop as async task on main thread (no separate thread needed)
+    // It will interleave with the benchmark via async yielding
+    let engine_for_render = engine.clone();
+    some_executor::task::Task::without_notifications(
+        "render_loop".to_string(),
+        Configuration::default(),
+        async move {
+            logwise::mandatory_sync!("render_loop async task started on main thread");
+            engine_for_render.main_port_mut().start().await.unwrap();
+        },
+    )
+    .spawn_static_current();
 
     (engine, frame_texture)
 }
 
-async fn actual_fn(engine: &Engine, frame_texture: Rc<RefCell<FrameTexture<RGBA8UNorm>>>) {
-    // Force render to release resources
-    engine.main_port_mut().force_render().await;
-
-    // This is the operation we're benchmarking
+async fn actual_fn(frame_texture: Rc<RefCell<FrameTexture<RGBA8UNorm>>>) {
+    // This is the operation we're benchmarking.
+    // The background render thread handles rendering when dirty.
     let mut ft = frame_texture.borrow_mut();
     let out = ft.dequeue().await;
 
-    // Drop the guard to release back to pending GPU state
+    // Drop the guard to release back to pending GPU state (marks dirty)
     drop(out);
 }
 
-/// Benchmark frame texture dequeue with force_render before each iteration.
+/// Benchmark frame texture dequeue with background render thread.
 ///
-/// This approach calls force_render() before each dequeue to ensure the GPU
-/// has released the resource back to UNUSED state.
+/// This approach uses a background thread running port.start() with dirty
+/// tracking. The GPU naturally paces rendering based on dirty state, avoiding
+/// the backpressure issue of force_render in a tight loop.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen_bench]
-async fn bench_dequeue_with_force_render(c: &mut Criterion) {
-    let (engine, frame_texture) = setup_benchmark().await;
+async fn bench_dequeue_with_dirty_tracking(c: &mut Criterion) {
+    exfiltrate::begin();
+    let (_engine, frame_texture) = setup_benchmark().await;
     let frame_texture = Rc::new(RefCell::new(frame_texture));
-    c.bench_async_function("dequeue with force_render", |b| {
-        let engine = engine.clone();
+    c.bench_async_function("dequeue with dirty tracking", |b| {
         let frame_texture = frame_texture.clone();
         Box::pin(b.iter_future(move || {
-            let engine = engine.clone();
             let frame_texture = frame_texture.clone();
             async move {
-                actual_fn(&engine, frame_texture).await;
+                actual_fn(frame_texture).await;
             }
         }))
     })
@@ -153,14 +171,14 @@ async fn bench_dequeue_with_force_render(c: &mut Criterion) {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn bench_native(c: &mut Criterion) {
-    let (engine, frame_texture) = test_executors::sleep_on(async move { setup_benchmark().await });
+    exfiltrate::begin();
+    let (_engine, frame_texture) = test_executors::sleep_on(async move { setup_benchmark().await });
 
     let frame_texture = Rc::new(RefCell::new(frame_texture));
-    c.bench_function("bench_dequeue_with_force_render", |b| {
+    c.bench_function("bench_dequeue_with_dirty_tracking", |b| {
         // Insert a call to `to_async` to convert the bencher to async mode.
         // The timing loops are the same as with the normal bencher.
-        b.to_async(Wrap)
-            .iter(|| actual_fn(&engine, frame_texture.clone()));
+        b.to_async(Wrap).iter(|| actual_fn(frame_texture.clone()));
     });
 }
 
