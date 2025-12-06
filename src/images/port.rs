@@ -619,6 +619,9 @@ impl Port {
     /// This bypasses the dirty tracking system and renders a frame even if
     /// no resources have changed. Useful for debugging or ensuring immediate
     /// visual updates.
+    ///
+    /// Note: This function can queue up GPU work perhaps faster than the GPU can do it.
+    /// This can cause performance degredation due to GPU queue explosion.
     pub async fn force_render(&mut self) {
         //force render the next frame, even if nothing is dirty
         //let frame_time = logwise::perfwarn_begin!("Port::force_render");
