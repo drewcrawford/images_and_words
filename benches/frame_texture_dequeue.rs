@@ -303,40 +303,6 @@ async fn bench_dequeue_with_sleep_workaround() {
     result.report();
 }
 
-async fn bench_dequeue_no_sleep() {
-    use custom_bench::CustomBencher;
-
-    #[cfg(feature = "exfiltrate")]
-    exfiltrate::begin();
-
-    logwise::mandatory_sync!("BENCH Setting up benchmark...");
-    let (_engine, frame_texture) = setup_benchmark().await;
-    let frame_texture = Rc::new(RefCell::new(frame_texture));
-
-    let bencher = CustomBencher::default();
-
-    let ft = frame_texture.clone();
-
-    let result = bencher
-        .iter_custom_future("dequeue_no_sleep", |_iters| {
-            let ft = ft.clone();
-            async move {
-                // No wait - measure directly
-                let start = now_ms();
-                {
-                    let mut frame_texture = ft.borrow_mut();
-                    let _out = frame_texture.dequeue().await;
-                }
-                let elapsed_ms = now_ms() - start;
-
-                Duration::from_secs_f64(elapsed_ms / 1000.0)
-            }
-        })
-        .await;
-
-    result.report();
-}
-
 // ============================================================================
 // Main entry point
 // ============================================================================
@@ -351,7 +317,7 @@ mod wasm_bench {
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-    const WAIT_DURATION: Duration = Duration::from_millis(150);
+    const WAIT_DURATION: Duration = Duration::from_millis(1000);
 
     #[wasm_bindgen_bench]
     async fn bench_with_sleep(c: &mut Criterion) {
@@ -413,7 +379,6 @@ fn main() {
         bench_dequeue_with_sleep_workaround().await;
 
         logwise::mandatory_sync!("BENCH === Running dequeue benchmark WITHOUT sleep ===");
-        bench_dequeue_no_sleep().await;
     });
 }
 
