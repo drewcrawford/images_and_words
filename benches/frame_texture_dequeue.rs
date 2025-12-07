@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 //
-// Benchmarks for frame texture dequeue operations using wasm-bindgen-test's
-// new benchmark feature. These benchmarks only run on wasm32 targets.
+// Benchmarks for frame texture dequeue operations.
+// Uses a custom harness with iter_custom_future-like support to work around
+// browser throttling issues in headless/webdriver contexts.
 
 #![cfg(feature = "backend_wgpu")]
-
-#[cfg(target_arch = "wasm32")]
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-#[cfg(target_arch = "wasm32")]
-fn main() {}
 
 use images_and_words::Priority;
 use images_and_words::bindings::BindStyle;
@@ -25,18 +20,155 @@ use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_test::{Criterion, wasm_bindgen_bench};
-
-#[cfg(not(target_arch = "wasm32"))]
-use criterion::Criterion;
+use std::time::Duration;
 
 use some_executor::task::Configuration;
-#[cfg(not(target_arch = "wasm32"))]
-use std::future::Future;
 
-/// Creates an engine and frame texture for benchmarking.
-/// Also spawns a background thread that runs the render loop with dirty tracking.
+// ============================================================================
+// Custom benchmark harness
+// ============================================================================
+
+mod custom_bench {
+    use std::time::Duration;
+
+    pub struct BenchResult {
+        pub name: String,
+        pub times_ms: Vec<f64>,
+    }
+
+    impl BenchResult {
+        pub fn report(&self) {
+            use logwise::privacy::LogIt;
+
+            if self.times_ms.is_empty() {
+                logwise::mandatory_sync!("BENCH {name}: no samples", name = LogIt(&self.name));
+                return;
+            }
+
+            let sum: f64 = self.times_ms.iter().sum();
+            let mean = sum / self.times_ms.len() as f64;
+
+            let variance: f64 = self
+                .times_ms
+                .iter()
+                .map(|t| (t - mean).powi(2))
+                .sum::<f64>()
+                / self.times_ms.len() as f64;
+            let stddev = variance.sqrt();
+
+            let mut sorted = self.times_ms.clone();
+            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let median = sorted[sorted.len() / 2];
+            let p95 = sorted[(sorted.len() as f64 * 0.95) as usize];
+            let min = sorted[0];
+            let max = sorted[sorted.len() - 1];
+
+            let msg = format!(
+                "BENCH {}: mean={:.3}ms ±{:.3}ms, median={:.3}ms, p95={:.3}ms, min={:.3}ms, max={:.3}ms, n={}",
+                self.name,
+                mean,
+                stddev,
+                median,
+                p95,
+                min,
+                max,
+                self.times_ms.len()
+            );
+            logwise::mandatory_sync!("{msg}", msg = LogIt(&msg));
+        }
+    }
+
+    pub struct CustomBencher {
+        pub warmup_iters: usize,
+        pub sample_iters: usize,
+    }
+
+    impl Default for CustomBencher {
+        fn default() -> Self {
+            Self {
+                warmup_iters: 2,
+                sample_iters: 10,
+            }
+        }
+    }
+
+    impl CustomBencher {
+        /// Run benchmark with custom timing.
+        /// The `routine` receives the iteration count and returns the measured Duration.
+        /// Use this to exclude setup/wait time from measurements.
+        pub async fn iter_custom_future<F, Fut>(&self, name: &str, mut routine: F) -> BenchResult
+        where
+            F: FnMut(u64) -> Fut,
+            Fut: std::future::Future<Output = Duration>,
+        {
+            use logwise::privacy::LogIt;
+
+            // Warmup
+            logwise::mandatory_sync!(
+                "BENCH {name}: warming up ({iters} iters)...",
+                name = LogIt(&name),
+                iters = LogIt(&self.warmup_iters)
+            );
+            for _ in 0..self.warmup_iters {
+                let _ = routine(1).await;
+            }
+
+            // Measurement
+            logwise::mandatory_sync!(
+                "BENCH {name}: measuring ({iters} iters)...",
+                name = LogIt(&name),
+                iters = LogIt(&self.sample_iters)
+            );
+            let mut times_ms = Vec::with_capacity(self.sample_iters);
+
+            for i in 0..self.sample_iters {
+                let duration = routine(1).await;
+                times_ms.push(duration.as_secs_f64() * 1000.0);
+
+                // Log progress every 10 iterations
+                if (i + 1) % 10 == 0 {
+                    logwise::mandatory_sync!(
+                        "BENCH {name}: {done}/{total} complete",
+                        name = LogIt(&name),
+                        done = LogIt(&(i + 1)),
+                        total = LogIt(&self.sample_iters)
+                    );
+                }
+            }
+
+            BenchResult {
+                name: name.to_string(),
+                times_ms,
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Platform-specific timing
+// ============================================================================
+
+#[cfg(target_arch = "wasm32")]
+fn now_ms() -> f64 {
+    web_sys::window()
+        .expect("no window")
+        .performance()
+        .expect("no performance")
+        .now()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn now_ms() -> f64 {
+    use std::time::Instant;
+    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    let start = START.get_or_init(Instant::now);
+    start.elapsed().as_secs_f64() * 1000.0
+}
+
+// ============================================================================
+// Benchmark setup
+// ============================================================================
+
 async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
     #[cfg(target_arch = "wasm32")]
     console_error_panic_hook::set_once();
@@ -48,7 +180,6 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
         .expect("Failed to create engine for testing");
     let device = engine.bound_device();
 
-    // Create a FrameTexture
     let config = TextureConfig {
         width: 256,
         height: 256,
@@ -67,7 +198,6 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
     })
     .await;
 
-    // Create simple shaders
     let vertex_shader = VertexShader::new(
         "benchmark_test",
         r#"
@@ -98,11 +228,9 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
         .to_string(),
     );
 
-    // Create bind style and bind the texture
     let mut bind_style = BindStyle::new();
     bind_style.bind_dynamic_texture(BindSlot::new(0), Stage::Fragment, &frame_texture);
 
-    // Add a render pass (need to hold port temporarily)
     {
         let mut port = engine.main_port_mut();
         port.add_fixed_pass(PassDescriptor::new(
@@ -116,18 +244,15 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
         ))
         .await;
 
-        // Initial render to put resources in known state
         port.force_render().await;
     }
 
-    // Spawn render loop as async task on main thread (no separate thread needed)
-    // It will interleave with the benchmark via async yielding
+    // Spawn render loop
     let engine_for_render = engine.clone();
     some_executor::task::Task::without_notifications(
         "render_loop".to_string(),
         Configuration::default(),
         async move {
-            logwise::mandatory_sync!("render_loop async task started on main thread");
             engine_for_render.main_port_mut().start().await.unwrap();
         },
     )
@@ -136,72 +261,161 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
     (engine, frame_texture)
 }
 
-async fn actual_fn(frame_texture: Rc<RefCell<FrameTexture<RGBA8UNorm>>>) {
-    // This is the operation we're benchmarking.
-    // The background render thread handles rendering when dirty.
-    let mut ft = frame_texture.borrow_mut();
-    let out = ft.dequeue().await;
+// ============================================================================
+// Benchmarks
+// ============================================================================
 
-    // Drop the guard to release back to pending GPU state (marks dirty)
-    drop(out);
-}
+async fn bench_dequeue_with_sleep_workaround() {
+    use custom_bench::CustomBencher;
 
-/// Benchmark frame texture dequeue with background render thread.
-///
-/// This approach uses a background thread running port.start() with dirty
-/// tracking. The GPU naturally paces rendering based on dirty state, avoiding
-/// the backpressure issue of force_render in a tight loop.
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen_bench]
-async fn bench_dequeue_with_dirty_tracking(c: &mut Criterion) {
+    #[cfg(feature = "exfiltrate")]
     exfiltrate::begin();
+
+    logwise::mandatory_sync!("BENCH Setting up benchmark...");
     let (_engine, frame_texture) = setup_benchmark().await;
     let frame_texture = Rc::new(RefCell::new(frame_texture));
-    c.bench_async_function("dequeue with dirty tracking", |b| {
-        let frame_texture = frame_texture.clone();
-        Box::pin(b.iter_future(move || {
-            let frame_texture = frame_texture.clone();
+
+    let bencher = CustomBencher::default();
+
+    let wait_duration = Duration::from_secs(1);
+    let ft = frame_texture.clone();
+
+    let result = bencher
+        .iter_custom_future("dequeue_with_sleep", |_iters| {
+            let ft = ft.clone();
             async move {
-                actual_fn(frame_texture).await;
+                // Wait to try to avoid throttling (NOT timed)
+                portable_async_sleep::async_sleep(wait_duration).await;
+
+                // Measure only the actual operation
+                let start = now_ms();
+                {
+                    let mut frame_texture = ft.borrow_mut();
+                    let _out = frame_texture.dequeue().await;
+                }
+                let elapsed_ms = now_ms() - start;
+
+                Duration::from_secs_f64(elapsed_ms / 1000.0)
             }
-        }))
-    })
-    .await;
+        })
+        .await;
+
+    result.report();
+}
+
+async fn bench_dequeue_no_sleep() {
+    use custom_bench::CustomBencher;
+
+    #[cfg(feature = "exfiltrate")]
+    exfiltrate::begin();
+
+    logwise::mandatory_sync!("BENCH Setting up benchmark...");
+    let (_engine, frame_texture) = setup_benchmark().await;
+    let frame_texture = Rc::new(RefCell::new(frame_texture));
+
+    let bencher = CustomBencher::default();
+
+    let ft = frame_texture.clone();
+
+    let result = bencher
+        .iter_custom_future("dequeue_no_sleep", |_iters| {
+            let ft = ft.clone();
+            async move {
+                // No wait - measure directly
+                let start = now_ms();
+                {
+                    let mut frame_texture = ft.borrow_mut();
+                    let _out = frame_texture.dequeue().await;
+                }
+                let elapsed_ms = now_ms() - start;
+
+                Duration::from_secs_f64(elapsed_ms / 1000.0)
+            }
+        })
+        .await;
+
+    result.report();
+}
+
+// ============================================================================
+// Main entry point
+// ============================================================================
+
+// wasm-bindgen-test-runner requires exported test/bench functions
+#[cfg(target_arch = "wasm32")]
+mod wasm_bench {
+    use super::*;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use wasm_bindgen_test::{Criterion, Instant, wasm_bindgen_bench};
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    const WAIT_DURATION: Duration = Duration::from_millis(150);
+
+    #[wasm_bindgen_bench]
+    async fn bench_with_sleep(c: &mut Criterion) {
+        let (_engine, frame_texture) = setup_benchmark().await;
+        let frame_texture = Rc::new(RefCell::new(frame_texture));
+
+        let ft = frame_texture.clone();
+        c.bench_async_function("dequeue_with_32ms_sleep", move |b| {
+            let ft = ft.clone();
+            Box::pin(b.iter_custom_future(move |iters| {
+                let ft = ft.clone();
+                async move {
+                    // Sleep to avoid throttling - NOT timed
+                    portable_async_sleep::async_sleep(WAIT_DURATION).await;
+
+                    // Only measure the actual operation
+                    let start = Instant::now();
+                    for _ in 0..iters {
+                        let mut frame_texture = ft.borrow_mut();
+                        std::hint::black_box(frame_texture.dequeue().await);
+                    }
+                    start.elapsed()
+                }
+            }))
+        })
+        .await;
+    }
+
+    // Disabled for now - gets heavily throttled
+    // #[wasm_bindgen_bench]
+    async fn _bench_no_sleep(c: &mut Criterion) {
+        let (_engine, frame_texture) = setup_benchmark().await;
+        let frame_texture = Rc::new(RefCell::new(frame_texture));
+
+        let ft = frame_texture.clone();
+        c.bench_async_function("dequeue_no_sleep", move |b| {
+            let ft = ft.clone();
+            Box::pin(b.iter_custom_future(move |iters| {
+                let ft = ft.clone();
+                async move {
+                    // No sleep - will be throttled
+                    let start = Instant::now();
+                    for _ in 0..iters {
+                        let mut frame_texture = ft.borrow_mut();
+                        std::hint::black_box(frame_texture.dequeue().await);
+                    }
+                    start.elapsed()
+                }
+            }))
+        })
+        .await;
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn bench_native(c: &mut Criterion) {
-    exfiltrate::begin();
-    let (_engine, frame_texture) = test_executors::sleep_on(async move { setup_benchmark().await });
+fn main() {
+    test_executors::sleep_on(async {
+        logwise::mandatory_sync!("BENCH === Running dequeue benchmark WITH sleep workaround ===");
+        bench_dequeue_with_sleep_workaround().await;
 
-    let frame_texture = Rc::new(RefCell::new(frame_texture));
-    c.bench_function("bench_dequeue_with_dirty_tracking", |b| {
-        // Insert a call to `to_async` to convert the bencher to async mode.
-        // The timing loops are the same as with the normal bencher.
-        b.to_async(Wrap).iter(|| actual_fn(frame_texture.clone()));
+        logwise::mandatory_sync!("BENCH === Running dequeue benchmark WITHOUT sleep ===");
+        bench_dequeue_no_sleep().await;
     });
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-criterion::criterion_group!(benches, bench_native);
-#[cfg(not(target_arch = "wasm32"))]
-criterion::criterion_main!(benches);
-
-//criterion support for test_executors
-//consider implementing this properly if we need it again
-#[cfg(not(target_arch = "wasm32"))]
-struct Wrap;
-
-#[cfg(not(target_arch = "wasm32"))]
-impl criterion::async_executor::AsyncExecutor for Wrap {
-    fn block_on<T>(&self, future: impl Future<Output = T>) -> T {
-        //need to preserve output I guess
-        //this is fine on native
-        let (s, r) = std::sync::mpsc::sync_channel(1);
-        test_executors::sleep_on(async {
-            let t = future.await;
-            s.send(t).unwrap();
-        });
-        r.recv().unwrap()
-    }
-}
+#[cfg(target_arch = "wasm32")]
+fn main() {}
