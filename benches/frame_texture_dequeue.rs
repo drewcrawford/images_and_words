@@ -313,10 +313,11 @@ mod wasm_bench {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     //basically we choose this such that we get <16.667 ms (60fps) or <8.333ms (120fps)
-    const WAIT_DURATION: Duration = Duration::from_millis(60);
+    const WAIT_DURATION: Duration = Duration::from_millis(0);
 
     #[wasm_bindgen_bench]
     async fn bench_with_sleep(c: &mut Criterion) {
+        *c = std::mem::take(c).measurement_time(Duration::from_secs(15));
         let (engine, frame_texture) = setup_benchmark().await;
         let frame_texture = Rc::new(RefCell::new(frame_texture));
 
@@ -326,16 +327,22 @@ mod wasm_bench {
             Box::pin(b.iter_custom_future(move |iters| {
                 let ft = ft.clone();
                 async move {
-                    // Sleep to avoid throttling - NOT timed
-                    portable_async_sleep::async_sleep(WAIT_DURATION).await;
-
-                    // Only measure the actual operation
-                    let start = Instant::now();
+                    let mut accum = crate::Duration::ZERO;
+                    logwise::mandatory_sync!("Will do {iters} iters", iters = iters);
                     for _ in 0..iters {
+                        // Sleep to avoid throttling - NOT timed
+                        portable_async_sleep::async_sleep(WAIT_DURATION).await;
+
+                        // Only measure the actual operation
+                        let start = Instant::now();
+                        logwise::mandatory_sync!("iter begin");
+
                         let mut frame_texture = ft.borrow_mut();
                         std::hint::black_box(frame_texture.dequeue().await);
+                        logwise::mandatory_sync!("iter end");
+                        accum += start.elapsed();
                     }
-                    start.elapsed()
+                    accum
                 }
             }))
         })
