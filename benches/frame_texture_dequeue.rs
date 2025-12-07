@@ -312,15 +312,16 @@ mod wasm_bench {
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-    const WAIT_DURATION: Duration = Duration::from_millis(1000);
+    //basically we choose this such that we get <16.667 ms (60fps) or <8.333ms (120fps)
+    const WAIT_DURATION: Duration = Duration::from_millis(60);
 
     #[wasm_bindgen_bench]
     async fn bench_with_sleep(c: &mut Criterion) {
-        let (_engine, frame_texture) = setup_benchmark().await;
+        let (engine, frame_texture) = setup_benchmark().await;
         let frame_texture = Rc::new(RefCell::new(frame_texture));
 
         let ft = frame_texture.clone();
-        c.bench_async_function("dequeue_with_32ms_sleep", move |b| {
+        c.bench_async_function("dequeue_withs_sleep", move |b| {
             let ft = ft.clone();
             Box::pin(b.iter_custom_future(move |iters| {
                 let ft = ft.clone();
@@ -339,6 +340,8 @@ mod wasm_bench {
             }))
         })
         .await;
+        //now that we're done, cleanup by stopping our port
+        engine.main_port_mut().stop();
     }
 }
 
