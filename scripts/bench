@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+scripts/native/bench "$@"
+scripts/wasm32/bench "$@"
