@@ -1,7 +1,50 @@
 #!/bin/bash
 set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 if [[ " $* " =~ " --relaxed " ]]; then
     export RELAXED_WARNINGS=1
 fi
-source "$(dirname "$0")/_env"
-CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="wasm-bindgen-test-runner" RUSTFLAGS="$WASM32_RUSTFLAGS" RUSTDOCFLAGS="$WASM32_RUSTDOCFLAGS" cargo +nightly test --target=wasm32-unknown-unknown
+source "$SCRIPT_DIR/_env"
+
+# Default to Chrome for CDP log capture unless overridden
+if [ -z "$CHROMEDRIVER" ] && [ -z "$GECKODRIVER" ] && [ -z "$SAFARIDRIVER" ]; then
+    export CHROMEDRIVER="$(which chromedriver)"
+
+    # Check for node
+    if ! command -v node &> /dev/null; then
+        echo "WASM:ERROR: node not found. Install Node.js to capture logs." >&2
+        exit 1
+    fi
+
+    # Install CDP dependency if needed
+    if [ ! -d "$SCRIPT_DIR/node_modules/chrome-remote-interface" ]; then
+        echo "WASM: Installing chrome-remote-interface..." >&2
+        (cd "$SCRIPT_DIR" && npm install --silent chrome-remote-interface) >&2
+    fi
+
+    echo "WASM: Starting CDP log capture..." >&2
+
+    # Start CDP log capture in background
+    node "$SCRIPT_DIR/capture-logs.js" &
+    CDP_PID=$!
+
+    # Cleanup on exit
+    cleanup() {
+        if [ -n "$CDP_PID" ]; then
+            kill $CDP_PID 2>/dev/null || true
+            wait $CDP_PID 2>/dev/null || true
+        fi
+    }
+    trap cleanup EXIT
+else
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" >&2
+    echo "!!! WARNING: Non-Chrome webdriver detected" >&2
+    echo "!!! CDP log capture is disabled. WASM logs may be missing!" >&2
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" >&2
+fi
+
+CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="wasm-bindgen-test-runner" RUSTFLAGS="$WASM32_RUSTFLAGS" RUSTDOCFLAGS="$WASM32_RUSTDOCFLAGS" cargo +nightly test --target=wasm32-unknown-unknown "$@" 2>&1
+EXIT_CODE=$?
+echo "WASM: Tests exited with code $EXIT_CODE" >&2
+exit $EXIT_CODE
