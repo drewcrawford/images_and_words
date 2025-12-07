@@ -38,7 +38,7 @@
 //! schedules a new frame to be rendered.
 
 use crate::bindings::bind_style::BindTarget;
-use crate::bindings::dirty_tracking::{DirtyAggregateReceiver, DirtyReceiver};
+use crate::bindings::dirty_tracking::{DirtyAggregateReceiver, DirtyReceiver, DirtySender};
 use crate::bittricks::{u16s_to_u32, u32_to_u16s};
 use crate::images::Engine;
 use crate::images::camera::Camera;
@@ -244,6 +244,7 @@ pub struct Port {
     descriptors: Vec<PassDescriptor>,
     camera: Camera,
     engine: Arc<Engine>,
+    stop_signal: DirtySender,
 }
 
 /// Error type for port operations.
@@ -541,6 +542,7 @@ impl Port {
             descriptors: Default::default(),
             camera,
             engine: engine.clone(),
+            stop_signal: DirtySender::new(false, "port_stop"),
         })
     }
     /// Adds a fixed render pass to the port.
@@ -694,19 +696,39 @@ impl Port {
     /// Ports do not render by default - you must call this method to begin
     /// the render loop.
     pub async fn start(&mut self) -> Result<(), Error> {
+        // Reset stop signal so we can be started again after being stopped
+        self.stop_signal.mark_dirty(false);
+
         //render first frame regardless
         self.force_render().await;
         loop {
-            let receiver = DirtyAggregateReceiver::new(self.collect_dirty_receivers());
+            let mut dirty_receivers = self.collect_dirty_receivers();
+            dirty_receivers.push(DirtyReceiver::new(&self.stop_signal));
+            let receiver = DirtyAggregateReceiver::new(dirty_receivers);
             logwise::trace_sync!("waiting for dirty");
 
             receiver.wait_for_dirty().await;
+
+            // Check if stop was signaled
+            if DirtyReceiver::new(&self.stop_signal).is_dirty() {
+                logwise::trace_sync!("Port stopped");
+                return Ok(());
+            }
+
             logwise::trace_sync!(
                 "Rendering frame due to {reason}",
                 reason = logwise::privacy::LogIt(receiver.who_is_dirty())
             );
             self.force_render().await;
         }
+    }
+
+    /// Stops the port's rendering loop.
+    ///
+    /// This causes [`start()`](Self::start) to return immediately.
+    /// After calling `stop()`, the port can be started again by calling `start()`.
+    pub fn stop(&self) {
+        self.stop_signal.mark_dirty(true);
     }
 
     /// Checks if the port needs to render a new frame.
