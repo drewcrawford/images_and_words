@@ -17,7 +17,9 @@ use images_and_words::images::render_pass::{DrawCommand, PassDescriptor};
 use images_and_words::images::shader::{FragmentShader, VertexShader};
 use images_and_words::images::view::View;
 use images_and_words::pixel_formats::{RGBA8UNorm, Unorm4};
+#[cfg(not(target_arch = "wasm32"))]
 use std::cell::RefCell;
+#[cfg(not(target_arch = "wasm32"))]
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -28,6 +30,7 @@ use some_executor::task::Configuration;
 // Custom benchmark harness
 // ============================================================================
 
+#[cfg(not(target_arch = "wasm32"))]
 mod custom_bench {
     use std::time::Duration;
 
@@ -148,15 +151,6 @@ mod custom_bench {
 // Platform-specific timing
 // ============================================================================
 
-#[cfg(target_arch = "wasm32")]
-fn now_ms() -> f64 {
-    web_sys::window()
-        .expect("no window")
-        .performance()
-        .expect("no performance")
-        .now()
-}
-
 #[cfg(not(target_arch = "wasm32"))]
 fn now_ms() -> f64 {
     use std::time::Instant;
@@ -265,6 +259,7 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
 // Benchmarks
 // ============================================================================
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn bench_dequeue_with_sleep_workaround() {
     use custom_bench::CustomBencher;
 
@@ -334,31 +329,6 @@ mod wasm_bench {
                     portable_async_sleep::async_sleep(WAIT_DURATION).await;
 
                     // Only measure the actual operation
-                    let start = Instant::now();
-                    for _ in 0..iters {
-                        let mut frame_texture = ft.borrow_mut();
-                        std::hint::black_box(frame_texture.dequeue().await);
-                    }
-                    start.elapsed()
-                }
-            }))
-        })
-        .await;
-    }
-
-    // Disabled for now - gets heavily throttled
-    // #[wasm_bindgen_bench]
-    async fn _bench_no_sleep(c: &mut Criterion) {
-        let (_engine, frame_texture) = setup_benchmark().await;
-        let frame_texture = Rc::new(RefCell::new(frame_texture));
-
-        let ft = frame_texture.clone();
-        c.bench_async_function("dequeue_no_sleep", move |b| {
-            let ft = ft.clone();
-            Box::pin(b.iter_custom_future(move |iters| {
-                let ft = ft.clone();
-                async move {
-                    // No sleep - will be throttled
                     let start = Instant::now();
                     for _ in 0..iters {
                         let mut frame_texture = ft.borrow_mut();
