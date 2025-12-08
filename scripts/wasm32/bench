@@ -44,7 +44,7 @@ else
     echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" >&2
 fi
 
-CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="wasm-bindgen-test-runner" RUSTFLAGS="$WASM32_RUSTFLAGS" RUSTDOCFLAGS="$WASM32_RUSTDOCFLAGS" cargo +nightly bench --target=wasm32-unknown-unknown "$@" 2>&1
+WASM_BINDGEN_TEST_TIMEOUT=120 CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="wasm-bindgen-test-runner" RUSTFLAGS="$WASM32_RUSTFLAGS" RUSTDOCFLAGS="$WASM32_RUSTDOCFLAGS" cargo +nightly bench --target=wasm32-unknown-unknown "$@" 2>&1
 EXIT_CODE=$?
 echo "WASM: Bench exited with code $EXIT_CODE" >&2
 exit $EXIT_CODE

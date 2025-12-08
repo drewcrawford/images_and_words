@@ -317,6 +317,9 @@ mod wasm_bench {
 
     #[wasm_bindgen_bench]
     async fn bench_with_sleep(c: &mut Criterion) {
+        #[cfg(feature = "exfiltrate")]
+        exfiltrate::begin();
+
         *c = std::mem::take(c).measurement_time(Duration::from_secs(15));
         let (engine, frame_texture) = setup_benchmark().await;
         let frame_texture = Rc::new(RefCell::new(frame_texture));
@@ -347,7 +350,7 @@ mod wasm_bench {
             }))
         })
         .await;
-        //now that we're done, cleanup by stopping our port
+        // Cleanup by stopping our port
         engine.main_port_mut().stop();
     }
 }
