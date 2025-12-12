@@ -124,7 +124,7 @@ fn main() {
                 false,
                 false,
             );
-            engine.main_port_mut().add_fixed_pass(descriptor).await;
+            engine.main_port().add_fixed_pass(descriptor).await;
 
             logwise::info_sync!("=== Testing buffer write performance ===");
 
@@ -133,7 +133,7 @@ fn main() {
             let iterations = 3;
 
             for i in 0..iterations {
-                engine.main_port_mut().force_render().await;
+                engine.main_port().force_render().await;
                 let start = Instant::now();
 
                 // This is the operation that was slow in the reproducer

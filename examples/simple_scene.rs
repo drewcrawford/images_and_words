@@ -304,7 +304,7 @@ async fn run_rendering_with_engine_arc(
 
     // Step 4: Register render pass with engine's main port
     logwise::info_sync!("About to add render pass to engine...");
-    let mut port = engine.main_port_mut(); // Get exclusive port access
+    let port = engine.main_port(); // Get exclusive port access
     logwise::info_sync!("Got main port mut, about to add fixed pass...");
     port.add_fixed_pass(pass_descriptor).await;
     logwise::info_sync!("Render pass added to engine successfully!");

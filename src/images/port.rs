@@ -241,10 +241,12 @@ impl FrameInfo {
 pub struct Port {
     imp: crate::imp::Port,
     port_reporter: PortReporter,
-    descriptors: Vec<PassDescriptor>,
+    /// Render pass descriptors, wrapped in Mutex for interior mutability.
+    descriptors: wasm_safe_mutex::Mutex<Vec<PassDescriptor>>,
     camera: Camera,
     engine: Arc<Engine>,
     stop_signal: DirtySender,
+    stopped_signal: DirtySender,
 }
 
 /// Error type for port operations.
@@ -539,10 +541,11 @@ impl Port {
                 .await
                 .map_err(Error)?,
             port_reporter,
-            descriptors: Default::default(),
+            descriptors: wasm_safe_mutex::Mutex::new(Vec::new()),
             camera,
             engine: engine.clone(),
             stop_signal: DirtySender::new(false, "port_stop"),
+            stopped_signal: DirtySender::new(false, "port_stopped"),
         })
     }
     /// Adds a fixed render pass to the port.
@@ -593,9 +596,9 @@ impl Port {
     ///
     /// - Currently cannot add passes while the port is running (mt2-242)
     /// - There is no way to remove passes once added (mt2-243)
-    pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
+    pub async fn add_fixed_pass(&self, descriptor: PassDescriptor) {
         self.imp.add_fixed_pass(descriptor.clone()).await;
-        self.descriptors.push(descriptor);
+        self.descriptors.lock_async().await.push(descriptor);
     }
 
     /// Adds multiple fixed render passes to the port.
@@ -604,10 +607,10 @@ impl Port {
     /// Passes are executed in the order they appear in the vector.
     ///
     /// See [`add_fixed_pass`](Self::add_fixed_pass) for details and limitations.
-    pub async fn add_fixed_passes(&mut self, descriptors: Vec<PassDescriptor>) {
+    pub async fn add_fixed_passes(&self, descriptors: Vec<PassDescriptor>) {
         for descriptor in descriptors {
             self.imp.add_fixed_pass(descriptor.clone()).await;
-            self.descriptors.push(descriptor);
+            self.descriptors.lock_async().await.push(descriptor);
         }
     }
 
@@ -636,7 +639,8 @@ impl Port {
     fn collect_dirty_receivers(&self) -> Vec<DirtyReceiver> {
         //we need to figure out all the dirty stuff
         let mut dirty_receivers = Vec::new();
-        for pass in &self.descriptors {
+        let descriptors = self.descriptors.lock_sync();
+        for pass in descriptors.iter() {
             for bind in pass.bind_style.binds.values() {
                 match &bind.target {
                     BindTarget::DynamicBuffer(a) => {
@@ -695,9 +699,11 @@ impl Port {
     ///
     /// Ports do not render by default - you must call this method to begin
     /// the render loop.
-    pub async fn start(&mut self) -> Result<(), Error> {
+    pub async fn start(&self) -> Result<(), Error> {
         // Reset stop signal so we can be started again after being stopped
         self.stop_signal.mark_dirty(false);
+        // Reset stopped signal - we're starting now
+        self.stopped_signal.mark_dirty(false);
 
         //render first frame regardless
         self.force_render().await;
@@ -712,6 +718,8 @@ impl Port {
             // Check if stop was signaled
             if DirtyReceiver::new(&self.stop_signal).is_dirty() {
                 logwise::trace_sync!("Port stopped");
+                // Signal that we have stopped
+                self.stopped_signal.mark_dirty(true);
                 return Ok(());
             }
 
@@ -723,12 +731,32 @@ impl Port {
         }
     }
 
-    /// Stops the port's rendering loop.
+    /// Signals the port's rendering loop to stop.
     ///
-    /// This causes [`start()`](Self::start) to return immediately.
+    /// This signals the render loop to stop at the next frame boundary.
     /// After calling `stop()`, the port can be started again by calling `start()`.
+    ///
+    /// Note: This method returns immediately after signaling. Use [`stop_and_wait()`](Self::stop_and_wait)
+    /// if you need to wait for the render loop to actually complete.
     pub fn stop(&self) {
         self.stop_signal.mark_dirty(true);
+    }
+
+    /// Stops the port's rendering loop and waits for it to complete.
+    ///
+    /// This signals the render loop to stop and then waits until [`start()`](Self::start)
+    /// has actually returned. This ensures all in-flight GPU operations complete before
+    /// returning.
+    ///
+    /// After calling `stop_and_wait()`, the port can be started again by calling `start()`.
+    pub async fn stop_and_wait(&self) {
+        // Signal the render loop to stop
+        self.stop_signal.mark_dirty(true);
+
+        // Wait for the render loop to actually stop
+        DirtyReceiver::new(&self.stopped_signal)
+            .wait_for_dirty()
+            .await;
     }
 
     /// Checks if the port needs to render a new frame.

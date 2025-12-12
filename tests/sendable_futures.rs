@@ -115,8 +115,8 @@ fn main() {
                 false,
                 false,
             );
-            engine.main_port_mut().add_fixed_pass(descriptor).await;
-            engine.main_port_mut().force_render().await;
+            engine.main_port().add_fixed_pass(descriptor).await;
+            engine.main_port().force_render().await;
 
             // Test sending the buffer and its access future across a task boundary
             let buffer_clone = test_buffer.clone();

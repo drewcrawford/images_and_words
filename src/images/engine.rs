@@ -6,9 +6,8 @@ use crate::images::port::Port;
 use crate::images::projection::WorldCoord;
 use crate::images::view::View;
 use crate::imp;
-use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use wasm_safe_mutex::Mutex;
+use std::sync::OnceLock;
 
 /// Main GPU rendering engine that coordinates graphics resources and rendering operations.
 ///
@@ -20,10 +19,11 @@ use wasm_safe_mutex::Mutex;
 #[derive(Debug)]
 pub struct Engine {
     //note that drop order is significant here.
-    ///engine's main rendering port.
-    /// Wrapped in a Mutex so that we can mutate this overlapped with accessing device and entry_point.
-    /// Note that we can't use RefCell because we want to be able to access this from multiple threads.
-    main_port: Mutex<Option<Port>>,
+    /// Engine's main rendering port.
+    /// Uses OnceLock since the port is set once during construction and then only read.
+    /// Port uses interior mutability for all its operations, so we can safely
+    /// share references to it without additional synchronization.
+    main_port: OnceLock<Port>,
     //device we bound to this engine.  Arc because it gets moved into the render_thread.
     device: Arc<BoundDevice>,
     _entry_point: Arc<EntryPoint>,
@@ -88,13 +88,12 @@ impl Engine {
         logwise::info_sync!("Device bound successfully");
 
         logwise::info_sync!("Creating implementation engine...");
-        let initial_port = Mutex::new(None);
         let imp = crate::imp::Engine::rendering_to_view(&bound_device).await;
         logwise::info_sync!("Implementation engine created successfully");
 
         logwise::info_sync!("Creating Engine struct...");
         let r = Arc::new(Engine {
-            main_port: initial_port,
+            main_port: OnceLock::new(),
             device: bound_device,
             _entry_point: entry_point,
             _engine: imp,
@@ -113,17 +112,29 @@ impl Engine {
         logwise::info_sync!("Final port created successfully");
 
         logwise::info_sync!("Setting main port...");
-        r.main_port.lock_sync().replace(final_port);
+        r.main_port
+            .set(final_port)
+            .expect("main_port already initialized");
         logwise::info_sync!("Engine::rendering_to() completed successfully");
         Ok(r)
     }
+
+    /// Returns a reference to the main rendering port.
+    ///
+    /// Port methods use interior mutability, so this returns `&Port` rather than
+    /// requiring mutable access. This allows the port to be accessed concurrently
+    /// from multiple contexts (e.g., the render loop and user code).
+    pub fn main_port(&self) -> &Port {
+        self.main_port.get().expect("main_port not initialized")
+    }
+
     /// Returns a mutable guard to the main rendering port.
     ///
-    /// This provides thread-safe access to the port for submitting render commands.
-    pub fn main_port_mut(&self) -> PortGuard<'_> {
-        PortGuard {
-            guard: self.main_port.lock_sync(),
-        }
+    /// This is a compatibility method that returns the same as `main_port()`.
+    /// Prefer using `main_port()` directly.
+    #[deprecated(note = "Use main_port() instead - Port uses interior mutability")]
+    pub fn main_port_mut(&self) -> &Port {
+        self.main_port()
     }
     /// Returns the GPU device bound to this engine.
     pub fn bound_device(&self) -> &Arc<BoundDevice> {
@@ -133,35 +144,10 @@ impl Engine {
 
 // Boilerplate section
 
-// Send/Sync: Engine is automatically Send + Sync because all fields are Send + Sync:
-// - Mutex<Option<Port>> is Send + Sync
-// - Arc<BoundDevice> and Arc<EntryPoint> are Send + Sync (assuming their contents are Send + Sync)
-// - imp::Engine is Send + Sync (empty struct in wgpu backend)
-// This is appropriate since Engine is designed for multi-threaded access.
-
 // Clone: Intentionally not implemented. Engine is a resource manager that coordinates
 // exclusive GPU resources. The intended sharing pattern is via Arc<Engine>, not cloning
 // the Engine itself. Cloning would be confusing and potentially unsafe given the
 // "drop order is significant" comment and resource management semantics.
-
-/**
-An opaque guard type for ports.
-*/
-pub struct PortGuard<'a> {
-    guard: wasm_safe_mutex::Guard<'a, Option<Port>>,
-}
-impl Deref for PortGuard<'_> {
-    type Target = Port;
-
-    fn deref(&self) -> &Self::Target {
-        (*self.guard).as_ref().unwrap()
-    }
-}
-impl DerefMut for PortGuard<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        (*self.guard).as_mut().unwrap()
-    }
-}
 
 /// Errors that can occur during engine creation.
 #[derive(Debug, thiserror::Error)]

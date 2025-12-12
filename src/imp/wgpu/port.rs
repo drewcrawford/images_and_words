@@ -13,10 +13,14 @@ use crate::imp::Error;
 use crate::imp::wgpu::context::smuggle_async;
 use internal::PortInternal;
 use std::sync::Arc;
+use wasm_safe_mutex::Mutex;
 
 #[derive(Debug)]
 pub struct Port {
-    internal: Option<PortInternal>,
+    /// Internal port state wrapped in a Mutex for interior mutability.
+    /// This allows Port methods to take `&self` while still being able to
+    /// move ownership of PortInternal into async blocks.
+    internal: Mutex<Option<PortInternal>>,
 }
 
 impl Port {
@@ -32,21 +36,24 @@ impl Port {
         })
     }
 
-    pub async fn add_fixed_pass(&mut self, descriptor: PassDescriptor) {
-        self.internal
-            .as_mut()
-            .expect("Port internal missing")
-            .add_fixed_pass(descriptor)
-            .await;
+    pub async fn add_fixed_pass(&self, descriptor: PassDescriptor) {
+        let mut guard = self.internal.lock_async().await;
+        let internal = (*guard).as_mut().expect("Port internal missing");
+        internal.add_fixed_pass(descriptor).await;
     }
 
     pub async fn render_frame(&mut self) {
         //logwise::info_sync!("Rendering frame...");
-        let internal = self.internal.take().expect("Port internal missing");
+        let internal = self
+            .internal
+            .lock_async()
+            .await
+            .take()
+            .expect("Port internal missing");
         let internal = smuggle_async("render_frame".to_string(), || async move {
             internal.render_frame().await
         })
         .await;
-        self.internal = Some(internal);
+        *self.internal.lock_async().await = Some(internal);
     }
 }

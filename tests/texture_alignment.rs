@@ -76,7 +76,7 @@ async fn test_problematic_width(width: u16) {
             .expect("Failed to create engine for testing"),
     );
     let device = engine.bound_device();
-    let mut port = engine.main_port_mut();
+    let port = engine.main_port();
 
     // Create a FrameTexture with the problematic width
     let config = TextureConfig {

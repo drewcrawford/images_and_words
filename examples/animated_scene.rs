@@ -302,7 +302,7 @@ async fn run_animated_rendering_with_engine_arc(
 
     // Step 4: Register render pass with engine
     logwise::info_sync!("Adding render pass to engine...");
-    let mut port = engine.main_port_mut();
+    let port = engine.main_port();
     port.add_fixed_pass(pass_descriptor).await;
 
     // Step 5: Animation loop with dynamic buffer updates

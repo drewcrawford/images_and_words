@@ -226,7 +226,7 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
     bind_style.bind_dynamic_texture(BindSlot::new(0), Stage::Fragment, &frame_texture);
 
     {
-        let mut port = engine.main_port_mut();
+        let port = engine.main_port();
         port.add_fixed_pass(PassDescriptor::new(
             "benchmark_test".to_string(),
             vertex_shader,
@@ -247,7 +247,7 @@ async fn setup_benchmark() -> (Arc<Engine>, FrameTexture<RGBA8UNorm>) {
         "render_loop".to_string(),
         Configuration::default(),
         async move {
-            engine_for_render.main_port_mut().start().await.unwrap();
+            engine_for_render.main_port().start().await.unwrap();
         },
     )
     .spawn_static_current();
