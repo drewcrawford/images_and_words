@@ -198,6 +198,23 @@ impl DirtyReceiver {
     pub fn is_dirty(&self) -> bool {
         self.shared.send_state.is_dirty()
     }
+
+    /// Waits for this receiver to become dirty.
+    pub async fn wait_for_dirty(&self) {
+        let (sender, receiver) = r#continue::continuation();
+        let o = OneShot::new(sender);
+
+        match self.shared.send_state.dirty_or_continue(&o) {
+            Ok(()) => {
+                // Already dirty, return immediately
+                return;
+            }
+            Err(_) => {
+                // Not dirty yet, wait for the continuation
+            }
+        }
+        receiver.await;
+    }
 }
 
 impl PartialEq for DirtyReceiver {

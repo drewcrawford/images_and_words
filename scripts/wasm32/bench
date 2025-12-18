@@ -23,7 +23,6 @@ if [ -z "$CHROMEDRIVER" ] && [ -z "$GECKODRIVER" ] && [ -z "$SAFARIDRIVER" ]; th
         (cd "$SCRIPT_DIR" && npm install --silent chrome-remote-interface) >&2
     fi
 
-    echo "WASM: Starting CDP log capture..." >&2
 
     # Start CDP log capture in background
     node "$SCRIPT_DIR/capture-logs.js" &

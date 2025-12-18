@@ -321,6 +321,7 @@ mod wasm_bench {
         exfiltrate::begin();
 
         *c = std::mem::take(c).measurement_time(Duration::from_secs(15));
+        #[allow(unused_variables)]
         let (engine, frame_texture) = setup_benchmark().await;
         let frame_texture = Rc::new(RefCell::new(frame_texture));
 
@@ -351,7 +352,7 @@ mod wasm_bench {
         })
         .await;
         // Cleanup by stopping our port
-        engine.main_port_mut().stop();
+        engine.main_port().stop();
     }
 }
 

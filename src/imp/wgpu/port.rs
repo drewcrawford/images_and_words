@@ -32,7 +32,7 @@ impl Port {
     ) -> Result<Self, Error> {
         let internal = PortInternal::new(engine, view, camera, port_reporter_send).await?;
         Ok(Port {
-            internal: Some(internal),
+            internal: Mutex::new(Some(internal)),
         })
     }
 
