@@ -19,13 +19,9 @@ Guards and resources acquired during the copy phase.
 pub struct AcquiredGuards {
     // Combined buffer and vertex buffer guards, keyed by bind index
     pub buffer_guards: HashMap<u32, Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
-    pub _copy_guards: Vec<crate::bindings::resource_tracking::GPUGuard<imp::MappableBuffer2>>,
     // Texture guards, keyed by bind index
     pub texture_guards:
         HashMap<u32, Arc<crate::bindings::forward::dynamic::frame_texture::GPUAccess>>,
-    // Texture copy guards that need to be kept alive during GPU operations
-    pub _texture_copy_guards:
-        Vec<Box<dyn crate::bindings::forward::dynamic::frame_texture::DynDirtyGuard>>,
     pub camera_guard: Option<Arc<crate::bindings::forward::dynamic::buffer::GPUAccess>>,
 }
 
@@ -39,9 +35,7 @@ impl AcquiredGuards {
     ) -> Self {
         logwise::trace_sync!("AcquiredGuards::new");
         let mut buffer_guards = HashMap::new();
-        let mut copy_guards = Vec::new();
         let mut texture_guards = HashMap::new();
-        let mut texture_copy_guards = Vec::new();
 
         // Handle dynamic buffers, dynamic vertex buffers, and dynamic textures in a single pass
         let mut camera_guard = None;
@@ -67,7 +61,10 @@ impl AcquiredGuards {
                             .as_imp()
                             .copy_from_mappable_buffer2(source, copy_info.command_encoder)
                             .await;
-                        copy_guards.push(dirty_guard);
+                        // Drop dirty_guard immediately after write_buffer completes.
+                        // This releases the CPU buffer back to UNUSED state, allowing
+                        // the producer to start writing the next frame's data.
+                        drop(dirty_guard);
                     }
 
                     buffer_guards.insert(*bind_index, Arc::new(gpu_access));
@@ -89,7 +86,8 @@ impl AcquiredGuards {
                             .as_imp()
                             .copy_from_mappable_buffer2(source, copy_info.command_encoder)
                             .await;
-                        copy_guards.push(dirty_guard);
+                        // Drop dirty_guard immediately after write_buffer completes.
+                        drop(dirty_guard);
                     }
                     camera_guard = Some(Arc::new(gpu_access));
                 }
@@ -109,7 +107,8 @@ impl AcquiredGuards {
                             .as_imp()
                             .copy_from_mappable_buffer2(source, copy_info.command_encoder)
                             .await;
-                        copy_guards.push(dirty_guard);
+                        // Drop dirty_guard immediately after write_buffer completes.
+                        drop(dirty_guard);
                     }
 
                     buffer_guards.insert(*bind_index, Arc::new(gpu_access));
@@ -127,7 +126,11 @@ impl AcquiredGuards {
                         unsafe { gpu_access.as_imp().copy_from_mappable(source, copy_info) }
                             .await
                             .unwrap();
-                        texture_copy_guards.push(dirty_guard);
+                        // Drop dirty_guard immediately after write_texture completes.
+                        // This releases the CPU texture back to UNUSED state, allowing
+                        // the producer to start writing the next frame's data.
+                        drop(dirty_guard);
+                        drop(_copy_guard);
                     }
 
                     texture_guards.insert(*bind_index, Arc::new(gpu_access));
@@ -139,10 +142,8 @@ impl AcquiredGuards {
 
         AcquiredGuards {
             buffer_guards,
-            _copy_guards: copy_guards,
             camera_guard,
             texture_guards,
-            _texture_copy_guards: texture_copy_guards,
         }
     }
 }

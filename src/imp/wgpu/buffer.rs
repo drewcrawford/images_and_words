@@ -30,9 +30,8 @@
 use crate::bindings::visible_to::GPUBufferUsage;
 use crate::images::BoundDevice;
 use crate::imp::wgpu::cell::WgpuCell;
-use crate::imp::wgpu::context::{smuggle, smuggle_async};
+use crate::imp::wgpu::context::smuggle;
 use std::sync::Arc;
-use wgpu::MapMode;
 use wgpu::{BufferDescriptor, BufferUsages, CommandEncoder};
 
 /**
@@ -136,8 +135,8 @@ impl AsRef<MappableBuffer2> for MappableBuffer2 {
 }
 
 /**
-A buffer that holds two wgpu::Buffers for explicit staging operations.
-Contains a staging buffer with MAPPABLE | COPY_SRC and a private device buffer.
+A buffer that holds a GPU device buffer.
+Uses queue.write_buffer() for efficient CPU-to-GPU transfers.
 */
 #[derive(Debug, Clone)]
 pub struct GPUableBuffer {
