@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Parity-7.0.0 OR PolyForm-Noncommercial-1.0.0
 use crate::Priority;
-use crate::bindings::buffer_access::MapType;
 use crate::bindings::resource_tracking::sealed::Mappable;
 use crate::bindings::software::texture::Texel;
 use crate::bindings::visible_to::{TextureConfig, TextureUsage};
 use crate::images::BoundDevice;
+use crate::imp::Error;
 use crate::imp::wgpu::cell::WgpuCell;
-use crate::imp::{Error, MappableBuffer2};
 use crate::imp::{GPUableTextureWrapper, MappableTextureWrapper};
 use crate::pixel_formats::pixel_as_bytes;
 use crate::pixel_formats::sealed::PixelFormat;
@@ -33,8 +32,12 @@ impl TextureUsage {
 
 use crate::imp::DirtyRect;
 
+/// CPU-side texture storage for write_texture operations.
+/// Unlike MappableBuffer2 (which uses write_buffer_with), textures need
+/// a CPU-side buffer because write_texture takes a data slice directly.
 pub struct MappableTexture2<Format> {
-    imp: MappableBuffer2,
+    /// Direct CPU storage - textures use write_texture which needs a data slice
+    buffer: Box<[u8]>,
     format: PhantomData<Format>,
     width: u16,
     height: u16,
@@ -42,20 +45,12 @@ pub struct MappableTexture2<Format> {
 }
 
 impl<Format> Mappable for MappableTexture2<Format> {
-    // async fn map_read(&mut self) {
-    //     self.imp.map_read().await;
-    // }
-
     async fn map_write(&mut self) {
-        self.imp.map_write().await;
+        // No-op: we use direct CPU storage, no mapping needed
     }
 
-    // fn byte_len(&self) -> usize {
-    //     self.imp.byte_len()
-    // }
-
     fn unmap(&mut self) {
-        self.imp.unmap();
+        // No-op: we use direct CPU storage
     }
 }
 
@@ -64,10 +59,10 @@ unsafe impl<Format> Sync for MappableTexture2<Format> {}
 
 impl<Format: PixelFormat> MappableTexture2<Format> {
     pub async fn new<Initializer: Fn(Texel) -> Format::CPixel>(
-        bound_device: &Arc<crate::images::BoundDevice>,
+        _bound_device: &Arc<crate::images::BoundDevice>,
         width: u16,
         height: u16,
-        debug_name: &str,
+        _debug_name: &str,
         _priority: Priority,
         initializer: Initializer,
     ) -> Self {
@@ -75,39 +70,25 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
         let aligned_bytes_per_row = Self::aligned_bytes_per_row(width);
         let buffer_size = aligned_bytes_per_row * height as usize;
 
-        let buffer = MappableBuffer2::new(
-            bound_device.clone(),
-            buffer_size,
-            MapType::Write,
-            debug_name,
-            |byte_array| {
-                for y in 0..height {
-                    for x in 0..width {
-                        let pixel_offset =
-                            y as usize * aligned_bytes_per_row + x as usize * bytes_per_pixel;
-                        let texel = Texel { x, y };
-                        let pixel = initializer(texel);
+        // Allocate and initialize buffer directly
+        let mut buffer = vec![0u8; buffer_size];
 
-                        unsafe {
-                            let pixel_ptr =
-                                byte_array.as_mut_ptr().add(pixel_offset) as *mut Format::CPixel;
-                            pixel_ptr.write(pixel);
-                        }
-                    }
-                }
+        for y in 0..height {
+            for x in 0..width {
+                let pixel_offset =
+                    y as usize * aligned_bytes_per_row + x as usize * bytes_per_pixel;
+                let texel = Texel { x, y };
+                let pixel = initializer(texel);
 
                 unsafe {
-                    std::slice::from_raw_parts_mut(
-                        byte_array.as_mut_ptr() as *mut u8,
-                        byte_array.len(),
-                    )
+                    let pixel_ptr = buffer.as_mut_ptr().add(pixel_offset) as *mut Format::CPixel;
+                    pixel_ptr.write(pixel);
                 }
-            },
-        )
-        .await
-        .expect("Mappable buffer creation");
+            }
+        }
+
         Self {
-            imp: buffer,
+            buffer: buffer.into_boxed_slice(),
             format: PhantomData,
             width,
             height,
@@ -175,7 +156,8 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
             let dst_x_bytes = dst_texel.x as usize * bytes_per_pixel;
             let dst_offset = dst_y * aligned_bytes_per_row + dst_x_bytes;
 
-            self.imp.write(src_slice, dst_offset);
+            // Write directly to our buffer
+            self.buffer[dst_offset..dst_offset + src_bytes_per_row].copy_from_slice(src_slice);
         }
 
         // Track dirty rect
@@ -200,7 +182,9 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
 impl<Format> Debug for MappableTexture2<Format> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MappableTexture2")
-            .field("imp", &self.imp)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("buffer_len", &self.buffer.len())
             .finish()
     }
 }
@@ -218,7 +202,7 @@ impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped
         self.height
     }
     fn as_slice(&self) -> &[u8] {
-        self.imp.as_slice()
+        &self.buffer
     }
 
     fn take_dirty_rect(&mut self) -> Option<DirtyRect> {

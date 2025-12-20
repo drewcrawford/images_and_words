@@ -50,63 +50,113 @@ pub(super) enum StorageType {
 }
 
 /**
-A simplified buffer that can be mapped onto the host using only Box<[u8]>.
-Unlike MappableBuffer, this doesn't use any wgpu types.
+A buffer that writes directly to GPU via queue.write_buffer_with().
+
+This implementation uses `write_buffer_with` to allow writing directly into
+the staging buffer, eliminating an intermediate copy. The staging buffer is
+the queue's internal buffer mapped into user space.
 */
 #[derive(Debug)]
 pub struct MappableBuffer2 {
-    internal_buffer: Box<[u8]>,
+    bound_device: Arc<BoundDevice>,
+    device_buffer: WgpuCell<wgpu::Buffer>,
+    size: usize,
     _debug_label: String,
 }
 
 impl MappableBuffer2 {
+    /// Creates a new MappableBuffer2 that writes directly to a GPU buffer.
+    ///
+    /// Note: This constructor doesn't take an initializer - initialization
+    /// should be done via GPUableBuffer::new_with_data() which uses
+    /// mapped_at_creation for efficient initial data upload.
+    pub async fn new_for_gpu_buffer(
+        bound_device: Arc<crate::images::BoundDevice>,
+        device_buffer: WgpuCell<wgpu::Buffer>,
+        size: usize,
+        debug_name: &str,
+    ) -> Result<Self, crate::imp::Error> {
+        Ok(MappableBuffer2 {
+            bound_device,
+            device_buffer,
+            size,
+            _debug_label: debug_name.to_string(),
+        })
+    }
+
+    /// Legacy constructor for compatibility.
+    /// Creates a buffer but ignores the initializer - use new_for_gpu_buffer instead.
     pub async fn new<Initializer: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
-        _bound_device: Arc<crate::images::BoundDevice>,
+        bound_device: Arc<crate::images::BoundDevice>,
         requested_size: usize,
         _map_type: crate::bindings::buffer_access::MapType,
         debug_name: &str,
-        initialize_with: Initializer,
+        _initialize_with: Initializer,
     ) -> Result<Self, crate::imp::Error> {
-        let mut data = vec![std::mem::MaybeUninit::uninit(); requested_size];
-        let data_ptr = data.as_ptr();
-        let initialized = initialize_with(&mut data);
-
-        // Safety: we ensure that the data is initialized and has the correct length
-        // Very dumb check that they were the same pointer
-        assert_eq!(initialized.as_ptr(), data_ptr as *const u8);
-        // And have same length as requested
-        assert_eq!(initialized.len(), data.len());
-
-        // Convert to Vec<u8>
-        let initialized_data =
-            unsafe { std::mem::transmute::<Vec<std::mem::MaybeUninit<u8>>, Vec<u8>>(data) };
-        let internal_buffer = initialized_data.into_boxed_slice();
-
+        // This path should not be used in the new design.
+        // Create a dummy buffer - the actual buffer will be set later.
+        // This is a compatibility shim that should be removed.
+        panic!(
+            "MappableBuffer2::new() is deprecated. Use GPUableBuffer::new_with_data() \
+             and MappableBuffer2::new_for_gpu_buffer() instead. Context: {}",
+            debug_name
+        );
+        #[allow(unreachable_code)]
         Ok(MappableBuffer2 {
-            internal_buffer,
+            bound_device,
+            device_buffer: WgpuCell::new_on_thread(|| async { panic!("dummy buffer") }).await,
+            size: requested_size,
             _debug_label: debug_name.to_string(),
         })
     }
 
     pub fn as_slice(&self) -> &[u8] {
-        self.internal_buffer.as_ref()
+        // This method should not be called in the new design.
+        // MappableBuffer2 no longer holds data - it writes directly to GPU.
+        panic!("MappableBuffer2::as_slice() is not supported with write_buffer_with design");
     }
 
+    /// Writes data directly to the GPU buffer via queue.write_buffer_with().
+    ///
+    /// This writes directly into the queue's staging buffer, eliminating
+    /// an intermediate copy compared to queue.write_buffer().
+    #[logwise::profile]
     pub fn write(&mut self, data: &[u8], dst_offset: usize) {
         assert!(
-            dst_offset + data.len() <= self.internal_buffer.len(),
-            "Write out of bounds"
+            dst_offset + data.len() <= self.size,
+            "Write out of bounds: offset {} + len {} > size {}",
+            dst_offset,
+            data.len(),
+            self.size
         );
-        let slice = &mut self.internal_buffer[dst_offset..dst_offset + data.len()];
-        slice.copy_from_slice(data);
+
+        // Use write_buffer_with to get a staging buffer view and write directly
+        self.bound_device.0.queue().assume(|queue| {
+            self.device_buffer.assume(|device_buffer| {
+                if let Some(mut view) = queue.write_buffer_with(
+                    device_buffer,
+                    dst_offset as u64,
+                    std::num::NonZero::new(data.len() as u64).unwrap(),
+                ) {
+                    view.copy_from_slice(data);
+                    // View is dropped here, queuing the transfer
+                } else {
+                    // Fallback to write_buffer if write_buffer_with fails
+                    logwise::warn_sync!(
+                        "write_buffer_with returned None, falling back to write_buffer"
+                    );
+                    queue.write_buffer(device_buffer, dst_offset as u64, data);
+                }
+            });
+        });
     }
 
     pub async fn map_write(&mut self) {
-        // Since we use a CPU view, this is a no-op
+        // No-op: write_buffer_with doesn't require explicit mapping
     }
 
     pub fn unmap(&mut self) {
-        // No-op as requested - we don't use wgpu types
+        // No-op: write_buffer_with handles this automatically
     }
 }
 
@@ -140,7 +190,6 @@ Uses queue.write_buffer() for efficient CPU-to-GPU transfers.
 */
 #[derive(Debug, Clone)]
 pub struct GPUableBuffer {
-    staging_buffer: WgpuCell<wgpu::Buffer>,
     device_buffer: WgpuCell<wgpu::Buffer>,
     bound_device: Arc<BoundDevice>,
     storage_type: StorageType,
@@ -236,32 +285,117 @@ impl GPUableBuffer {
         &self.device_buffer
     }
 
-    /// Copy from a MappableBuffer2 to this GPUableBuffer using queue.write_buffer().
+    /// Get a clone of the device buffer cell for write_buffer_with operations.
+    pub(crate) fn device_buffer_clone(&self) -> WgpuCell<wgpu::Buffer> {
+        self.device_buffer.clone()
+    }
+
+    /// Get a clone of the bound device for queue access.
+    pub(crate) fn bound_device(&self) -> Arc<BoundDevice> {
+        self.bound_device.clone()
+    }
+
+    /// Copy from a MappableBuffer2 to this GPUableBuffer.
     ///
-    /// This operation uses the fast path via queue.write_buffer() to bypass
-    /// staging buffer overhead, similar to how textures use queue.write_texture().
+    /// With the new write_buffer_with design, MappableBuffer2 writes directly
+    /// to the GPU buffer, so this is now a no-op.
     ///
     /// # Arguments
-    /// * `source` - The MappableBuffer2 to copy from
-    /// * `command_encoder` - The CommandEncoder to record the copy operation
+    /// * `_source` - Unused, MappableBuffer2 already wrote directly
+    /// * `_command_encoder` - Unused
+    #[logwise::profile]
     pub(crate) async fn copy_from_mappable_buffer2(
         &self,
-        source: &MappableBuffer2,
+        _source: &MappableBuffer2,
         _command_encoder: &mut CommandEncoder,
     ) {
-        let source_data = source.as_slice();
+        // No-op: MappableBuffer2 now writes directly via write_buffer_with
+        logwise::trace_sync!("buffer_copy_data: no-op (write_buffer_with already performed)");
+    }
 
-        logwise::trace_sync!(
-            "buffer_copy_data: copying {} bytes via write_buffer",
-            source_data.len()
-        );
+    /// Creates a new GPUableBuffer with initial data using mapped_at_creation.
+    ///
+    /// This is the most efficient way to create a buffer with initial data,
+    /// as it writes directly to the mapped GPU memory without staging.
+    pub(crate) async fn new_with_data<I: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
+        bound_device: Arc<crate::images::BoundDevice>,
+        size: usize,
+        usage: GPUBufferUsage,
+        debug_name: &str,
+        initializer: I,
+    ) -> Self {
+        let debug_name = debug_name.to_string();
+        let move_bound_device = bound_device.clone();
+        let storage_type = smuggle("create buffer with data".to_string(), move || match usage {
+            GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
+                if move_bound_device
+                    .0
+                    .device()
+                    .assume(|c| c.limits())
+                    .max_uniform_buffer_binding_size as usize
+                    > size
+                {
+                    StorageType::Uniform
+                } else {
+                    StorageType::Storage
+                }
+            }
+            GPUBufferUsage::VertexBuffer => StorageType::Vertex,
+            GPUBufferUsage::Index => StorageType::Index,
+        })
+        .await;
 
-        // Use queue.write_buffer() to bypass staging buffer overhead
-        self.bound_device.0.queue().assume(|queue| {
-            self.device_buffer.assume(|device_buffer| {
-                queue.write_buffer(device_buffer, 0, source_data);
-            });
-        });
+        let device_usage = BufferUsages::COPY_DST
+            | match storage_type {
+                StorageType::Uniform => BufferUsages::UNIFORM,
+                StorageType::Storage => BufferUsages::STORAGE,
+                StorageType::Vertex => BufferUsages::VERTEX,
+                StorageType::Index => BufferUsages::INDEX,
+            };
+
+        // Prepare data for initialization
+        let mut data = vec![std::mem::MaybeUninit::uninit(); size];
+        let data_ptr = data.as_ptr();
+        let initialized = initializer(&mut data);
+
+        // Safety: we ensure that the data is initialized and has the correct length
+        assert_eq!(initialized.as_ptr(), data_ptr as *const u8);
+        assert_eq!(initialized.len(), size);
+
+        // Convert to Vec<u8>
+        let initialized_data =
+            unsafe { std::mem::transmute::<Vec<std::mem::MaybeUninit<u8>>, Vec<u8>>(data) };
+        let internal_buffer = std::sync::Arc::new(initialized_data.into_boxed_slice());
+
+        let device_debug_name = format!("{debug_name}_with_data");
+        let move_device = bound_device.clone();
+
+        // Create device buffer with mapped_at_creation=true for direct initialization
+        let device_buffer = WgpuCell::new_on_thread(move || async move {
+            move_device.0.device().assume(move |device| {
+                let descriptor = BufferDescriptor {
+                    label: Some(&device_debug_name),
+                    size: size as u64,
+                    usage: device_usage,
+                    mapped_at_creation: true,
+                };
+                let buffer = device.create_buffer(&descriptor);
+                let mut entire_map = buffer.slice(0..size as u64).get_mapped_range_mut();
+                // Copy all data
+                entire_map.copy_from_slice(&internal_buffer);
+                drop(internal_buffer);
+                drop(entire_map);
+                buffer.unmap();
+                buffer
+            })
+        })
+        .await;
+
+        GPUableBuffer {
+            device_buffer,
+            bound_device,
+            storage_type,
+        }
     }
 }
 

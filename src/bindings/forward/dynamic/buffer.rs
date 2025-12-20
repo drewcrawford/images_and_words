@@ -96,7 +96,7 @@ use crate::multibuffer::Multibuffer;
 use crate::multibuffer::{CPUWriteGuard, GPUGuard};
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, Index};
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 /// Indicates how frequently a dynamic buffer will be updated.
@@ -223,15 +223,9 @@ impl<Element> Debug for CPUWriteAccess<'_, Element> {
     }
 }
 
-impl<Element> Index<usize> for CPUWriteAccess<'_, Element> {
-    type Output = Element;
-    fn index(&self, index: usize) -> &Self::Output {
-        let offset = index * std::mem::size_of::<Element>();
-        let bytes: &[u8] =
-            &self.guard.deref().as_slice()[offset..offset + std::mem::size_of::<Element>()];
-        unsafe { &*(bytes.as_ptr() as *const Element) }
-    }
-}
+// Note: Index<usize> for CPUWriteAccess was removed because MappableBuffer2
+// now writes directly to GPU via write_buffer_with and doesn't maintain
+// a CPU-side copy for reading. Use write-only access patterns.
 
 impl<Element> CPUWriteAccess<'_, Element> {
     /// Writes data to the buffer at the given offset.
@@ -502,12 +496,12 @@ impl<Element> Buffer<Element> {
         let byte_size = size * std::mem::size_of::<Element>();
         assert_ne!(byte_size, 0, "Zero-sized buffers are not allowed");
 
-        let map_type = crate::bindings::buffer_access::MapType::Write; //todo: optimize for read vs write, etc.
-
-        let mappable_buffer = imp::MappableBuffer2::new(
+        // Create GPU buffer first with initial data using mapped_at_creation
+        // This is the most efficient path for initialization
+        let gpu_buffer = imp::GPUableBuffer::new_with_data(
             bound_device.clone(),
             byte_size,
-            map_type,
+            usage,
             debug_name,
             move |byte_array| {
                 crate::bindings::forward::r#static::buffer::initialize_byte_array_with(
@@ -517,16 +511,24 @@ impl<Element> Buffer<Element> {
                 )
             },
         )
-        .await?;
+        .await;
 
-        let gpu_buffer = imp::GPUableBuffer::new(bound_device, byte_size, usage, debug_name).await;
+        // Create MappableBuffer2 that writes directly to the GPU buffer
+        // via write_buffer_with - no intermediate CPU buffer needed
+        let mappable_buffer = imp::MappableBuffer2::new_for_gpu_buffer(
+            gpu_buffer.bound_device(),
+            gpu_buffer.device_buffer_clone(),
+            byte_size,
+            debug_name,
+        )
+        .await?;
 
         Ok(Self {
             shared: Arc::new(Shared {
                 multibuffer: Multibuffer::new(
                     mappable_buffer,
                     gpu_buffer,
-                    true,
+                    false, // No initial copy needed - data already on GPU
                     debug_name.to_string(),
                 ),
             }),
