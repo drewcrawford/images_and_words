@@ -160,7 +160,6 @@ impl GPUableBuffer {
         debug_name: &str,
         storage_type: StorageType,
     ) -> Self {
-        let staging_usage = BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC;
         let device_usage = BufferUsages::COPY_DST
             | match storage_type {
                 StorageType::Uniform => BufferUsages::UNIFORM,
@@ -169,28 +168,12 @@ impl GPUableBuffer {
                 StorageType::Index => BufferUsages::INDEX,
             };
 
-        let staging_debug_name = format!("{debug_name}_staging");
         let device_debug_name = format!("{debug_name}_device");
         let move_device = bound_device.clone();
-        let move_device2 = bound_device.clone();
-
-        // Create staging buffer
-        let staging_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device.0.device().assume(move |device| {
-                let descriptor = BufferDescriptor {
-                    label: Some(&staging_debug_name),
-                    size: size as u64,
-                    usage: staging_usage,
-                    mapped_at_creation: false,
-                };
-                device.create_buffer(&descriptor)
-            })
-        })
-        .await;
 
         // Create device buffer
         let device_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device2.0.device().assume(move |device| {
+            move_device.0.device().assume(move |device| {
                 let descriptor = BufferDescriptor {
                     label: Some(&device_debug_name),
                     size: size as u64,
@@ -203,7 +186,6 @@ impl GPUableBuffer {
         .await;
 
         GPUableBuffer {
-            staging_buffer,
             device_buffer,
             bound_device,
             storage_type,
@@ -255,13 +237,10 @@ impl GPUableBuffer {
         &self.device_buffer
     }
 
-    /// Copy from a MappableBuffer2 to this GPUableBuffer2 using a CommandEncoder.
+    /// Copy from a MappableBuffer2 to this GPUableBuffer using queue.write_buffer().
     ///
-    /// This operation:
-    /// 1. Maps the staging buffer
-    /// 2. Copies data from MappableBuffer2 into the staging buffer
-    /// 3. Unmaps the staging buffer
-    /// 4. Schedules the copy from staging to device buffer with the encoder
+    /// This operation uses the fast path via queue.write_buffer() to bypass
+    /// staging buffer overhead, similar to how textures use queue.write_texture().
     ///
     /// # Arguments
     /// * `source` - The MappableBuffer2 to copy from
@@ -269,55 +248,19 @@ impl GPUableBuffer {
     pub(crate) async fn copy_from_mappable_buffer2(
         &self,
         source: &MappableBuffer2,
-        command_encoder: &mut CommandEncoder,
+        _command_encoder: &mut CommandEncoder,
     ) {
-        let bound_device = self.bound_device.clone();
-        let staging_buffer_for_mapping = self.staging_buffer.clone();
         let source_data = source.as_slice();
-        let copy_len = source_data.len();
 
-        // Copy the source data to avoid borrowing issues
-        let source_data_owned = source_data.to_vec();
+        logwise::trace_sync!(
+            "buffer_copy_data: copying {} bytes via write_buffer",
+            source_data.len()
+        );
 
-        // We need to capture the command encoder in a way that can be moved into the smuggle block
-        // Since we can't move the mutable reference, we'll record the copy command immediately
-        // but ensure it happens after the staging buffer is ready
-
-        smuggle_async(
-            "copy_from_mappable_buffer2".to_string(),
-            move || async move {
-                logwise::trace_sync!("Copying from mappable buffer");
-                // Map the staging buffer
-                let specified_length = copy_len as u64;
-                let (s, r) = r#continue::continuation();
-                staging_buffer_for_mapping.assume(|buffer| {
-                    logwise::trace_sync!("Will map staging buffer");
-                    buffer.map_async(MapMode::Write, 0..specified_length, |c| {
-                        logwise::trace_sync!("Did map staging buffer");
-                        c.unwrap();
-                        s.send(());
-                    });
-                });
-
-                // Signal the polling thread that we need to poll
-                bound_device.0.set_needs_poll();
-                r.await;
-
-                // Copy data into the staging buffer
-                staging_buffer_for_mapping.assume(|buffer| {
-                    let mut entire_map = buffer.slice(0..specified_length).get_mapped_range_mut();
-                    entire_map.copy_from_slice(&source_data_owned);
-                    drop(entire_map);
-                    buffer.unmap();
-                });
-            },
-        )
-        .await;
-
-        // Now that the staging buffer is ready, schedule the copy from staging to device buffer
-        self.staging_buffer.assume(|staging| {
-            self.device_buffer.assume(|device| {
-                command_encoder.copy_buffer_to_buffer(staging, 0, device, 0, copy_len as u64);
+        // Use queue.write_buffer() to bypass staging buffer overhead
+        self.bound_device.0.queue().assume(|queue| {
+            self.device_buffer.assume(|device_buffer| {
+                queue.write_buffer(device_buffer, 0, source_data);
             });
         });
     }
