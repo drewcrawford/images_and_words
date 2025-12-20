@@ -31,11 +31,14 @@ impl TextureUsage {
     }
 }
 
+use crate::imp::DirtyRect;
+
 pub struct MappableTexture2<Format> {
     imp: MappableBuffer2,
     format: PhantomData<Format>,
     width: u16,
     height: u16,
+    dirty_rect: Option<DirtyRect>,
 }
 
 impl<Format> Mappable for MappableTexture2<Format> {
@@ -108,6 +111,7 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
             format: PhantomData,
             width,
             height,
+            dirty_rect: Some(DirtyRect::full(width, height)),
         }
     }
 
@@ -124,6 +128,14 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
     }
 
     pub fn replace(&mut self, src_width: u16, dst_texel: Texel, data: &[Format::CPixel]) {
+        let src_height = data.len() / src_width.max(1) as usize;
+        logwise::mandatory_sync!(
+            "replace: dst=({x},{y}) size={w}x{h}",
+            x = dst_texel.x,
+            y = dst_texel.y,
+            w = src_width,
+            h = src_height
+        );
         assert!(src_width > 0, "Source width must be greater than 0");
 
         assert!(
@@ -165,6 +177,23 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
 
             self.imp.write(src_slice, dst_offset);
         }
+
+        // Track dirty rect
+        let new_dirty = DirtyRect {
+            x: dst_texel.x,
+            y: dst_texel.y,
+            width: src_width,
+            height: src_height as u16,
+        };
+        self.dirty_rect = Some(match self.dirty_rect {
+            Some(existing) => existing.union(new_dirty),
+            None => new_dirty,
+        });
+    }
+
+    /// Takes the dirty rect, leaving None in its place.
+    pub fn take_dirty_rect(&mut self) -> Option<DirtyRect> {
+        self.dirty_rect.take()
     }
 }
 
@@ -190,6 +219,11 @@ impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped
     }
     fn as_slice(&self) -> &[u8] {
         self.imp.as_slice()
+    }
+
+    fn take_dirty_rect(&mut self) -> Option<DirtyRect> {
+        // Access field directly to avoid ambiguity with trait method
+        self.dirty_rect.take()
     }
 }
 
@@ -373,11 +407,38 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
         copy_info: &'f mut crate::imp::CopyInfo<'_>,
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'f>> {
         Box::pin(async move {
+            // Get dirty rect - if None, nothing to copy
+            let dirty_rect = match source.take_dirty_rect() {
+                Some(rect) => {
+                    logwise::mandatory_sync!(
+                        "copy_from_mappable: got dirty rect ({x},{y}) {w}x{h}",
+                        x = rect.x,
+                        y = rect.y,
+                        w = rect.width,
+                        h = rect.height
+                    );
+                    rect
+                }
+                None => {
+                    logwise::mandatory_sync!(
+                        "texture_copy_data: {name} - skipping (no dirty rect)",
+                        name = logwise::privacy::LogIt(&self.debug_name)
+                    );
+                    return Ok(());
+                }
+            };
+
             //update staging buffer
             assert!(self.format_matches(source), "Texture formats do not match");
+            let _map_wait_guard = logwise::profile_begin!("texture_map_async_wait");
+            #[cfg(target_arch = "wasm32")]
+            let map_start = web_time::Instant::now();
+            #[cfg(not(target_arch = "wasm32"))]
+            let map_start = std::time::Instant::now();
+
             let r = self.staging_buffer.assume(|staging_buffer| {
                 let (s, r) = r#continue::continuation();
-                staging_buffer.map_async(wgpu::MapMode::Write, .., |op| {
+                staging_buffer.map_async(wgpu::MapMode::Write, .., move |op| {
                     op.unwrap();
                     s.send(());
                 });
@@ -386,45 +447,130 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
             });
             //MAP OP
             r.await;
+            let map_elapsed = map_start.elapsed();
+            drop(_map_wait_guard);
 
+            // Warn if map_async took too long - this can indicate headless Chrome backpressure bug
+            const MAP_ASYNC_WARN_THRESHOLD_MS: u64 = 10;
+            if map_elapsed.as_millis() > MAP_ASYNC_WARN_THRESHOLD_MS as u128 {
+                logwise::warn_sync!(
+                    "map_async took {elapsed_ms}ms for texture {name} - possible headless Chrome WebGPU bug (see INVESTIGATION.md)",
+                    elapsed_ms = map_elapsed.as_millis(),
+                    name = logwise::privacy::LogIt(&self.debug_name)
+                );
+            }
+
+            let _copy_data_guard = logwise::profile_begin!("texture_copy_data");
             self.staging_buffer.assume(|buffer| {
-                let mut entire_map = buffer.slice(0..buffer.size()).get_mapped_range_mut();
-                entire_map.copy_from_slice(source.as_slice());
-                drop(entire_map);
+                let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
+                let aligned_bytes_per_row =
+                    MappableTexture2::<Format>::aligned_bytes_per_row(self.width as u16);
+
+                let first_dirty_row = dirty_rect.y as usize;
+                let dirty_row_count = dirty_rect.height as usize;
+                let dirty_col_start = dirty_rect.x as usize;
+                let dirty_col_bytes = dirty_rect.width as usize * bytes_per_pixel;
+
+                // Buffer range: we need to map from start of first dirty row to end of last dirty row
+                let buffer_offset = first_dirty_row * aligned_bytes_per_row;
+                let map_bytes = dirty_row_count * aligned_bytes_per_row;
+
+                // Actual bytes we'll copy (just the dirty rectangle)
+                let copied_bytes = dirty_row_count * dirty_col_bytes;
+
+                logwise::mandatory_sync!(
+                    "texture_copy_data: {name} rect ({x},{y}) {w}x{h} ({size_kb} KB of {total_kb} KB)",
+                    name = logwise::privacy::LogIt(&self.debug_name),
+                    x = dirty_rect.x,
+                    y = dirty_rect.y,
+                    w = dirty_rect.width,
+                    h = dirty_rect.height,
+                    size_kb = copied_bytes / 1024,
+                    total_kb = buffer.size() / 1024
+                );
+
+                // Map the rows containing the dirty region
+                #[cfg(target_arch = "wasm32")]
+                let get_mapped_start = web_time::Instant::now();
+                #[cfg(not(target_arch = "wasm32"))]
+                let get_mapped_start = std::time::Instant::now();
+
+                let map_start = buffer_offset as u64;
+                let map_end = (buffer_offset + map_bytes) as u64;
+                let mut dirty_map = buffer.slice(map_start..map_end).get_mapped_range_mut();
+
+                let get_mapped_elapsed = get_mapped_start.elapsed();
+
+                // Copy only the dirty columns of each dirty row
+                #[cfg(target_arch = "wasm32")]
+                let copy_start = web_time::Instant::now();
+                #[cfg(not(target_arch = "wasm32"))]
+                let copy_start = std::time::Instant::now();
+
+                let source_slice = source.as_slice();
+                let x_offset_bytes = dirty_col_start * bytes_per_pixel;
+                for row in 0..dirty_row_count {
+                    let row_offset = row * aligned_bytes_per_row + x_offset_bytes;
+                    let src_start = buffer_offset + row_offset;
+                    let dst_start = row_offset;
+                    dirty_map[dst_start..dst_start + dirty_col_bytes]
+                        .copy_from_slice(&source_slice[src_start..src_start + dirty_col_bytes]);
+                }
+
+                let copy_elapsed = copy_start.elapsed();
+
+                #[cfg(target_arch = "wasm32")]
+                let unmap_start = web_time::Instant::now();
+                #[cfg(not(target_arch = "wasm32"))]
+                let unmap_start = std::time::Instant::now();
+
+                drop(dirty_map);
                 buffer.unmap();
 
+                let unmap_elapsed = unmap_start.elapsed();
+
+                logwise::mandatory_sync!(
+                    "texture_copy_data timing: get_mapped={get_mapped}ms copy_loop={copy}ms unmap={unmap}ms",
+                    get_mapped = get_mapped_elapsed.as_millis(),
+                    copy = copy_elapsed.as_millis(),
+                    unmap = unmap_elapsed.as_millis()
+                );
+
                 self.gpu_texture.assume(|gpu_texture| {
-                    //catch this op in debugger
+                    // GPU copies only the dirty rectangle.
+                    // bytes_per_row acts as stride, so GPU reads correct positions even with x offset.
+                    let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
+                    let x_offset_bytes = dirty_rect.x as usize * bytes_per_pixel;
+
                     copy_info.command_encoder.copy_buffer_to_texture(
                         TexelCopyBufferInfo {
                             buffer,
                             layout: TexelCopyBufferLayout {
-                                offset: 0,
-                                bytes_per_row: Some(
-                                    MappableTexture2::<Format>::aligned_bytes_per_row(
-                                        self.width as u16,
-                                    )
-                                    .try_into()
-                                    .unwrap(),
-                                ),
+                                // Start at first dirty pixel (row offset + column offset)
+                                offset: (buffer_offset + x_offset_bytes) as u64,
+                                bytes_per_row: Some(aligned_bytes_per_row.try_into().unwrap()),
                                 rows_per_image: Some(self.height),
                             },
                         },
                         TexelCopyTextureInfo {
                             texture: gpu_texture,
                             mip_level: 0,
-                            origin: wgpu::Origin3d { x: 0, y: 0, z: 0 },
+                            origin: wgpu::Origin3d {
+                                x: dirty_rect.x as u32,
+                                y: first_dirty_row as u32,
+                                z: 0,
+                            },
                             aspect: wgpu::TextureAspect::All,
                         },
                         Extent3d {
-                            width: self.width,
-                            height: self.height,
+                            width: dirty_rect.width as u32,
+                            height: dirty_row_count as u32,
                             depth_or_array_layers: 1,
                         },
                     )
                 });
-                //logwise::info_sync!("Scheduled texture copy!");
             });
+            drop(_copy_data_guard);
 
             Ok(())
         })

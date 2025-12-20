@@ -410,6 +410,14 @@ impl<Format: Send + Sync + 'static> crate::imp::MappableTextureWrapped for Mappa
     fn height(&self) -> u16 {
         todo!("height not implemented for nop backend")
     }
+
+    fn as_slice(&self) -> &[u8] {
+        todo!("as_slice not implemented for nop backend")
+    }
+
+    fn take_dirty_rect(&mut self) -> Option<crate::imp::DirtyRect> {
+        todo!("take_dirty_rect not implemented for nop backend")
+    }
 }
 
 impl<Format> AsRef<MappableTexture<Format>> for MappableTexture<Format> {
