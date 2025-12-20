@@ -126,7 +126,7 @@ fn main() {
                 let mut write_access = buffer_clone.access_write().await;
 
                 // Write some test data
-                write_access.write(&[TestData { value: 42.0 }], 0);
+                write_access.write(&[TestData { value: 42.0 }], 0).await;
 
                 "success"
             };

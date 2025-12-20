@@ -82,7 +82,7 @@ fn main() {
                     println!("Obtained write access on non-main thread");
 
                     // Write some data
-                    write_access.write(&[TestData { value: 42.0 }], 0);
+                    write_access.write(&[TestData { value: 42.0 }], 0).await;
                     println!("Wrote data to buffer");
 
                     println!("Calling async_drop from spawned thread (non-main thread)");

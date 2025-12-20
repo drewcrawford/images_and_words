@@ -66,15 +66,37 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
         _priority: Priority,
         initializer: Initializer,
     ) -> Self {
+        Self::new_with_region(
+            _bound_device,
+            width,
+            height,
+            _debug_name,
+            _priority,
+            DirtyRect::full(width, height),
+            initializer,
+        )
+        .await
+    }
+
+    pub async fn new_with_region<Initializer: Fn(Texel) -> Format::CPixel>(
+        _bound_device: &Arc<crate::images::BoundDevice>,
+        width: u16,
+        height: u16,
+        _debug_name: &str,
+        _priority: Priority,
+        region: DirtyRect,
+        initializer: Initializer,
+    ) -> Self {
         let bytes_per_pixel = std::mem::size_of::<Format::CPixel>();
         let aligned_bytes_per_row = Self::aligned_bytes_per_row(width);
         let buffer_size = aligned_bytes_per_row * height as usize;
 
-        // Allocate and initialize buffer directly
+        // Allocate zeroed buffer
         let mut buffer = vec![0u8; buffer_size];
 
-        for y in 0..height {
-            for x in 0..width {
+        // Only initialize the specified region
+        for y in region.y..(region.y + region.height) {
+            for x in region.x..(region.x + region.width) {
                 let pixel_offset =
                     y as usize * aligned_bytes_per_row + x as usize * bytes_per_pixel;
                 let texel = Texel { x, y };
@@ -92,7 +114,7 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
             format: PhantomData,
             width,
             height,
-            dirty_rect: Some(DirtyRect::full(width, height)),
+            dirty_rect: Some(region),
         }
     }
 
