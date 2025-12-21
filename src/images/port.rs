@@ -629,7 +629,7 @@ impl Port {
     ///
     /// Note: This function can queue up GPU work perhaps faster than the GPU can do it.
     /// This can cause performance degredation due to GPU queue explosion.
-    pub async fn force_render(&mut self) {
+    pub async fn force_render(&self) {
         //force render the next frame, even if nothing is dirty
         //let frame_time = logwise::perfwarn_begin!("Port::force_render");
         self.imp.render_frame().await;

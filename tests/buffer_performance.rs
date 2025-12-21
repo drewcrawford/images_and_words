@@ -18,11 +18,13 @@ use images_and_words::images::render_pass::{DrawCommand, PassDescriptor};
 use images_and_words::images::shader::{FragmentShader, VertexShader};
 use images_and_words::images::vertex_layout::{VertexFieldType, VertexLayout};
 use images_and_words::images::view::View;
+use logwise::declare_logging_domain;
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::{Duration, Instant};
 #[cfg(target_arch = "wasm32")]
 use web_time::{Duration, Instant};
+declare_logging_domain!();
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]

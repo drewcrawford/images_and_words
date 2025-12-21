@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
 use wgpu::util::{DeviceExt, TextureDataOrder};
-use wgpu::{Extent3d, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo};
+use wgpu::{Extent3d, TexelCopyBufferLayout, TexelCopyTextureInfo};
 
 impl TextureUsage {
     /// Converts this texture usage to the corresponding wgpu texture usage flags.
@@ -193,11 +193,6 @@ impl<Format: PixelFormat> MappableTexture2<Format> {
             Some(existing) => existing.union(new_dirty),
             None => new_dirty,
         });
-    }
-
-    /// Takes the dirty rect, leaving None in its place.
-    pub fn take_dirty_rect(&mut self) -> Option<DirtyRect> {
-        self.dirty_rect.take()
     }
 }
 
@@ -410,7 +405,7 @@ impl<Format: crate::pixel_formats::sealed::PixelFormat> crate::imp::GPUableTextu
     unsafe fn copy_from_mappable<'f>(
         &'f self,
         source: &'f mut dyn crate::imp::MappableTextureWrapped,
-        copy_info: &'f mut crate::imp::CopyInfo<'_>,
+        _copy_info: &'f mut crate::imp::CopyInfo<'_>,
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'f>> {
         Box::pin(async move {
             // Get dirty rect - if None, nothing to copy

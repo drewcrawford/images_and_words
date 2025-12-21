@@ -42,7 +42,7 @@ impl Port {
         internal.add_fixed_pass(descriptor).await;
     }
 
-    pub async fn render_frame(&mut self) {
+    pub async fn render_frame(&self) {
         //logwise::info_sync!("Rendering frame...");
         let internal = self
             .internal

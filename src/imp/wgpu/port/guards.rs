@@ -130,7 +130,6 @@ impl AcquiredGuards {
                         // This releases the CPU texture back to UNUSED state, allowing
                         // the producer to start writing the next frame's data.
                         drop(dirty_guard);
-                        drop(_copy_guard);
                     }
 
                     texture_guards.insert(*bind_index, Arc::new(gpu_access));

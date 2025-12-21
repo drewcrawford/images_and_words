@@ -96,7 +96,7 @@ use crate::multibuffer::Multibuffer;
 use crate::multibuffer::{CPUWriteGuard, GPUGuard};
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
+use std::ops::DerefMut;
 use std::sync::Arc;
 
 /// Indicates how frequently a dynamic buffer will be updated.

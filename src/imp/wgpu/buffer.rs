@@ -84,38 +84,6 @@ impl MappableBuffer2 {
         })
     }
 
-    /// Legacy constructor for compatibility.
-    /// Creates a buffer but ignores the initializer - use new_for_gpu_buffer instead.
-    pub async fn new<Initializer: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
-        bound_device: Arc<crate::images::BoundDevice>,
-        requested_size: usize,
-        _map_type: crate::bindings::buffer_access::MapType,
-        debug_name: &str,
-        _initialize_with: Initializer,
-    ) -> Result<Self, crate::imp::Error> {
-        // This path should not be used in the new design.
-        // Create a dummy buffer - the actual buffer will be set later.
-        // This is a compatibility shim that should be removed.
-        panic!(
-            "MappableBuffer2::new() is deprecated. Use GPUableBuffer::new_with_data() \
-             and MappableBuffer2::new_for_gpu_buffer() instead. Context: {}",
-            debug_name
-        );
-        #[allow(unreachable_code)]
-        Ok(MappableBuffer2 {
-            bound_device,
-            device_buffer: WgpuCell::new_on_thread(|| async { panic!("dummy buffer") }).await,
-            size: requested_size,
-            _debug_label: debug_name.to_string(),
-        })
-    }
-
-    pub fn as_slice(&self) -> &[u8] {
-        // This method should not be called in the new design.
-        // MappableBuffer2 no longer holds data - it writes directly to GPU.
-        panic!("MappableBuffer2::as_slice() is not supported with write_buffer_with design");
-    }
-
     /// Writes data directly to the GPU buffer via queue.write_buffer_with().
     ///
     /// This writes directly into the queue's staging buffer, eliminating
@@ -211,74 +179,6 @@ impl PartialEq for GPUableBuffer {
 }
 
 impl GPUableBuffer {
-    pub(super) async fn new_imp(
-        bound_device: Arc<crate::images::BoundDevice>,
-        size: usize,
-        debug_name: &str,
-        storage_type: StorageType,
-    ) -> Self {
-        let device_usage = BufferUsages::COPY_DST
-            | match storage_type {
-                StorageType::Uniform => BufferUsages::UNIFORM,
-                StorageType::Storage => BufferUsages::STORAGE,
-                StorageType::Vertex => BufferUsages::VERTEX,
-                StorageType::Index => BufferUsages::INDEX,
-            };
-
-        let device_debug_name = format!("{debug_name}_device");
-        let move_device = bound_device.clone();
-
-        // Create device buffer
-        let device_buffer = WgpuCell::new_on_thread(move || async move {
-            move_device.0.device().assume(move |device| {
-                let descriptor = BufferDescriptor {
-                    label: Some(&device_debug_name),
-                    size: size as u64,
-                    usage: device_usage,
-                    mapped_at_creation: false,
-                };
-                device.create_buffer(&descriptor)
-            })
-        })
-        .await;
-
-        GPUableBuffer {
-            device_buffer,
-            bound_device,
-            storage_type,
-        }
-    }
-
-    pub(crate) async fn new(
-        bound_device: Arc<crate::images::BoundDevice>,
-        size: usize,
-        usage: GPUBufferUsage,
-        debug_name: &str,
-    ) -> Self {
-        let debug_name = debug_name.to_string();
-        let move_bound_device = bound_device.clone();
-        let storage_type = smuggle("create buffer".to_string(), move || match usage {
-            GPUBufferUsage::VertexShaderRead | GPUBufferUsage::FragmentShaderRead => {
-                if move_bound_device
-                    .0
-                    .device()
-                    .assume(|c| c.limits())
-                    .max_uniform_buffer_binding_size as usize
-                    > size
-                {
-                    StorageType::Uniform
-                } else {
-                    StorageType::Storage
-                }
-            }
-            GPUBufferUsage::VertexBuffer => StorageType::Vertex,
-            GPUBufferUsage::Index => StorageType::Index,
-        })
-        .await;
-
-        Self::new_imp(bound_device, size, &debug_name, storage_type).await
-    }
-
     pub(super) fn storage_type(&self) -> StorageType {
         self.storage_type
     }
