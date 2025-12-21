@@ -144,7 +144,7 @@ fn main() {
                     z: (i * 3) as f32,
                     w: (i * 4) as f32,
                 };
-                write_guard.write(&[test_data], 0);
+                write_guard.write(&[test_data], 0).await;
 
                 drop(write_guard);
 

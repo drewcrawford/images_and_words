@@ -103,7 +103,7 @@ let uniforms = dynamic::buffer::Buffer::<CameraUniforms>::new(
     |_i| current_camera
 ).await.expect("Failed to create uniform buffer");
 let mut uniform_write = uniforms.access_write().await;
-uniform_write.write(&[current_camera], 0);
+uniform_write.write(&[current_camera], 0).await;
 uniform_write.async_drop().await;
 
 // Streaming vertices for particles
@@ -115,7 +115,7 @@ let particles = dynamic::buffer::Buffer::<Particle>::new(
     |i| active_particles[i]
 ).await.expect("Failed to create particle buffer");
 let mut particle_write = particles.access_write().await;
-particle_write.write(&active_particles, 0);
+particle_write.write(&active_particles, 0).await;
 particle_write.async_drop().await;
 
 // Render target for post-processing

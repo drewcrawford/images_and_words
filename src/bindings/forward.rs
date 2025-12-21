@@ -88,7 +88,7 @@ let uniforms = forward::dynamic::buffer::Buffer::<CameraMatrix>::new(
     |_i| camera_matrix
 ).await.expect("Failed to create uniform buffer");
 let mut uniform_write = uniforms.access_write().await;
-uniform_write.write(&[camera_matrix], 0);
+uniform_write.write(&[camera_matrix], 0).await;
 uniform_write.async_drop().await;
 
 // Static texture - loaded from file

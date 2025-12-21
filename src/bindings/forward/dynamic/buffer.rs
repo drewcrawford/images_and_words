@@ -75,7 +75,7 @@
 //!     x: 1.0,
 //!     y: 2.0,
 //!     z: 3.0,
-//! }], 0);
+//! }], 0).await;
 //! write_guard.async_drop().await;
 //! # }, "dynamic_buffer_creation_doctest");
 //! # }
@@ -257,12 +257,12 @@ impl<Element> CPUWriteAccess<'_, Element> {
     /// let mut write_guard = buffer.access_write().await;
     ///
     /// // Write 3 floats starting at index 5
-    /// write_guard.write(&[1.0, 2.0, 3.0], 5);
+    /// write_guard.write(&[1.0, 2.0, 3.0], 5).await;
     /// write_guard.async_drop().await;
     /// # }, "dynamic_buffer_write_doctest");
     /// # }
     /// ```
-    pub fn write(&mut self, data: &[Element], dst_offset: usize)
+    pub async fn write(&mut self, data: &[Element], dst_offset: usize)
     where
         Element: CRepr,
     {
@@ -270,7 +270,7 @@ impl<Element> CPUWriteAccess<'_, Element> {
         let bytes = unsafe {
             std::slice::from_raw_parts(data.as_ptr() as *const u8, std::mem::size_of_val(data))
         };
-        self.guard.deref_mut().write(bytes, offset);
+        self.guard.deref_mut().write(bytes, offset).await;
     }
 }
 
@@ -569,7 +569,7 @@ impl<Element> Buffer<Element> {
     /// let mut write_guard = buffer.access_write().await;
     ///
     /// // Update buffer contents
-    /// write_guard.write(&[1.0, 2.0, 3.0], 0);
+    /// write_guard.write(&[1.0, 2.0, 3.0], 0).await;
     /// write_guard.async_drop().await;
     ///
     /// // Guard automatically marks buffer as dirty when dropped

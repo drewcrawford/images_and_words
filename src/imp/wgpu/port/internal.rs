@@ -246,7 +246,7 @@ impl PortInternal {
                 ],
             };
             let mut write_guard = self.camera_buffer.access_write().await;
-            write_guard.write(&[camera_projection], 0);
+            write_guard.write(&[camera_projection], 0).await;
         }
     }
 
@@ -481,7 +481,6 @@ impl PortInternal {
             });
             queue.submit(std::iter::once(encoded));
         });
-        logwise::trace_sync!("submitted");
 
         if let Some(f) = frame {
             f.present();

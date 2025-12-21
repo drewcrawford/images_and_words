@@ -329,7 +329,7 @@ async fn run_animated_rendering_with_engine_arc(
                 sine_time: elapsed.sin(),
                 cosine_time: elapsed.cos(),
             };
-            uniform_guard.write(&[animation_data], 0);
+            uniform_guard.write(&[animation_data], 0).await;
             // Properly async drop the guard to unmap the resource
         }
 

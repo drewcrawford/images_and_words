@@ -121,7 +121,7 @@ impl MappableBuffer2 {
     /// This writes directly into the queue's staging buffer, eliminating
     /// an intermediate copy compared to queue.write_buffer().
     #[logwise::profile]
-    pub fn write(&mut self, data: &[u8], dst_offset: usize) {
+    pub async fn write(&mut self, data: &[u8], dst_offset: usize) {
         assert!(
             dst_offset + data.len() <= self.size,
             "Write out of bounds: offset {} + len {} > size {}",
@@ -130,25 +130,34 @@ impl MappableBuffer2 {
             self.size
         );
 
-        // Use write_buffer_with to get a staging buffer view and write directly
-        self.bound_device.0.queue().assume(|queue| {
-            self.device_buffer.assume(|device_buffer| {
-                if let Some(mut view) = queue.write_buffer_with(
-                    device_buffer,
-                    dst_offset as u64,
-                    std::num::NonZero::new(data.len() as u64).unwrap(),
-                ) {
-                    view.copy_from_slice(data);
-                    // View is dropped here, queuing the transfer
-                } else {
-                    // Fallback to write_buffer if write_buffer_with fails
-                    logwise::warn_sync!(
-                        "write_buffer_with returned None, falling back to write_buffer"
-                    );
-                    queue.write_buffer(device_buffer, dst_offset as u64, data);
-                }
-            });
-        });
+        // Copy data to owned Vec so it can be sent across threads
+        let data = data.to_vec();
+        let dst_offset = dst_offset as u64;
+
+        // Use WgpuCell::with() to run on the correct thread via smuggle
+        let queue = self.bound_device.0.queue();
+        let device_buffer = self.device_buffer.clone();
+
+        queue
+            .with(move |queue| {
+                device_buffer.assume(|device_buffer| {
+                    if let Some(mut view) = queue.write_buffer_with(
+                        device_buffer,
+                        dst_offset,
+                        std::num::NonZero::new(data.len() as u64).unwrap(),
+                    ) {
+                        view.copy_from_slice(&data);
+                        // View is dropped here, queuing the transfer
+                    } else {
+                        // Fallback to write_buffer if write_buffer_with fails
+                        logwise::warn_sync!(
+                            "write_buffer_with returned None, falling back to write_buffer"
+                        );
+                        queue.write_buffer(device_buffer, dst_offset, &data);
+                    }
+                });
+            })
+            .await;
     }
 
     pub async fn map_write(&mut self) {
@@ -297,7 +306,7 @@ impl GPUableBuffer {
 
     /// Copy from a MappableBuffer2 to this GPUableBuffer.
     ///
-    /// With the new write_buffer_with design, MappableBuffer2 writes directly
+    /// With the write_buffer_with design, MappableBuffer2 writes directly
     /// to the GPU buffer, so this is now a no-op.
     ///
     /// # Arguments
