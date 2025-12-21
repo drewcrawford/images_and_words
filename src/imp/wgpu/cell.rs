@@ -9,10 +9,30 @@ use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 
+// Thread ID abstraction for cross-platform tracking
+#[cfg(not(target_arch = "wasm32"))]
+type CellThreadId = std::thread::ThreadId;
+
+#[cfg(target_arch = "wasm32")]
+type CellThreadId = wasm_thread::ThreadId;
+
+#[cfg(not(target_arch = "wasm32"))]
+fn current_thread_id() -> CellThreadId {
+    std::thread::current().id()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn current_thread_id() -> CellThreadId {
+    wasm_thread::current().id()
+}
+
 #[derive(Debug)]
 struct Shared<T: 'static> {
     inner: Option<UnsafeSendCell<UnsafeSyncCell<T>>>,
     mutex: Mutex<()>,
+    /// Thread ID where this cell was created (for Tracked mode).
+    /// Only populated when WGPU_STRATEGY is Tracked.
+    creation_thread_id: Option<CellThreadId>,
 }
 
 impl<T> Drop for Shared<T> {
@@ -89,16 +109,24 @@ impl<T> WgpuCell<T> {
         //I don't think we actually need to verify the thread here?
         //we promise drop is correctly handled
         let cell = unsafe { UnsafeSendCell::new_unchecked(UnsafeSyncCell::new(t)) };
+
+        // Record creation thread for Tracked mode
+        let creation_thread_id = match WGPU_STRATEGY {
+            WGPUStrategy::Tracked => Some(current_thread_id()),
+            _ => None,
+        };
+
         WgpuCell {
             shared: Some(Arc::new(Shared {
                 inner: Some(cell),
                 mutex: Mutex::new(()),
+                creation_thread_id,
             })),
         }
     }
 
     #[inline]
-    pub fn verify_thread() {
+    fn verify_thread(&self) {
         match WGPU_STRATEGY {
             #[cfg(feature = "app_window")]
             WGPUStrategy::MainThread => {
@@ -117,11 +145,59 @@ impl<T> WgpuCell<T> {
             WGPUStrategy::Relaxed => {
                 // No verification needed
             }
+            WGPUStrategy::Tracked => {
+                let shared = self.shared.as_ref().unwrap();
+                if let Some(creation_id) = shared.creation_thread_id {
+                    let current_id = current_thread_id();
+                    assert!(
+                        creation_id == current_id,
+                        "WgpuCell accessed from thread {:?} but was created on thread {:?}",
+                        current_id,
+                        creation_id
+                    );
+                }
+            }
+        }
+    }
+
+    /// Helper for verifying thread when we only have a shared reference (for with/with_async closures)
+    #[inline]
+    fn verify_thread_for_shared(shared: &Option<Arc<Shared<T>>>) {
+        match WGPU_STRATEGY {
+            #[cfg(feature = "app_window")]
+            WGPUStrategy::MainThread => {
+                assert!(
+                    app_window::application::is_main_thread(),
+                    "WgpuCell accessed from non-main thread when strategy is MainThread"
+                );
+            }
+            #[cfg(feature = "app_window")]
+            WGPUStrategy::NotMainThread => {
+                assert!(
+                    !app_window::application::is_main_thread(),
+                    "WgpuCell accessed from main thread when strategy is NotMainThread"
+                );
+            }
+            WGPUStrategy::Relaxed => {
+                // No verification needed
+            }
+            WGPUStrategy::Tracked => {
+                let shared = shared.as_ref().unwrap();
+                if let Some(creation_id) = shared.creation_thread_id {
+                    let current_id = current_thread_id();
+                    assert!(
+                        creation_id == current_id,
+                        "WgpuCell accessed from thread {:?} but was created on thread {:?}",
+                        current_id,
+                        creation_id
+                    );
+                }
+            }
         }
     }
 
     pub fn lock(&self) -> WgpuGuard<'_, T> {
-        Self::verify_thread();
+        self.verify_thread();
         let guard = self.shared.as_ref().unwrap().mutex.lock().unwrap();
         let value = unsafe {
             let inner = self.shared.as_ref().unwrap().inner.as_ref().unwrap();
@@ -137,7 +213,7 @@ impl<T> WgpuCell<T> {
     where
         C: FnOnce(&T) -> R,
     {
-        Self::verify_thread();
+        self.verify_thread();
         let guard = self.shared.as_ref().unwrap().mutex.lock().unwrap();
         let r = c(unsafe {
             self.shared
@@ -161,7 +237,7 @@ impl<T> WgpuCell<T> {
     where
         C: AsyncFnOnce(&T) -> R,
     {
-        Self::verify_thread();
+        self.verify_thread();
         let guard = self.shared.as_ref().unwrap().mutex.lock().unwrap();
         let r = c(unsafe {
             self.shared
@@ -193,7 +269,7 @@ impl<T> WgpuCell<T> {
     {
         let shared = self.shared.clone();
         smuggle("WgpuCell::with".to_string(), move || {
-            Self::verify_thread();
+            Self::verify_thread_for_shared(&shared);
             let guard = shared.as_ref().unwrap().mutex.lock().unwrap();
             let r = c(unsafe { shared.as_ref().unwrap().inner.as_ref().unwrap().get().get() });
             drop(guard);
@@ -218,7 +294,7 @@ impl<T> WgpuCell<T> {
     {
         let shared = self.shared.clone();
         smuggle_async("WgpuCell::with".to_string(), move || async move {
-            Self::verify_thread();
+            Self::verify_thread_for_shared(&shared);
             let guard = shared.as_ref().unwrap().mutex.lock().unwrap();
             let r =
                 c(unsafe { shared.as_ref().unwrap().inner.as_ref().unwrap().get().get() }).await;

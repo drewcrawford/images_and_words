@@ -9,12 +9,16 @@ use logwise::context::Context;
 use some_executor::task::{Configuration, Task};
 
 #[derive(Debug)]
+#[allow(dead_code)] // Variants may be unused depending on target/features
 pub(crate) enum WGPUStrategy {
     #[cfg(feature = "app_window")]
     MainThread,
     #[cfg(feature = "app_window")]
     NotMainThread,
     Relaxed,
+    /// Track the creation thread and verify all accesses come from the same thread.
+    /// This is the default on wasm32 where state cannot be transferred across threads.
+    Tracked,
 }
 
 impl WGPUStrategy {
@@ -66,14 +70,20 @@ which is a bit complex to express in Rust.  How we do it is:
 pub const WGPU_STRATEGY: WGPUStrategy =
     WGPUStrategy::from_appwindow_strategy(app_window::WGPU_STRATEGY);
 
-#[cfg(not(feature = "app_window"))]
+#[cfg(all(not(feature = "app_window"), target_arch = "wasm32"))]
+pub const WGPU_STRATEGY: WGPUStrategy = WGPUStrategy::Tracked;
+
+#[cfg(all(not(feature = "app_window"), not(target_arch = "wasm32")))]
 pub const WGPU_STRATEGY: WGPUStrategy = WGPUStrategy::Relaxed;
 
 #[cfg(feature = "app_window")]
 pub const WGPU_SURFACE_STRATEGY: WGPUStrategy =
     WGPUStrategy::from_appwindow_strategy(app_window::WGPU_SURFACE_STRATEGY);
 
-#[cfg(not(feature = "app_window"))]
+#[cfg(all(not(feature = "app_window"), target_arch = "wasm32"))]
+pub const WGPU_SURFACE_STRATEGY: WGPUStrategy = WGPUStrategy::Tracked;
+
+#[cfg(all(not(feature = "app_window"), not(target_arch = "wasm32")))]
 pub const WGPU_SURFACE_STRATEGY: WGPUStrategy = WGPUStrategy::Relaxed;
 
 fn begin_strategy<F>(strategy: &WGPUStrategy, f: F)
@@ -120,6 +130,10 @@ where
             }
         }
         WGPUStrategy::Relaxed => {
+            f();
+        }
+        WGPUStrategy::Tracked => {
+            // Tracked mode just executes directly - the per-cell tracking happens in WgpuCell
             f();
         }
     }
