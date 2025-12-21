@@ -499,8 +499,11 @@ pub mod pixel_formats;
 mod send_phantom;
 mod stable_address_vec;
 
-/// Re-export of the Observer type for async value watching.
-pub use await_values::Observer;
+/// Re-export of the await_values crate for async value watching.
+///
+/// Provides types for observing and awaiting value changes, including
+/// [`Observer`](await_values::Observer) for watching values asynchronously.
+pub use await_values;
 
 /// Re-export of the vectormatrix crate for linear algebra operations.
 ///
