@@ -55,6 +55,8 @@ use images_and_words::images::shader::{FragmentShader, VertexShader};
 use images_and_words::images::view::View;
 use std::sync::Arc;
 
+logwise::declare_logging_domain!();
+
 use some_executor::task::{Configuration, Task};
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread;

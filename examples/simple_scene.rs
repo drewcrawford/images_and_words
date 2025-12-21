@@ -58,6 +58,7 @@ use std::sync::Arc;
 use std::thread;
 #[cfg(target_arch = "wasm32")]
 use wasm_thread as thread;
+logwise::declare_logging_domain!();
 
 // Note: In this simplified example, we generate vertex data procedurally in the
 // vertex shader rather than using vertex buffers. This demonstrates the basic
