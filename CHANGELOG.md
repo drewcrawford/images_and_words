@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+- **CPUWriteAccess::write() is now async** - As part of the buffer optimization work, the `write()` method on `CPUWriteAccess` now returns a Future and must be awaited. This enables direct writes to GPU staging buffers via `write_buffer_with()`, eliminating an intermediate copy. Update your buffer writes from `write_access.write(data, offset)` to `write_access.write(data, offset).await`.
+- **Removed Index trait from CPUWriteAccess** - You can no longer read from `CPUWriteAccess` using index notation (e.g., `write_access[0]`). The new design writes directly to GPU buffers without maintaining a CPU-side copy, making read access impossible. If you need to read buffer data, use a different buffer access pattern or maintain your own CPU-side copy.
+
 ### Added
 - **Tracked thread mode for WASM** - WgpuCell now tracks which thread created it and verifies all accesses come from the same thread on wasm32 targets. This catches threading bugs early instead of letting them cause mysterious hangs in the browser. The default strategy automatically picks the right mode for your platform—Tracked on WASM, Relaxed everywhere else.
 - **Broader await_values API export** - We now re-export the entire `await_values` crate instead of just the `Observer` type. This gives you access to all the value-watching goodness without manually adding the dependency to your Cargo.toml.
