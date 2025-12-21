@@ -140,7 +140,7 @@ impl PreparedPass {
             device.create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some(descriptor.name()),
                 bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[], //not yet supported
+                immediate_size: 0, //not yet supported
             })
         });
 
@@ -291,7 +291,7 @@ impl PreparedPass {
             depth_stencil: depth_state,
             multisample: multisample_state,
             fragment: Some(fragment_state),
-            multiview: None,
+            multiview_mask: None,
             cache: None, //todo, caching?
         };
         let pipeline = bind_device

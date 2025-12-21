@@ -94,7 +94,7 @@ impl PortInternal {
                     address_mode_w: wgpu::AddressMode::ClampToEdge,
                     mag_filter: wgpu::FilterMode::Linear,
                     min_filter: wgpu::FilterMode::Linear,
-                    mipmap_filter: wgpu::FilterMode::Linear,
+                    mipmap_filter: wgpu::MipmapFilterMode::Linear,
                     lod_min_clamp: 0.0,
                     lod_max_clamp: 14.0,
                     compare: None,
@@ -754,6 +754,7 @@ impl PortInternal {
             depth_stencil_attachment,
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         for (p, prepared) in self.prepared_passes.iter().enumerate() {
