@@ -4,7 +4,7 @@
 pub(crate) use crate::send_phantom::SendPhantom;
 
 /// Represents a dirty region of a texture that needs to be copied to the GPU.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DirtyRect {
     pub x: u16,
     pub y: u16,
