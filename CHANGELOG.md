@@ -5,6 +5,23 @@ All notable changes to images_and_words will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Tracked thread mode for WASM** - WgpuCell now tracks which thread created it and verifies all accesses come from the same thread on wasm32 targets. This catches threading bugs early instead of letting them cause mysterious hangs in the browser. The default strategy automatically picks the right mode for your platform—Tracked on WASM, Relaxed everywhere else.
+- **Broader await_values API export** - We now re-export the entire `await_values` crate instead of just the `Observer` type. This gives you access to all the value-watching goodness without manually adding the dependency to your Cargo.toml.
+- **New benchmarks** - Added frame texture acquisition benchmarks to help us (and you) track rendering pipeline performance over time.
+
+### Changed
+- **Blazing fast buffer and texture uploads** - Completely reworked how we handle GPU data transfers. Buffer writes now happen in-place using `write_buffer_with`, texture copies skip unnecessary staging buffers, and we've optimized the write paths to minimize allocations. In benchmarks, these changes shaved significant time off upload-heavy workloads.
+- **Port uses interior mutability** - The Port API now uses `&self` instead of `&mut self`, which fixes some gnarly hanging issues (particularly mt2-831) and makes the API more ergonomic. You can now share ports more freely without fighting the borrow checker.
+- **Upgraded to wgpu 28** - Brought in the latest wgpu release with its performance improvements and API refinements. This includes updates to pipeline layout descriptors (goodbye `push_constant_ranges`, hello `immediate_size`) and multiview handling.
+- **Dependency refresh** - Updated `test_executors` (0.4.0 → 0.4.1), `continue` (0.1.1 → 0.1.2), `app_window` (0.3.1 → 0.3.2), `send_cells` (0.2.0 → 0.2.1), and `logwise` (0.4.0 → 0.5.0). Staying fresh keeps the ecosystem happy.
+- **Better logging domains** - Added proper logwise logging domains throughout the codebase, making it easier to filter and understand what's happening during rendering.
+
+### Fixed
+- **WASM threading reliability** - The new Tracked mode catches thread-safety violations on WASM that previously led to silent hangs or cryptic browser errors. If you're accessing GPU state from the wrong thread, you'll now get a clear assertion instead of mysterious timeouts.
+
 ## [0.2.0] - 2025-11-29
 
 ### Added
