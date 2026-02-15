@@ -13,7 +13,7 @@ use crate::imp::Error;
 use crate::imp::wgpu::context::smuggle_async;
 use internal::PortInternal;
 use std::sync::Arc;
-use wasm_safe_mutex::Mutex;
+use wasm_safe_thread::Mutex;
 
 #[derive(Debug)]
 pub struct Port {
