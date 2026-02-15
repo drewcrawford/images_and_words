@@ -3,8 +3,7 @@
     "args": [
       "--headless=new",
       "--enable-unsafe-webgpu",
-      "--use-vulkan",
-      "--use-angle=vulkan",
+      "--use-vulkan=swiftshader",
       "--ignore-gpu-blocklist",
       "--remote-debugging-port=9222"
     ]
