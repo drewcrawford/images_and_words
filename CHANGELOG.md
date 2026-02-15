@@ -5,6 +5,15 @@ All notable changes to images_and_words will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **WASM thread model migration** - Continued migration to `wasm_safe_thread` internals to tighten correctness around thread-bound GPU state on WebAssembly targets.
+- **Chrome webdriver tuning for wasm-bindgen tests** - Updated `webdriver.json` flags for a setup that works in both local development and CI by using a SwiftShader Vulkan path.
+
+### Fixed
+- **Cross-environment WASM test stability** - Resolved a split-brain browser config where one flag set passed CI but failed locally (`./scripts/wasm32/tests`). Current flags now pass both local runs and Gitea CI.
+
 ## [0.3.0] - 2025-12-20
 
 ### Breaking Changes
