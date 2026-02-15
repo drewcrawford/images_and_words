@@ -2,11 +2,8 @@
   "goog:chromeOptions": {
     "args": [
       "--headless=new",
-      "--enable-unsafe-webgpu",
-      "--use-vulkan",
-      "--use-angle=vulkan",
-      "--ignore-gpu-blocklist",
       "--remote-debugging-port=9222"
+
     ]
   }
 }
