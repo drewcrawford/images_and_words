@@ -101,15 +101,9 @@ where
                 f();
             } else {
                 // If we're not on the main thread, we need to run it on the main thread executor.
-                // let hop_on_main_thread =
-                //     logwise::perfwarn_begin!("wgpu_begin_context hop_on_main_thread");
                 submit_to_main_thread("context_begin".to_string(), || {
-                    // drop(hop_on_main_thread);
-                    // let main_thread_closure =
-                    //     logwise::perfwarn_begin!("wgpu_begin_context main_thread_closure");
                     prior_context.set_current();
                     f();
-                    // drop(main_thread_closure);
                 });
             }
         }
@@ -164,7 +158,6 @@ where
         let c = logwise::context::Context::from_parent(parent_context);
         let prior_context = Context::current();
         c.set_current();
-        // logwise::info_sync!("smuggle {label}", label = label);
         let r = f();
         s.send(r);
         prior_context.set_current();
@@ -183,7 +176,6 @@ where
         let c = logwise::context::Context::from_parent(parent_context);
         let prior_context = Context::current();
         c.set_current();
-        // logwise::info_sync!("smuggle {label}", label = label);
         let r = f();
         s.send(r);
         prior_context.set_current();

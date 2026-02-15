@@ -5,7 +5,7 @@ All notable changes to images_and_words will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2025-12-20
 
 ### Breaking Changes
 - **CPUWriteAccess::write() is now async** - As part of the buffer optimization work, the `write()` method on `CPUWriteAccess` now returns a Future and must be awaited. This enables direct writes to GPU staging buffers via `write_buffer_with()`, eliminating an intermediate copy. Update your buffer writes from `write_access.write(data, offset)` to `write_access.write(data, offset).await`.
@@ -58,6 +58,7 @@ Initial release of images_and_words - GPU middleware that finds the sweet spot b
 - **Examples and documentation** - Get up and running with simple_scene and animated_scene
 - **Performance by default** - Automatic multibuffering, smart memory placement, and minimal synchronization overhead
 
-[Unreleased]: https://github.com/drewcrawford/images_and_words/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/drewcrawford/images_and_words/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/drewcrawford/images_and_words/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/drewcrawford/images_and_words/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/drewcrawford/images_and_words/releases/tag/v0.1.0

@@ -9,8 +9,6 @@ pub struct EntryPoint {
 }
 impl EntryPoint {
     pub async fn new() -> Result<Self, crate::imp::wgpu::Error> {
-        // logwise::info_sync!("wgpu::EntryPoint::new() started");
-        // logwise::info_sync!("About to create WgpuCell on thread...");
         let status = wgpu::util::is_browser_webgpu_supported().await;
         let cell = WgpuCell::new_on_thread(move || async move {
             // logwise::info_sync!("Hello from wgpu entry point!");
@@ -22,7 +20,8 @@ impl EntryPoint {
             );
             logwise::debuginternal_sync!("WebGPU status, {status}", status = status);
             if !status {
-                descriptor.backends.remove(wgpu::Backends::BROWSER_WEBGPU);
+                // Keep BROWSER_WEBGPU in the set: runtime support probes can report false in
+                // some headless browser configurations where adapter selection still requires it.
                 descriptor.backends.insert(wgpu::Backends::GL);
             }
             logwise::debuginternal_sync!(
