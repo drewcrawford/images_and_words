@@ -4,7 +4,7 @@
 use crate::bindings::dirty_tracking::{DirtyReceiver, DirtySender};
 use crate::images::projection::{Projection, WorldCoord};
 use std::sync::Arc;
-use wasm_safe_mutex::Mutex;
+use wasm_safe_thread::Mutex;
 
 ///Shared data between cameras instances
 #[derive(Debug, Clone)]

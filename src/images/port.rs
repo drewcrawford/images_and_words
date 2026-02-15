@@ -51,7 +51,7 @@ use await_values::{Observer, Value};
 use std::fmt::Formatter;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-use wasm_safe_mutex::Mutex;
+use wasm_safe_thread::Mutex;
 
 //for some reason we don't understand, using web_time here triggers
 //safari to reload the page eventually
@@ -242,7 +242,7 @@ pub struct Port {
     imp: crate::imp::Port,
     port_reporter: PortReporter,
     /// Render pass descriptors, wrapped in Mutex for interior mutability.
-    descriptors: wasm_safe_mutex::Mutex<Vec<PassDescriptor>>,
+    descriptors: wasm_safe_thread::Mutex<Vec<PassDescriptor>>,
     camera: Camera,
     engine: Arc<Engine>,
     stop_signal: DirtySender,
@@ -541,7 +541,7 @@ impl Port {
                 .await
                 .map_err(Error)?,
             port_reporter,
-            descriptors: wasm_safe_mutex::Mutex::new(Vec::new()),
+            descriptors: wasm_safe_thread::Mutex::new(Vec::new()),
             camera,
             engine: engine.clone(),
             stop_signal: DirtySender::new(false, "port_stop"),

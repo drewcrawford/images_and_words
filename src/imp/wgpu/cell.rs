@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 type CellThreadId = std::thread::ThreadId;
 
 #[cfg(target_arch = "wasm32")]
-type CellThreadId = wasm_thread::ThreadId;
+type CellThreadId = wasm_safe_thread::ThreadId;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn current_thread_id() -> CellThreadId {
@@ -23,7 +23,7 @@ fn current_thread_id() -> CellThreadId {
 
 #[cfg(target_arch = "wasm32")]
 fn current_thread_id() -> CellThreadId {
-    wasm_thread::current().id()
+    wasm_safe_thread::current().id()
 }
 
 #[derive(Debug)]
